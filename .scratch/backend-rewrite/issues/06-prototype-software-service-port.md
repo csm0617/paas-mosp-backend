@@ -12,6 +12,11 @@ Blocked by: 01, 04
 - 返回 JSON 与厂商 `/api/gaop/v1/software/overView`、`/v1/software` 的形状一致（diff 证据）
 - 分层落地正确：Trigger → API → Case → Domain ← Infrastructure；Repository 实现走 `infrastructure/adapter/repository/`，fabric8 调用走 `infrastructure/gateway/` + `infrastructure/adapter/port/`
 
+## 已有事实（先行验证，不重复做）
+
+具名端口在 **fabric8 7.9.0 模型层**已验证可正常反序列化（`docs/findings/named-port-fabric8-7.9.0.md`，2/2 用例通过）。
+本 ticket 要回答的是**真实集群数据**上是否还有别的不兼容字段，以及整条链路（Trigger→API→Case→Domain←Infrastructure）能否对齐厂商 JSON。
+
 ## 验收
 
 - `curl` 实测输出与厂商响应 diff 一致（贴证据）。
