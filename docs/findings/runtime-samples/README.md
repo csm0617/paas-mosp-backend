@@ -56,7 +56,7 @@ curl -s -c /tmp/gaop-cookies.txt -X POST "$P/v1/pub/login" \
 
 ## 语料库（2026-10-14 02:47 扩采）
 
-`tools/capture-vendor-samples.py` 按 `tools/vendor-endpoints.txt` 采了 **26 个只读端点**，清单与状态在 `manifest.json`：
+`tools/capture-vendor-samples.py` 按 `tools/vendor-sample-endpoints.txt` 采了 **26 个只读端点**，清单与状态在 `manifest.json`：
 
 - **200 且可直接用作基线**：`/audit`、`/audit/dictionaryList`、`/settings`、`/v1/user`、`/v1/role`、`/v1/role/list`、`/v1/lang/current`、`/v1/lang/version`、`/v1/licence`、`/v1/licence/info`、`/v1/mode/current`、`/v1/mode/list`、`/v1/backup/list`、`/v1/config_map`、`/v1/image/projectList`、`/v1/service`、`/v1/service/baseComponent`、`/v1/service/labels`、`/v1/software`
 - **500，因为缺必需参数**（不是环境坏）：`/v1/lang/detail`（缺 `lang`）、`/v1/database/users`（缺 `databaseName`）、`/v1/image/repositories`（缺 `storage`）、`/v1/config_map/relationService`
