@@ -22,7 +22,8 @@ public final class RoleListAssembler {
                 .build();
     }
 
-    private static RoleItemDTO toItemDTO(RoleEntity role) {
+    /** 战位实体 → 契约项；登录响应内嵌的 role 用的是**同一形状**（实测 16 键）。 */
+    public static RoleItemDTO toItemDTO(RoleEntity role) {
         return RoleItemDTO.builder()
                 .id(role.getId())
                 .key(role.getKey())

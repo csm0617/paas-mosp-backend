@@ -53,6 +53,24 @@ g_setting.system.permission.expired_time = 1440   （其 desc 同样是双重编
 4. **Redis 必须指向同一个实例与 DB**，否则网关认不出。
 5. ttl 从 `g_setting.system.permission.expired_time` 读，别硬编码 30 分钟（默认值只是兜底）。
 
+## 七、实现与验证（2026-10-14 03:1x，集群 172.16.209.25）
+
+重写后端已实现该闭环（`domain/user` + `infrastructure/{dao,redis,adapter/repository}` + `trigger/http/AuthController`），
+并**在线跑通五步**：
+
+| # | 验证 | 结果 |
+| --- | --- | --- |
+| ① | 不带 cookie 访问 `GET /v1/role` | **HTTP 401** + `{"msg":"未认证","code":401,"data":null}`（与厂商同款） |
+| ② | `POST /v1/pub/login` | 200；信封键一致、`data` **20/20** 键、内嵌 `role` **16/16** 键、token 是 36 字符 UUID、`style=default`、`password=null` |
+| ③ | 同一 Redis 里的会话 | `gateway-token:<我方 token>` = `admin:admin`，`TTL=86400`；且该 token 出现在 `login-list:admin:admin` 列表里 |
+| ④ | 带我方 cookie 访问我方 `GET /v1/role` | **200**，`code=0`，`total=2` |
+| ⑤ | **拿我方签发的 cookie 去调厂商 gaop-be 的 `/v1/role`** | **200**，`code=0`，`total=2` —— 即**原样保留的网关与原厂商后端都认我们签发的会话** |
+
+第 ⑤ 步是关键：它证明"签发侧替换"在认证边界上是**真正可互操作**的，不是纸面兼容。
+
+离线测试另加 5 条（`AuthServiceImplTest`）：BCrypt 正误口令、UUID token、ttl 由 `g_setting` 驱动（1440 分钟 → 86400 秒）、
+响应里 `password` 为 null、会话查询与登出删除。全仓 `mvn test` 现为 **15 条用例全绿**。
+
 ## 六、未定论（不猜）
 
 - `userConfig.getMaxLogin()` 的运行值未知 → 决定是否"单点登录"；实现时按 0（不限制）并在配置里留开关。

@@ -4,6 +4,7 @@ import com.csm.paas.core.domain.role.model.entity.RoleEntity;
 import com.csm.paas.core.domain.role.model.entity.RoleSoftwareEntity;
 
 import java.util.List;
+import java.util.Optional;
 
 /** 战位的本地仓储接口（实现放 infrastructure/adapter/repository，只调 dao）。 */
 public interface IRoleRepository {
@@ -11,6 +12,8 @@ public interface IRoleRepository {
     List<RoleEntity> queryOrderByCreatedAtDesc();
 
     long count();
+
+    Optional<RoleEntity> queryByKey(String key);
 
     List<RoleSoftwareEntity> querySoftwareByRoleId(String roleId);
 }

@@ -6,6 +6,7 @@ import com.csm.paas.core.domain.software.model.entity.ServiceListEntity;
 import com.csm.paas.core.domain.software.service.IServiceQueryService;
 import com.csm.paas.core.trigger.assembler.ServiceListAssembler;
 import jakarta.annotation.Resource;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -21,11 +22,15 @@ public class ServiceController {
     @Resource
     private IServiceQueryService serviceQueryService;
 
+    @Resource
+    private AuthSupport authSupport;
+
     @Value("${gaop.k8s.namespace:gaop-namespace}")
     private String namespace;
 
     @GetMapping("/v1/service")
-    public ResponseDTO<ServiceListResponseDTO> list() {
+    public ResponseDTO<ServiceListResponseDTO> list(HttpServletRequest request) {
+        authSupport.requireSession(request);
         ServiceListEntity entity = serviceQueryService.queryServiceList(namespace);
         return ResponseDTO.ok(ServiceListAssembler.toResponse(entity));
     }

@@ -57,6 +57,8 @@ Label: `wayfinder:map`
 
 - （事实）[认证最小闭环契约](docs/findings/12-auth-contract.md)：UUID token + `gateway-token:<uuid>`=`user:role` + `login-list:<user>:<role>` + cookie；两侧 `geneKey` 一致、同一 Redis；实测 TTL 86400s。工单 10 的实现已无障碍（"自带 vs 网关"由 ADR-0001 推导，待用户确认）。
 
+- （工单 10）[认证最小闭环已实现并验证](docs/findings/12-auth-contract.md)：登录/cookie/Redis 会话/401 语义全部照厂商；**厂商 gaop-be 认我方 cookie（200）**，互操作成立。
+
 ## Not yet specified
 
 <!-- 看得见、但还说不成一句精确问题的雾 -->

@@ -26,6 +26,11 @@ public class RoleRepository implements IRoleRepository {
     }
 
     @Override
+    public java.util.Optional<RoleEntity> queryByKey(String key) {
+        return java.util.Optional.ofNullable(roleDao.selectByKey(key)).map(this::toEntity);
+    }
+
+    @Override
     public long count() {
         return roleDao.selectCount();
     }

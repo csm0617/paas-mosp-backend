@@ -5,6 +5,7 @@ import com.csm.paas.core.api.dto.RoleListResponseDTO;
 import com.csm.paas.core.domain.role.service.IRoleQueryService;
 import com.csm.paas.core.trigger.assembler.RoleListAssembler;
 import jakarta.annotation.Resource;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -21,13 +22,18 @@ public class RoleController {
     @Resource
     private IRoleQueryService roleQueryService;
 
+    @Resource
+    private AuthSupport authSupport;
+
     @GetMapping
-    public ResponseDTO<RoleListResponseDTO> list() {
+    public ResponseDTO<RoleListResponseDTO> list(HttpServletRequest request) {
+        authSupport.requireSession(request);
         return ResponseDTO.ok(RoleListAssembler.toResponse(roleQueryService.queryRoleList()));
     }
 
     @GetMapping("/list")
-    public ResponseDTO<RoleListResponseDTO> listAll() {
+    public ResponseDTO<RoleListResponseDTO> listAll(HttpServletRequest request) {
+        authSupport.requireSession(request);
         return ResponseDTO.ok(RoleListAssembler.toResponse(roleQueryService.queryRoleList()));
     }
 }

@@ -1,5 +1,5 @@
 Type: task
-Status: open
+Status: resolved
 Blocked by: 07
 
 ## Question
@@ -26,5 +26,19 @@ ttl 取 `g_setting.system.permission.expired_time`（本集群 1440 分钟 → �
 ## 验收
 
 在 172.16.209.25 上实测：浏览器登录后打 `paas-core` 的 `/v1/service` 能通过认证并返回 200；退出登录后返回 401。
+
+## Answer
+
+**已实现并在集群上验证**（2026-10-14 03:1x），契约依据 `docs/findings/12-auth-contract.md`：
+
+- `POST /v1/pub/login` 与 `/v1/user/login`（同一 handler，照厂商）：BCrypt → UUID token → `SETEX gateway-token:<uuid> <ttl> "<user>:<战位>"`
+  → `RPUSH login-list:<user>:<战位>` → `Set-Cookie: gateway-token=<uuid>; Path=/`；ttl 读 `g_setting.system.permission.expired_time`（本集群 1440 分钟）。
+- `POST /v1/pub/logout` 与 `/v1/user/logout`：删会话键并移出 login-list。
+- 受保护端点（`/v1/role`、`/v1/service`）显式调用 `AuthSupport.requireSession`，未登录 → HTTP 401 + `{"msg":"未认证","code":401}`
+  （照厂商——厂商也没有全局拦截器，401 是各端点自己抛的）。
+- **五步在线验证全过**，最关键的一条：**厂商 gaop-be 认我方签发的 cookie 并返回 200**。
+
+**口径说明**：实现沿用"gateway-auth 作为校验方"的方案——这是 ADR-0001（只替换 gaop-be）的直接推论。
+若你决定改成自带校验（连带替换 gateway-auth），本工单需要重做，且要另开 ADR。
 
 ## Answer

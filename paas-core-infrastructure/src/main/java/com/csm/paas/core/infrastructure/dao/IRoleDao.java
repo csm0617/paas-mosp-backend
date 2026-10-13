@@ -15,6 +15,9 @@ public interface IRoleDao {
     @Select("SELECT id, `key`, name, `desc`, type, updated_at, created_at FROM g_role ORDER BY created_at DESC")
     List<RolePO> selectOrderByCreatedAtDesc();
 
+    @Select("SELECT id, `key`, name, `desc`, type, updated_at, created_at FROM g_role WHERE `key` = #{key}")
+    RolePO selectByKey(@Param("key") String key);
+
     @Select("SELECT COUNT(*) FROM g_role")
     long selectCount();
 
