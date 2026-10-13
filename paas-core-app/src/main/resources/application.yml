@@ -29,6 +29,9 @@ mybatis:
 gaop:
   k8s:
     namespace: ${GAOP_K8S_NAMESPACE:gaop-namespace}
+  auth:
+    # 同一 (用户,战位) 的并发会话上限；厂商默认 1（单点登录）
+    max-login: ${MAX_LOGIN:1}
 
 logging:
   level:

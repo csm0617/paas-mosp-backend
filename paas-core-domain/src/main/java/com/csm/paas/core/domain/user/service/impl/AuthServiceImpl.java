@@ -13,6 +13,7 @@ import com.csm.paas.core.types.enums.ResponseCode;
 import com.csm.paas.core.types.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.bcrypt.BCrypt;
 import org.springframework.stereotype.Service;
 
@@ -33,6 +34,13 @@ public class AuthServiceImpl implements IAuthService {
     private static final String EXPIRED_TIME_SETTING = "system.permission.expired_time";
     private static final int DEFAULT_EXPIRED_MINUTES = 30;
 
+    /**
+     * 同一 (用户,战位) 允许的并发会话数。厂商默认 **1**（`application.yml:125 max-login: ${MAX_LOGIN:1}`），
+     * 超出时会把最早的会话键 DEL 掉——**这是单点登录语义**，重写版必须一致，否则切换后并发行为会变。
+     */
+    @Value("${gaop.auth.max-login:1}")
+    private long maxLogin = 1L;
+
     private final IUserRepository userRepository;
     private final IRoleRepository roleRepository;
     private final IUserSessionRepository userSessionRepository;
@@ -52,7 +60,7 @@ public class AuthServiceImpl implements IAuthService {
         int expiredMinutes = settingRepository.queryIntValue(EXPIRED_TIME_SETTING, DEFAULT_EXPIRED_MINUTES);
         long ttlSeconds = expiredMinutes * 60L;
         SessionVO session = SessionVO.builder().username(username).roleKey(roleKey).build();
-        userSessionRepository.save(token, session, ttlSeconds, 0L);
+        userSessionRepository.save(token, session, ttlSeconds, maxLogin);
         log.info("登录成功 username:{} 战位:{} ttl:{}s", username, roleKey, ttlSeconds);
 
         UserEntity safeUser = UserEntity.builder()

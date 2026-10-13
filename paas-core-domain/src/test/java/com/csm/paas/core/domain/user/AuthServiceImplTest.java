@@ -60,8 +60,9 @@ class AuthServiceImplTest {
         assertNull(result.getUser().getPassword(), "响应里口令必须为 null（厂商行为）");
         assertEquals("admin", result.getUser().getLastLoginRole());
 
+        // 厂商默认 max-login=1（单点登录）：超出会把最早会话 DEL 掉
         verify(sessionRepository).save(eq(result.getToken()),
-                any(SessionVO.class), eq(86400L), eq(0L));
+                any(SessionVO.class), eq(86400L), eq(1L));
     }
 
     @Test

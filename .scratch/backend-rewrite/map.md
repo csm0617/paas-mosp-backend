@@ -80,6 +80,9 @@ Label: `wayfinder:map`
 - （A/B 对照·重要）[我们的后端与厂商渲染等价](docs/findings/19-three-endpoints-and-ab-comparison.md)：同一份前端分别指向两个后端，`/software/workloads` 的渲染结果**完全一样**（都无内容区、都弹引导、STOMP 都连上、API 都 200）。"内容区为空"**不是我们的实现造成的**；原因未定论（疑似本地 harness 不支持 WS 升级）。
 - （已补）`/v1/role/software`、`/v1/pub/etcd_label/check`、`/v1/image/projectList`（Harbor 域，如实返回空）。
 
+- （A/B·最终对照）[支持 WS 升级后 A/B 仍一致](docs/findings/20-ab-parity-with-websocket.md)：真实 WebSocket 升级 + 端点全 200 + 会话有效的前提下，我们与厂商**渲染与行为完全一致**（含"内容区为空"）。新工具 `tools/frontend-e2e-harness.mjs`（Node 零依赖，支持 WS 透传）。
+- （契约差异·已修）**`max-login` 默认 1（单点登录）**：厂商 `application.yml:125` 默认 1，超出会 DEL 最早会话；我们此前传 0（不限制）。已改为默认 1 并加单测断言。
+
 ## Not yet specified
 
 <!-- 看得见、但还说不成一句精确问题的雾 -->
