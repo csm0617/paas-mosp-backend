@@ -124,6 +124,26 @@ K1 端点总数 **63**（`UserController` 25 + `RoleController` 28 + `SubRoleCon
 `PUT /v1/user/{userId}`（修改，含"非超管不可改超管"）、`POST /v1/user/userToRole`。
 开工前要补一次探针：`birth` 的序列化格式（`date` 列 vs 厂商 `java.util.Date`）。
 
+### 下一轮开工前的取证（2026-10-14 已实测，直接可用）
+
+**`birth` 的契约（探针实测，双向都定了）**：
+
+- **请求**：必须是 **epoch 毫秒数字**。发 `"2000-01-02"`（date-only 字符串）→ 厂商
+  `HttpMessageNotReadableException` → **HTTP 500 / `code:-1` / "系统错误"**；
+  发 `946771200000` → 成功。
+- **响应**：**ISO-8601 UTC 字符串**，如 `"2000-01-01T16:00:00.000Z"`
+  （本地 2000-01-02 零点 → UTC 前一天的 16:00；`g_user.birth` 是 `date` 列，存的是日期）。
+  ⇒ 重写版应把 `birth` 建模为 `java.util.Date`（与厂商同类型），让 Jackson 用 Boot 默认的
+  `WRITE_DATES_AS_TIMESTAMPS=false` 输出同样的 ISO 串。
+
+**`POST /v1/user` 的请求契约**：`{username,password,nickname,status,email,birth,phone,desc,avatar,roleListKey[],userListKey[],subRoleListId[]}`；
+`roleListKey` **必须给**（缺了会 NPE，见 `findings/30` §5），`userListKey`/`subRoleListId` 可省。
+**响应**：完整的 `User`（14 键，**含 `password` 哈希与已分配的 `uuid`**）。
+
+**`add` 的业务规则**（`UserService.java:450-545`）：用户名去空格后判空/字符黑名单/长度 2~36；
+口令去空格后长度 6~36；email ≤36；desc 空白→null、≤255；`uuid` 取 0..254 中最小未占用值、
+用户数 >256 抛 `user.data.limit.exceeded`；口令 BCrypt；avatar 缺省用 `classpath:icon/avatar` 的内容。
+
 ## 3b 战位页（`/usermanage/role`）开工前的取证结论（2026-10-14，已备齐，直接可写）
 
 数据源 = `GET /v1/role/switchRole?page&size&roleName&type`（`type` 1=战位 2=角色），**样本已抓**：
