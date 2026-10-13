@@ -42,6 +42,11 @@ public class RoleRepository implements IRoleRepository {
     }
 
     @Override
+    public List<RoleEntity> queryByUsernameAndType(String username, int type) {
+        return roleDao.selectByUsernameAndType(username, type).stream().map(this::toEntity).toList();
+    }
+
+    @Override
     public Optional<RoleEntity> queryByKey(String key) {
         return Optional.ofNullable(roleDao.selectByKey(key)).map(this::toEntity);
     }

@@ -1,6 +1,11 @@
 package com.csm.paas.core.domain.user.service.impl;
 
+import com.csm.paas.core.domain.role.adapter.repository.IRoleRepository;
+import com.csm.paas.core.domain.role.model.entity.RoleEntity;
+import com.csm.paas.core.domain.role.service.RolePortalSupport;
+import com.csm.paas.core.domain.subrole.adapter.repository.ISubRoleRepository;
 import com.csm.paas.core.domain.user.adapter.repository.IUserRepository;
+import com.csm.paas.core.domain.user.model.entity.UserDetailEntity;
 import com.csm.paas.core.domain.user.model.entity.UserEntity;
 import com.csm.paas.core.domain.user.model.entity.UserInfoEntity;
 import com.csm.paas.core.domain.user.model.entity.UserInfoPageEntity;
@@ -46,8 +51,11 @@ public class UserQueryServiceImpl implements IUserQueryService {
     private static final int ROLE_TYPE_POSITION = 1;
     /** 角色（`g_role.type` = 2）——厂商把它填进 `belongUsers`。 */
     private static final int ROLE_TYPE_ROLE = 2;
+    private static final String ADMIN_ROLE_KEY = "admin";
 
     private final IUserRepository userRepository;
+    private final IRoleRepository roleRepository;
+    private final ISubRoleRepository subRoleRepository;
 
     @Override
     public UserInfoPageEntity queryUserInfoPage(int page, int size, String keyword) {
@@ -82,5 +90,51 @@ public class UserQueryServiceImpl implements IUserQueryService {
                 .subRoles(subRoleNames == null || subRoleNames.isEmpty() ? null : subRoleNames)
                 .belongUsers(userRepository.queryRoleNamesByUsernameAndType(u.getUsername(), ROLE_TYPE_ROLE))
                 .build();
+    }
+
+    /**
+     * 用户详情（厂商 `UserService.getUserDetail`，`:1756-1778`）。
+     * <p>厂商顺序：先填基本字段，再取 type=1 的 `roles`、type=2 的 `belongRole`、用户的 `subRoles`，
+     * 最后 `admin` = `roles` 里是否有 key=`admin`（`hasAdminPermission`，`:851-861`）。
+     * <p>`roles`/`belongRole` 走的是 `RoleService.listByRoleType` ⇒ **带软件列表与 admin/dev 伪门户**；
+     * `subRoles` 走 `SubRoleService.listByUserId` ⇒ **不填** userList/roleList（JSON 里是 null）。
+     */
+    @Override
+    public UserDetailEntity queryDetailById(String userId) {
+        UserEntity user = userRepository.queryById(userId)
+                .orElseThrow(() -> new WrongArgumentException("user.missing.user"));
+
+        List<RoleEntity> roles = rolesByType(user.getUsername(), ROLE_TYPE_POSITION);
+        List<RoleEntity> belongRole = rolesByType(user.getUsername(), ROLE_TYPE_ROLE);
+
+        return UserDetailEntity.builder()
+                .id(user.getId())
+                .username(user.getUsername())
+                .nickname(user.getNickname())
+                .status(user.getStatus())
+                .email(user.getEmail())
+                .birth(user.getBirth())
+                .phone(user.getPhone())
+                .updatedAt(user.getUpdatedAt())
+                .createdAt(user.getCreatedAt())
+                .desc(user.getDesc())
+                .avatar(user.getAvatar())
+                .lastLoginRole(user.getLastLoginRole())
+                .uuid(user.getUuid())
+                .roles(roles)
+                .subRoles(subRoleRepository.queryByUserId(userId))
+                .admin(roles.stream().anyMatch(r -> ADMIN_ROLE_KEY.equals(r.getKey())))
+                .belongRole(belongRole)
+                .build();
+    }
+
+    private List<RoleEntity> rolesByType(String username, int type) {
+        List<RoleEntity> roles = roleRepository.queryByUsernameAndType(username, type);
+        roles.forEach(role -> {
+            role.setSoftwareList(roleRepository.querySoftwareByRoleId(role.getId()));
+            RolePortalSupport.applyPortalOverride(role);
+            RolePortalSupport.applyFlags(role);
+        });
+        return roles;
     }
 }

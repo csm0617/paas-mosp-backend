@@ -31,6 +31,15 @@ public interface ISubRoleDao {
             """)
     List<SubRolePO> selectPageOrderByCreatedAtDesc(@Param("offset") int offset, @Param("size") int size);
 
+    /** 某用户关联的子角色（厂商 `SubRoleService.listByUserId`）。 */
+    @Select("""
+            SELECT sr.id, sr.`key`, sr.name, sr.`desc`, sr.updated_at, sr.created_at
+            FROM g_user_sub_role usr
+            JOIN g_sub_role sr ON sr.id = usr.sub_role_id
+            WHERE usr.user_id = #{userId}
+            """)
+    List<SubRolePO> selectByUserId(@Param("userId") String userId);
+
     @Select("SELECT COUNT(*) FROM g_sub_role")
     long selectCount();
 

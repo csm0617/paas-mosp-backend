@@ -165,6 +165,52 @@ class K1UserInfoContractTest {
         assertEquals(java.util.List.of(), item.get("roleList"));
     }
 
+    /**
+     * `GET /v1/user/detailByUserId`：17 键，且**同名不同形状**——
+     * `roles`/`belongRole` 是 Role 对象（16 键）、`subRoles` 是 SubRole 对象（10 键，且 userList/roleList 为 null），
+     * 与 `/v1/user/info` 里的字符串数组完全不同。
+     */
+    @Test
+    void detailByUserIdReturnsVendorShapedDetail() {
+        ResponseEntity<Map> res = rest.getForEntity("/v1/user/detailByUserId?userId=" + ADMIN_USER_ID, Map.class);
+
+        assertEquals(HttpStatus.OK, res.getStatusCode());
+        Map<String, Object> body = res.getBody();
+        assertNotNull(body);
+        assertEquals(Set.of("id", "username", "nickname", "status", "email", "birth", "phone",
+                        "updatedAt", "createdAt", "desc", "avatar", "lastLoginRole", "uuid",
+                        "roles", "subRoles", "admin", "belongRole"),
+                keys(body.get("data")), "厂商就是 17 个键");
+
+        Map<String, Object> data = (Map<String, Object>) body.get("data");
+        assertEquals(true, data.get("admin"), "admin 有 admin 战位");
+        java.util.List<Map<String, Object>> roles = (java.util.List<Map<String, Object>>) data.get("roles");
+        assertEquals(1, roles.size(), "只有 type=1 的战位进 roles");
+        assertEquals(16, roles.get(0).size(), "内嵌 role 是 16 键对象");
+        assertEquals("admin", roles.get(0).get("key"));
+        java.util.List<Map<String, Object>> software =
+                (java.util.List<Map<String, Object>>) roles.get(0).get("softwareList");
+        assertEquals("运维管理员门户", software.get(0).get("appName"), "admin 的伪门户覆盖");
+
+        java.util.List<Map<String, Object>> belong = (java.util.List<Map<String, Object>>) data.get("belongRole");
+        assertEquals(1, belong.size(), "type=2 的角色进 belongRole");
+        assertEquals("user", belong.get(0).get("key"));
+
+        java.util.List<Map<String, Object>> subRoles = (java.util.List<Map<String, Object>>) data.get("subRoles");
+        assertEquals(1, subRoles.size());
+        assertEquals(10, subRoles.get(0).size(), "子角色是 10 键对象");
+        assertNull(subRoles.get(0).get("userList"), "listByUserId 不填 userList → null");
+        assertNull(subRoles.get(0).get("roleList"), "同上");
+    }
+
+    @Test
+    void detailByUserIdRejectsUnknownUserWithVendorMessage() {
+        ResponseEntity<Map> res = rest.getForEntity("/v1/user/detailByUserId?userId=nope", Map.class);
+
+        assertEquals(HttpStatus.BAD_REQUEST, res.getStatusCode());
+        assertEquals("找不到该用户", res.getBody().get("msg"), "user.missing.user（不是 user.not.found）");
+    }
+
     @Test
     void unmappedPathStaysSpring404NotEnvelope() {        ResponseEntity<Map> res = rest.getForEntity("/v1/definitely_not_mapped_xyz", Map.class);
 

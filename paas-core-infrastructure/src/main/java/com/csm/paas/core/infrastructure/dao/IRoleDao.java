@@ -80,6 +80,16 @@ public interface IRoleDao {
     @Select("SELECT sub_role_id FROM g_sub_role_role WHERE role_id = #{roleId}")
     List<String> selectSubRoleIdsByRoleId(@Param("roleId") String roleId);
 
+    @Select("""
+            SELECT r.id, r.`key`, r.name, r.`desc`, r.type, r.updated_at, r.created_at
+            FROM g_role r
+            JOIN g_user_role ur ON ur.role_id = r.id
+            JOIN g_user u ON u.id = ur.user_id
+            WHERE u.username = #{username} AND r.type = #{type}
+            ORDER BY r.created_at DESC
+            """)
+    List<RolePO> selectByUsernameAndType(@Param("username") String username, @Param("type") int type);
+
     @Select("SELECT COUNT(*) FROM g_role")
     long selectCount();
 

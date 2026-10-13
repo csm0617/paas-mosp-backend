@@ -20,6 +20,12 @@ public interface IRoleRepository {
     /** 某用户关联的战位（厂商 `RoleService.java:369` 的三表 join；该分支**不分页**）。 */
     List<RoleEntity> queryByUsername(String username);
 
+    /**
+     * 某用户关联的、指定类型的战位/角色（厂商 `RoleService.listByRoleType`，`:321-331`）。
+     * <p>用于 `GET /v1/user/detailByUserId` 的 `roles`(type=1) 与 `belongRole`(type=2)。
+     */
+    List<RoleEntity> queryByUsernameAndType(String username, int type);
+
     Optional<RoleEntity> queryByKey(String key);
 
     Optional<RoleEntity> queryById(String id);

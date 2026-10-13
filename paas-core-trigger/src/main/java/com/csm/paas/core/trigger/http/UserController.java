@@ -3,6 +3,7 @@ package com.csm.paas.core.trigger.http;
 import com.csm.paas.core.api.dto.ResponseDTO;
 import com.csm.paas.core.api.dto.LoginUserDTO;
 import com.csm.paas.core.api.dto.UserDTO;
+import com.csm.paas.core.api.dto.UserDetailDTO;
 import com.csm.paas.core.api.dto.UserFormDTO;
 import com.csm.paas.core.api.dto.UserInfoListResponseDTO;
 import com.csm.paas.core.api.dto.UserLoginItemDTO;
@@ -18,6 +19,7 @@ import com.csm.paas.core.domain.user.service.IUserCommandService;
 import com.csm.paas.core.domain.user.service.IUserQueryService;
 import com.csm.paas.core.trigger.assembler.LoginAssembler;
 import com.csm.paas.core.trigger.assembler.UserAssembler;
+import com.csm.paas.core.trigger.assembler.UserDetailAssembler;
 import com.csm.paas.core.trigger.assembler.UserInfoAssembler;
 import com.csm.paas.core.types.enums.ResponseCode;
 import com.csm.paas.core.types.exception.BusinessException;
@@ -74,6 +76,17 @@ public class UserController {
         String normalizedKeyword = keyword == null ? null : keyword.replaceAll(" +", "");
         return ResponseDTO.ok(UserInfoAssembler.toResponse(
                 userQueryService.queryUserInfoPage(normalizedPage, normalizedSize, normalizedKeyword)));
+    }
+
+    /**
+     * 厂商 `GET /v1/user/detailByUserId?userId=`：用户详情（**用户管理编辑抽屉的前置**）。
+     * <p>17 个键；`roles`/`belongRole` 是 **Role 对象**、`subRoles` 是 SubRole 对象——
+     * 与 `/v1/user/info` 里同名的字符串数组**不是同一个形状**（见 `docs/findings/25`）。
+     * <p>不存在时抛 `user.missing.user`（厂商 `UserService.java:1753`）。**公开**（厂商不校验会话）。
+     */
+    @GetMapping("/v1/user/detailByUserId")
+    public ResponseDTO<UserDetailDTO> userDetailByUserId(@RequestParam String userId) {
+        return ResponseDTO.ok(UserDetailAssembler.toResponse(userQueryService.queryDetailById(userId)));
     }
 
     /**

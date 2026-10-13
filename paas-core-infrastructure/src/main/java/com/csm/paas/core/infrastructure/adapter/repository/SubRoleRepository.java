@@ -49,6 +49,11 @@ public class SubRoleRepository implements ISubRoleRepository {
     }
 
     @Override
+    public List<SubRoleEntity> queryByUserId(String userId) {
+        return subRoleDao.selectByUserId(userId).stream().map(this::toEntity).toList();
+    }
+
+    @Override
     public List<SubRoleEntity> queryByIds(List<String> ids) {
         if (ids == null || ids.isEmpty()) {
             return List.of();

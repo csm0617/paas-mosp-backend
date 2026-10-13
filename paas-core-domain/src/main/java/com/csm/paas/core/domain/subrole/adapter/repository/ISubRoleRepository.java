@@ -17,6 +17,12 @@ public interface ISubRoleRepository {
     /** 按名称模糊（厂商 `:194` 的 `LIKE` 分支；该分支**不分页**）。 */
     List<SubRoleEntity> queryByNameLike(String likeKeyword);
 
+    /**
+     * 某用户关联的子角色（厂商 `SubRoleService.listByUserId`，`SubRoleServiceImpl.java:305-316`）：
+     * 按 `g_user_sub_role` 逐条取子角色，**不填 `userList`/`roleList`**（所以那两个键在 JSON 里是 null）。
+     */
+    List<SubRoleEntity> queryByUserId(String userId);
+
     /** 子角色关联的用户（厂商 `getRoleUser`，`SubRoleServiceImpl.java:206-217`）。 */
     List<SubRoleUserVO> queryUsersBySubRoleId(String subRoleId);
 

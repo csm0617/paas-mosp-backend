@@ -1,5 +1,8 @@
 package com.csm.paas.core.domain.user;
 
+import com.csm.paas.core.domain.role.adapter.repository.IRoleRepository;
+import com.csm.paas.core.domain.role.model.entity.RoleEntity;
+import com.csm.paas.core.domain.subrole.adapter.repository.ISubRoleRepository;
 import com.csm.paas.core.domain.user.adapter.repository.IUserRepository;
 import com.csm.paas.core.domain.user.model.entity.UserEntity;
 import com.csm.paas.core.domain.user.model.entity.UserInfoPageEntity;
@@ -30,9 +33,45 @@ import static org.mockito.Mockito.when;
 class UserQueryServiceImplTest {
 
     private final IUserRepository userRepository = mock(IUserRepository.class);
+    private final IRoleRepository roleRepository = mock(IRoleRepository.class);
+    private final ISubRoleRepository subRoleRepository = mock(ISubRoleRepository.class);
 
     private UserQueryServiceImpl service() {
-        return new UserQueryServiceImpl(userRepository);
+        return new UserQueryServiceImpl(userRepository, roleRepository, subRoleRepository);
+    }
+
+    /**
+     * 用户详情：`roles`(type=1) 与 `belongRole`(type=2) 都要带软件列表与 admin/dev 伪门户，
+     * `subRoles` 来自 `g_user_sub_role`，`admin` 由 roles 里是否有 `admin` 推导。
+     * 规则来源：厂商 `UserService.getUserDetail`（`UserService.java:1756-1778`）。
+     */
+    @Test
+    void detailFillsRolesBelongRoleSubRolesAndAdminFlag() {
+        when(userRepository.queryById("u1")).thenReturn(java.util.Optional.of(
+                UserEntity.builder().id("u1").username("admin").nickname("管理员").status(1).build()));
+        when(roleRepository.queryByUsernameAndType("admin", 1)).thenReturn(java.util.List.of(
+                RoleEntity.builder().id("r-admin").key("admin").name("运维管理员门户").type(1).build()));
+        when(roleRepository.queryByUsernameAndType("admin", 2)).thenReturn(java.util.List.of());
+        when(roleRepository.querySoftwareByRoleId("r-admin")).thenReturn(java.util.List.of());
+        when(subRoleRepository.queryByUserId("u1")).thenReturn(java.util.List.of());
+
+        var detail = service().queryDetailById("u1");
+
+        assertEquals(1, detail.getRoles().size());
+        assertEquals(1, detail.getRoles().get(0).getSoftwareList().size(), "admin 的伪门户覆盖");
+        assertEquals("运维管理员门户", detail.getRoles().get(0).getSoftwareList().get(0).getAppName());
+        assertTrue(detail.getAdmin(), "roles 里有 admin → admin=true");
+        assertTrue(detail.getBelongRole().isEmpty());
+        assertTrue(detail.getSubRoles().isEmpty());
+    }
+
+    @Test
+    void detailThrowsVendorKeyWhenUserMissing() {
+        when(userRepository.queryById("nope")).thenReturn(java.util.Optional.empty());
+
+        WrongArgumentException e = assertThrows(WrongArgumentException.class,
+                () -> service().queryDetailById("nope"));
+        assertEquals("user.missing.user", e.getI18nKey(), "厂商抛的是 user.missing.user（不是 user.not.found）");
     }
 
     @Test

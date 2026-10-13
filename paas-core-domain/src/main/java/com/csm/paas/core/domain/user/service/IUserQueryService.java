@@ -13,4 +13,10 @@ public interface IUserQueryService {
      * @param keyword 用户名关键字（调用方已去空格；可为 null）
      */
     UserInfoPageEntity queryUserInfoPage(int page, int size, String keyword);
+
+    /**
+     * 用户详情（厂商 `GET /v1/user/detailByUserId`）。
+     * <p>不存在时抛 `user.missing.user`（厂商 `UserService.java:1753`——注意不是 `user.not.found`）。
+     */
+    com.csm.paas.core.domain.user.model.entity.UserDetailEntity queryDetailById(String userId);
 }

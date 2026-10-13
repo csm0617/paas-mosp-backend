@@ -126,6 +126,11 @@ Label: `wayfinder:map`
   - 照抄不修好：厂商的用户名"非法字符"检查是**死代码**（`matches()` 配字符类 → 只有单字符才命中，而长度校验已拒掉长度 1）→ `a@b#c` 能通过，已用单测锁住。
   - （有意偏离）厂商 `add` 无事务、缺 `roleListKey` 会留半成品用户；我们整个用例一个事务、缺字段按空处理。
 
+- （**切片 3a 读路径·用户详情**）[GET /v1/user/detailByUserId](docs/findings/32-user-detail-endpoint.md)：与厂商**整体 JSON 相等**（17 键、含嵌套 Role 对象）；不存在用户 → 400 `user.missing.user`（"找不到该用户"，不是 `user.not.found`）。
+  - 本轮的看点仍是**同名不同形状**：`/v1/user/info` 的 `roles` 是**字符串数组**、`belongRole` 叫 `belongUsers`；而详情端点的 `roles`/`belongRole` 是 **Role 对象**、另有 `admin` 布尔——两个端点**不能共用 DTO**。
+  - 小重构：把 admin/dev 伪门户覆盖 + 三个布尔提成 `RolePortalSupport` 共用，避免两处各写一遍后分叉；同时保留 `/v1/role/{id}` 不覆盖的差异。
+  - （待办）页面级"点编辑开抽屉"的交互链路还没跑过真实前端；`PUT /v1/user/{userId}` 下一轮（规则已读齐，含"厂商强制写回 email/birth/phone ⇒ 改不动"这条）。
+
 ## Not yet specified
 
 <!-- 看得见、但还说不成一句精确问题的雾 -->
