@@ -1,0 +1,72 @@
+Type: slice
+Status: in progress (2026-10-14 开工)
+Blocked by: 07（已落 ADR-0005）、08（已落 ADR-0006）、10（认证闭环已完成）
+
+## 目标
+
+按 [ADR-0005](../../docs/adr/0005-slice-order-and-cutover.md) 的顺序表，实现**序 3：用户 / 战位（K1 主体）**，并满足该 ADR 的域"完成"四条。
+
+## 范围（我自己独立从 `02-contract-baseline.json` 提取，非转述）
+
+K1 端点总数 **63**（`UserController` 25 + `RoleController` 28 + `SubRoleController` 10 + `RegisterController` 1）：
+**前端有调用者 45**，**无调用者 18**。
+
+**本切片只做 45 个"前端有调用者"的端点**——依据 ADR-0004：无调用者在门槛内可改，不属硬边界，留到最后（或永不做）。
+
+### 3a 用户（`/usermanage/account`，`GET /v1/user` 的消费页）
+
+读：`GET /v1/user/{roleId}/users`、`GET /v1/user/detailByUserId`、`GET /v1/user/info`、`GET /v1/user/tenx_user`、`GET /v1/user/get`、`GET /v1/user`
+写：`POST /v1/user`、`PUT /v1/user/{userId}`、`DELETE /v1/user/{userId}`、`DELETE /v1/user/all_user`、`POST /v1/user/userToRole`、`POST /v1/user/login`、`POST /v1/user/logout`
+批量：`POST /v1/user/import`、`GET /v1/user/import/template`、`POST /v1/user/backup`
+
+### 3b 战位（`/usermanage/role`）
+
+读：`GET /v1/role`、`GET /v1/role/list`、`GET /v1/role/{id}`、`GET /v1/role/switchRole`、`GET /v1/role/{roleId}/software`、`GET /v1/role/software`
+写：`POST /v1/role`、`PUT /v1/role/{id}`、`DELETE /v1/role`、`POST /v1/role/{roleId}/users`、`DELETE /v1/role/{roleId}/{userId}`、`POST /v1/role/{roleId}/suRoles`、`POST /v1/role/{roleId}/software`、`PUT /v1/role/{roleId}/software`、`DELETE /v1/role/{roleId}/app/{appId}`
+批量：`POST /v1/role/import`、`GET /v1/role/import/template`、`POST /v1/role/backup`
+
+### 3c 子角色（`/usermanage/subrole`）
+
+读：`GET /v1/sub_role/{id}`、`GET /v1/sub_role/switchRole`
+写：`POST /v1/sub_role`、`PUT /v1/sub_role/update`、`DELETE /v1/sub_role/delete`、`POST /v1/sub_role/userAddRole/{userId}`、`POST /v1/sub_role/roleAddUser/{roleId}`
+批量：`POST /v1/sub_role/import`、`GET /v1/sub_role/import/template`、`POST /v1/sub_role/export`
+
+### 另记
+
+`GET /register/ip/harbor` 归在 K1 的端点表里（`RegisterController` 唯一端点），但它探的是 Harbor，**属 K6 域**，本切片不做；它也是那个已知 404 的来源。
+
+## 切片内的推进顺序（每个子切片都按此）
+
+1. **读路径**——先让页面能渲染（e2e 门槛的最小集）；
+2. **写路径**——CRUD 与不变量（充血聚合，规则从 controller 收回 domain）；
+3. **批量**（import/export/backup）——最后，且必须先定 CSV 列序契约。
+
+## 分层落点
+
+| 层 | 落点 |
+| --- | --- |
+| Trigger | `http/UserController`、`http/RoleController`、`http/SubRoleController`（新）+ 各自 assembler |
+| API | `api/dto/*`（请求/响应 DTO） |
+| Case | 本切片先不引入独立 case 层，沿用"trigger → domain service"（与已完成的认证切片一致）；出现跨域编排（如删战位的 6 表级联）再补 |
+| Domain | `domain/user`（扩展）、`domain/role`（扩展）、`domain/subrole`（新）；不变量落在实体/领域服务 |
+| Infrastructure | `dao/I*Dao` + `mapper/*.xml`、`adapter/repository/*Repository`；只调 `dao/`、`redis/` |
+
+## 不变量（必须进 domain，不能留在 controller——厂商就是漏在这里的）
+
+- 内置战位 `admin`/`dev` 不可删、不可改 key；保留字 `admin`/`dev`/`cicd`/`root`；
+- `admin` 用户不可删；非超管不可改超管；普通用户不可改他人；
+- 删战位的**6 表级联删除必须原子**（`g_role`,`g_user_role`,`g_user_login`,`g_sub_role_role`,`g_role_software`,`g_user_audit`）；
+- 用户名唯一（**库无唯一约束**，只能应用层判——并发下不成立，须显式建模）；
+- 用户启停状态门禁；登录失败次数上限（Redis 计数 + TTL）；
+- 错误键必须逐字复刻（`role.cannot.delete.storage`、`role.can.not.delete.admin.key`、`user.username.already.exists` …）。
+
+## 验收（ADR-0005 的四条，逐条给证据）
+
+1. 契约：45 个端点的 L1+L2 全绿；新偏离逐条入 `docs/findings/read-paths.json`；
+2. e2e：厂商原样前端打开 `/gaop/usermanage/account` 与 `/gaop/usermanage/role`，表格有真实数据；
+3. 回归：`/v1/service`、认证闭环、具名端口用例不退化（`mvn test` 全绿）；
+4. 分层：无越层包。
+
+## Answer
+
+（未完成，随子切片推进回填）

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """契约比对器：厂商样本 vs 重写版响应（单端点）。
 
-分三层判定（对应工单 08 的两个选项，工具本身不替决策）：
-  L1 形状      —— 信封键、data 键、列表项键集合
-  L2 读取路径  —— 前端**实际读**的字段路径必须存在且值相等（依据 docs/findings/read-paths.json）
-  L3 其余差异  —— 列成「已知偏离清单」（选项 A 的产物 / 选项 B 的待补清单）
+判定标准 = docs/adr/0006-contract-semantic-equivalence.md（语义等价）：
+  L1 形状      —— 信封键、data 键、列表项键集合；不绿=缺陷
+  L2 读取路径  —— 前端**实际读**的字段路径必须存在且值相等（依据 docs/findings/read-paths.json）；不绿=缺陷
+  L3 其余差异  —— 「已知偏离清单」，记录在案；**任何偏离一旦被证明前端可见即升级为缺陷**
 
 用法：
   python3 tools/contract-check.py "GET /v1/service" [厂商样本.json] [重写版.json]
@@ -16,6 +16,21 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 PATHS_FILE = ROOT / 'docs/findings/read-paths.json'
+# 同一份清单在 Maven 测试里被离线复用，两份必须逐字节一致，否则"离线绿、在线红"。
+MIRROR_FILE = ROOT / 'paas-core-trigger/src/test/resources/vendor/read-paths.json'
+
+
+def check_mirror():
+    """read-paths.json 的两份副本必须一致（离线门槛与在线门槛同源）。"""
+    if not MIRROR_FILE.exists():
+        print(f'❌ 离线副本缺失：{MIRROR_FILE.relative_to(ROOT)}')
+        return 1
+    if PATHS_FILE.read_bytes() != MIRROR_FILE.read_bytes():
+        print('❌ read-paths.json 两份副本不一致——离线 U 会与在线判定分叉。'
+              f'请同步：cp {PATHS_FILE.relative_to(ROOT)} {MIRROR_FILE.relative_to(ROOT)}')
+        return 1
+    return 0
+
 
 
 def load(path):
@@ -56,6 +71,8 @@ def main():
     if len(sys.argv) < 2:
         print(__doc__)
         return 2
+    if check_mirror() != 0:
+        return 1
     endpoint = sys.argv[1]
     man = load(PATHS_FILE).get(endpoint)
     if not man:
@@ -118,7 +135,8 @@ def main():
 
     print('\n## L3 已知偏离（不影响门槛，记录在案）')
     for d in man.get('knownDeviations', []):
-        print(f"  • {d['path']}\n      理由：{d['reason']}")
+        disp = d.get('disposition', '记录在案')
+        print(f"  • {d['path']}\n      理由：{d['reason']}\n      处置：{disp}")
 
     print('\n## 结论')
     if fails:
