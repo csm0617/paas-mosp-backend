@@ -117,5 +117,27 @@
         "reason": "厂商当前数据恒为 null，重写版同为 null；语义来源（在线会话/子战位）未实现，见工单 10/07。"
       }
     ]
+  },
+  "GET /v1/user": {
+    "itemContainer": null,
+    "evidence": "docs/findings/09-frontend-read-paths.md（layouts__index 与 p__operate__home__index 调 GET /v1/user）",
+    "readPaths": [
+      {
+        "path": "data.id"
+      },
+      {
+        "path": "data.username"
+      },
+      {
+        "path": "data.nickname"
+      },
+      {
+        "path": "data.lastLoginRole"
+      },
+      {
+        "path": "data.avatar"
+      }
+    ],
+    "knownDeviations": []
   }
 }

@@ -59,6 +59,9 @@ Label: `wayfinder:map`
 
 - （工单 10）[认证最小闭环已实现并验证](docs/findings/12-auth-contract.md)：登录/cookie/Redis 会话/401 语义全部照厂商；**厂商 gaop-be 认我方 cookie（200）**，互操作成立。
 
+- （事实·重要）[前端首次 e2e 实测](docs/findings/13-frontend-e2e-first-run.md)：真实前端**渲染成功**、`/v1/user` 被真实消费（200）；但 `/software/*` 因 `access: canAdmin` 判不出而 403（cookie 不足以建立战位/权限态）。
+- （新发现）**页面外壳端点清单**：`/settings`、`/v1/lang/current`、`/v1/mode/current`、`/v1/user/get`、`/v1/licence/*`、`/ws/info` —— 不属于软件-服务-端口域，却是任何页面能启动的前置。工具：`tools/frontend-e2e-harness.py` + `tools/frontend-e2e-check.js`。
+
 ## Not yet specified
 
 <!-- 看得见、但还说不成一句精确问题的雾 -->
