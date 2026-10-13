@@ -141,8 +141,31 @@ class K1UserInfoContractTest {
     }
 
     @Test
-    void unmappedPathStaysSpring404NotEnvelope() {
-        ResponseEntity<Map> res = rest.getForEntity("/v1/definitely_not_mapped_xyz", Map.class);
+    void subRoleSwitchRoleReturnsVendorShapedListWithRelations() {
+        ResponseEntity<Map> res = rest.getForEntity("/v1/sub_role/switchRole?page=1&size=9999", Map.class);
+
+        assertEquals(HttpStatus.OK, res.getStatusCode());
+        Map<String, Object> body = res.getBody();
+        assertNotNull(body);
+        assertEquals(0, body.get("code"));
+        assertEquals(Set.of("list", "total"), keys(body.get("data")));
+
+        Map<String, Object> data = (Map<String, Object>) body.get("data");
+        java.util.List<Map<String, Object>> list = (java.util.List<Map<String, Object>>) data.get("list");
+        assertEquals(1, list.size());
+        assertEquals(1, ((Number) data.get("total")).intValue(), "空关键字分支：total 来自计数");
+
+        Map<String, Object> item = list.get(0);
+        assertEquals(Set.of("id", "key", "name", "nameFr", "nameUs", "updatedAt", "createdAt",
+                "desc", "userList", "roleList"), keys(item), "项键集合必须与厂商一致（10 个）");
+        assertEquals("子角色A", item.get("name"));
+        // 关系集合在列表接口里恒为数组（实测样本），不是 null
+        assertEquals(java.util.List.of(Map.of("userId", ADMIN_USER_ID, "userName", "admin")), item.get("userList"));
+        assertEquals(java.util.List.of(), item.get("roleList"));
+    }
+
+    @Test
+    void unmappedPathStaysSpring404NotEnvelope() {        ResponseEntity<Map> res = rest.getForEntity("/v1/definitely_not_mapped_xyz", Map.class);
 
         assertEquals(HttpStatus.NOT_FOUND, res.getStatusCode());
         Map<String, Object> body = res.getBody();

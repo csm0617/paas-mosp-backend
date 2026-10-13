@@ -233,5 +233,40 @@
         "disposition": "记录在案"
       }
     ]
+  },
+  "GET /v1/sub_role/switchRole": {
+    "itemContainer": "data.list",
+    "evidence": "docs/findings/25-k1-read-paths.md（p__user__user-setting：下拉项 `s.map(e => <Option value={e.id} key={e.id}>{e.name}</Option>)` 与 `o.includes(e.name)` 过滤）",
+    "readPaths": [
+      {
+        "path": "data.list",
+        "mode": "container",
+        "note": "子角色下拉/抽屉的数据源（页面先拉它，再拉用户列表）"
+      },
+      {
+        "path": "data.total",
+        "note": "分页"
+      },
+      {
+        "path": "data.list[].id",
+        "note": "下拉 value/key；抽屉里按 id 过滤用户已有子角色"
+      },
+      {
+        "path": "data.list[].name",
+        "note": "下拉显示文案；`o.includes(e.name)` 用它匹配用户已关联的子角色名"
+      }
+    ],
+    "knownDeviations": [
+      {
+        "path": "data.list[].key / nameFr / nameUs / desc / updatedAt / createdAt",
+        "reason": "该页未读（下拉只用 id 与 name）；仍按厂商形状返回",
+        "disposition": "记录在案"
+      },
+      {
+        "path": "data.list[].userList / roleList",
+        "reason": "厂商列表接口恒返回数组（实测样本）；该页未读这两键——注意与\"新增子角色\"接口返回的 null 不同",
+        "disposition": "记录在案"
+      }
+    ]
   }
 }

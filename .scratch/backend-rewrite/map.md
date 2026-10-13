@@ -99,6 +99,10 @@ Label: `wayfinder:map`
 - （事实）[K1 实现级证据档案](docs/findings/22-k1-identity-position-evidence.md)（968 行）：70 端点逐条入参/返回、7 张表终态列、33 条不变量（标注 controller/service/DB）、~80 个 i18n key；并指出 `GET /v1/user` 厂商**原样返回 BCrypt 口令哈希**（我们置 null，属**刻意**的安全向偏离，已入 `read-paths.json` 的 L3 账）。
 - （**下一步**）`/usermanage/account` 唯一 404 是 `GET /v1/sub_role/switchRole`——**子角色下拉是这一页的前置**，所以切片 3c 不是可延后的边角。
 
+- （**切片 3c 完成**）[子角色列表端点](docs/findings/27-e2e-sub-role-endpoint.md)：`/gaop/usermanage/account` **零 404**；A/B 标题/表头/数据行/导航全一致。为拿到非空形状，向**厂商**后端建了一个探针子角色、抓完样本后删除（已确认回到空列表）。
+  - 三条照抄细节：列表接口 `userList`/`roleList` 恒为数组（新增接口却是 `null`）；`nameFr`/`nameUs` 在列表里恒为 null；关键字非空时**厂商漏了 `startPage`**（`total = list.size()`，不分页）。
+  - **新记一条"差异不是缺口"**：A/B 的 `/api` 集合差异可能只是 **SockJS 传输形态**（xhr_streaming vs WS 升级），两侧都 200/204——下次别误判成实现缺口。
+
 ## Not yet specified
 
 <!-- 看得见、但还说不成一句精确问题的雾 -->
