@@ -8,6 +8,7 @@ import com.csm.paas.core.infrastructure.dao.IUserDao;
 import com.csm.paas.core.infrastructure.dao.po.UserPO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.csm.paas.core.domain.user.model.valobj.UserLoginItemVO;
 
@@ -61,6 +62,35 @@ public class UserRepository implements IUserRepository {
     @Override
     public List<String> querySubRoleNamesByUserId(String userId) {
         return subRoleDao.selectNamesByUserId(userId);
+    }
+
+    @Override
+    public java.util.Optional<UserEntity> queryById(String id) {
+        return java.util.Optional.ofNullable(userDao.selectById(id)).map(this::toEntity);
+    }
+
+    @Override
+    public List<UserEntity> queryAll() {
+        return userDao.selectAll().stream().map(this::toEntity).toList();
+    }
+
+    @Override
+    public List<String> queryRoleKeysByUsername(String username) {
+        return userDao.selectRoleKeysByUsername(username);
+    }
+
+    /**
+     * 用户删除的级联：`g_user_role` → `g_user_sub_role` → `g_user`，**一个事务**。
+     * <p>厂商的 `UserService.deleteUser` 打了 `@Transactional`（`UserService.java:820`）；
+     * 事务放在 adapter 里是因为**这里就是原子的边界**（没有跨用户批次的原子性要求，
+     * 见 `UserController.deleteAllUser` 是逐 id 调用）。
+     */
+    @Override
+    @Transactional
+    public void deleteUserCascade(String userId) {
+        userDao.deleteUserRoleByUserId(userId);
+        userDao.deleteUserSubRoleByUserId(userId);
+        userDao.deleteById(userId);
     }
 
     private UserEntity toEntity(UserPO po) {

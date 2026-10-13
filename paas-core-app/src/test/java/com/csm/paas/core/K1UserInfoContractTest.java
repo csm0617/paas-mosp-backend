@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -174,6 +175,23 @@ class K1UserInfoContractTest {
         assertEquals(Set.of("timestamp", "status", "error", "message", "path"), keys(body),
                 "必须是 Spring 默认错误体（实测厂商行为）");
         assertEquals(404, body.get("status"));
+    }
+
+    /**
+     * 405（路径匹配、方法不对）**必须走 -1 信封**：厂商跑在 Spring 5.3 上，这类异常从 `handleNoMatch`
+     * 抛出后被它的 `Throwable` 兜底吃掉 → HTTP 500 + `code:-1` + `msg:"系统错误"`（2026-10-14 实测三条）。
+     * <p>与上面 404 的对比很关键：**不是所有框架级错误都还原 Spring 默认体**。
+     */
+    @Test
+    void methodNotAllowedBecomesVendorMinusOneEnvelope() {
+        ResponseEntity<Map> res = rest.exchange("/v1/user", HttpMethod.DELETE, null, Map.class);
+
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, res.getStatusCode());
+        Map<String, Object> body = res.getBody();
+        assertNotNull(body);
+        assertEquals(-1, body.get("code"), "厂商对 405 返回 code -1（不是 405）");
+        assertEquals("系统错误", body.get("msg"));
+        assertEquals(Set.of("trace", "message"), keys(body.get("data")));
     }
 
     private static Set<String> keys(Object map) {

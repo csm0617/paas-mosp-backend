@@ -8,7 +8,9 @@ import com.csm.paas.core.api.dto.UserLoginItemDTO;
 import com.csm.paas.core.api.dto.UserLoginListDTO;
 import com.csm.paas.core.domain.user.adapter.repository.IUserRepository;
 import com.csm.paas.core.domain.user.model.valobj.SessionVO;
+import com.csm.paas.core.domain.user.model.valobj.UserCallerVO;
 import com.csm.paas.core.domain.user.service.IAuthService;
+import com.csm.paas.core.domain.user.service.IUserCommandService;
 import com.csm.paas.core.domain.user.service.IUserQueryService;
 import com.csm.paas.core.trigger.assembler.LoginAssembler;
 import com.csm.paas.core.trigger.assembler.UserAssembler;
@@ -18,7 +20,9 @@ import com.csm.paas.core.types.exception.BusinessException;
 import com.csm.paas.core.types.util.PageUtils;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -41,6 +45,9 @@ public class UserController {
     @Resource
     private IUserQueryService userQueryService;
 
+    @Resource
+    private IUserCommandService userCommandService;
+
     /**
      * 厂商 `GET /v1/user/info`：用户管理列表（用户 + 关联战位 + 关联子角色）。
      * <p>**公开**：实测厂商不带 cookie 也 200（鉴权在网关侧，见 `docs/findings/14-vendor-auth-is-gateway-side.md`）。
@@ -56,6 +63,40 @@ public class UserController {
         String normalizedKeyword = keyword == null ? null : keyword.replaceAll(" +", "");
         return ResponseDTO.ok(UserInfoAssembler.toResponse(
                 userQueryService.queryUserInfoPage(normalizedPage, normalizedSize, normalizedKeyword)));
+    }
+
+    /**
+     * 厂商 `DELETE /v1/user/{userId}`：删除用户。
+     * <p>权限矩阵与"无权限时 200 但不删"的假成功见 {@code IUserCommandService} 的文档；
+     * 未登录时抛 401（厂商该端点先取 `getCurrentUserInfo`）。
+     */
+    @DeleteMapping("/v1/user/{userId}")
+    public ResponseDTO<Boolean> deleteUser(@PathVariable String userId, HttpServletRequest request) {
+        userCommandService.deleteUser(userId, currentCaller(request));
+        return ResponseDTO.ok(true);
+    }
+
+    /**
+     * 厂商 `DELETE /v1/user/all_user?userId=a,b`：批量删除（**逐个独立事务**，不是整批原子——
+     * 厂商控制器是循环调用单删接口，见 `UserController.java:390-392`）。
+     */
+    @DeleteMapping("/v1/user/all_user")
+    public ResponseDTO<Boolean> deleteAllUser(@RequestParam String userId, HttpServletRequest request) {
+        UserCallerVO caller = currentCaller(request);
+        for (String id : userId.split(",")) {
+            userCommandService.deleteUser(id, caller);
+        }
+        return ResponseDTO.ok(true);
+    }
+
+    /** 从会话解析调用者身份；`adminRole` 按厂商口径取"战位列表里是否有 admin"。 */
+    private UserCallerVO currentCaller(HttpServletRequest request) {
+        SessionVO session = authSupport.requireSession(request);
+        java.util.List<String> roleKeys = userRepository.queryRoleKeysByUsername(session.getUsername());
+        return UserCallerVO.builder()
+                .username(session.getUsername())
+                .adminRole(roleKeys != null && roleKeys.contains("admin"))
+                .build();
     }
 
     /**

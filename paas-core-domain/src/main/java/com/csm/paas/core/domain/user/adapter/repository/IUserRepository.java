@@ -12,6 +12,11 @@ public interface IUserRepository {
 
     Optional<UserEntity> queryByUsername(String username);
 
+    Optional<UserEntity> queryById(String id);
+
+    /** 全部用户（厂商 `add` 里用于分配 `uuid`：`userMapper.select(allRows)`）。 */
+    List<UserEntity> queryAll();
+
     /** 登录页账号下拉用（厂商 GET /v1/user/get，**公开**）。 */
     List<UserLoginItemVO> queryLoginList();
 
@@ -38,4 +43,14 @@ public interface IUserRepository {
 
     /** 用户关联的子角色名（厂商 {@code SubRoleService.getSubRoleName(userId)}）。 */
     List<String> querySubRoleNamesByUserId(String userId);
+
+    /** 用户关联的战位 key 列表（判定"是否有 admin 战位"，厂商 `RoleList.containAdminRole()`）。 */
+    List<String> queryRoleKeysByUsername(String username);
+
+    /**
+     * 删除用户及其全部关联（`g_user_role` + `g_user_sub_role` + `g_user`），**一个事务**。
+     * <p>厂商出处：`UserService.getDeleteUser`（`UserService.java:829-834`）——先删两张关系表再删用户行；
+     * 该方法的调用方 `deleteUser` 打了 `@Transactional`（`:820`）。
+     */
+    void deleteUserCascade(String userId);
 }

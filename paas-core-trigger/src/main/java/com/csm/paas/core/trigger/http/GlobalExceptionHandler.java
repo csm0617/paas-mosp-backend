@@ -13,6 +13,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -78,12 +80,17 @@ public class GlobalExceptionHandler {
 
     /**
      * 未捕获异常：HTTP 500 + code -1 + msg "系统错误"（与厂商 {@code exception()} 一致）。
-     * <p>Spring 框架级错误（{@link ErrorResponse}：404/405/415/406…）**不套信封**，还原成 Spring 默认错误体。
+     * <p><b>只有 404 类保留 Spring 默认错误体</b>（{@link NoResourceFoundException}/{@link NoHandlerFoundException}）——
+     * 实测厂商对未映射路径返回 Spring 默认 404 体。
+     * <p><b>405/415 等"路径匹配但方法/类型不对"必须走 -1 信封</b>：厂商跑在 Spring 5.3 上，
+     * 这类异常是从 `handleNoMatch` 抛出来的，被它的 `Throwable` 兜底吃掉 →
+     * **HTTP 500 + code -1 + msg "系统错误"**（2026-10-14 实测 `DELETE /v1/user`、`PUT /v1/user`、`PATCH /v1/role` 三条）。
+     * 一开始我把所有 `ErrorResponse` 都还原成 Spring 默认体，结果 405 变成 405——与厂商不同，已按实测改正。
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<?> unexpected(Exception e, HttpServletRequest request) {
-        if (e instanceof ErrorResponse errorResponse) {
-            return springDefaultError(errorResponse, request);
+        if (e instanceof NoResourceFoundException || e instanceof NoHandlerFoundException) {
+            return springDefaultError((ErrorResponse) e, request);
         }
         return error(HttpStatus.INTERNAL_SERVER_ERROR, -1, messageResolver.resolve(SYSTEM_EXCEPTION_KEY), e);
     }

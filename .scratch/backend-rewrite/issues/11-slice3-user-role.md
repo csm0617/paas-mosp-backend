@@ -108,6 +108,22 @@ K1 端点总数 **63**（`UserController` 25 + `RoleController` 28 + `SubRoleCon
 与战位写路径（`POST /v1/role`、`PUT /v1/role/{id}`）——不变量：用户名唯一（DB 唯一索引 + 应用层双重）、
 `admin` 用户不可删、非超管不可改超管、普通用户不可改他人。
 
+## 删用户完成（2026-10-14）
+
+`DELETE /v1/user/{userId}` + `DELETE /v1/user/all_user?userId=a,b` 已实现并过门槛，
+证据 [docs/findings/30-user-delete-and-error-parity.md](../../docs/findings/30-user-delete-and-error-parity.md)：
+
+- 四条失败/边界路径 + 成功路径与厂商**逐字节相同**（对拉实测）；
+- 权限矩阵四分支（含**无权限时 200 假成功、什么都不删**）已单测 + IT 覆盖；
+- 真实库级联验证通过（探针用户 + `g_user_role` + `g_user_sub_role` 全清）；
+- **顺带修正一处既有实现缺陷**：405 曾被我方还原成 Spring 默认 405，厂商实为 500/`code:-1`/"系统错误" ——
+  已改为"只有 404 类还原 Spring 默认体"，并补 IT；`docs/findings/24` 同步更正；
+- 测试 70 → **84 条**全绿。
+
+**下一项**：`POST /v1/user`（新增，含用户名/口令校验、`uuid` 额度分配、关系写入，**放事务里**）、
+`PUT /v1/user/{userId}`（修改，含"非超管不可改超管"）、`POST /v1/user/userToRole`。
+开工前要补一次探针：`birth` 的序列化格式（`date` 列 vs 厂商 `java.util.Date`）。
+
 ## 3b 战位页（`/usermanage/role`）开工前的取证结论（2026-10-14，已备齐，直接可写）
 
 数据源 = `GET /v1/role/switchRole?page&size&roleName&type`（`type` 1=战位 2=角色），**样本已抓**：
