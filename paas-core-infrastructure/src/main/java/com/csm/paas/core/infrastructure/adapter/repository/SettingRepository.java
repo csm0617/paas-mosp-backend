@@ -1,10 +1,13 @@
 package com.csm.paas.core.infrastructure.adapter.repository;
 
-import com.csm.paas.core.domain.user.adapter.repository.ISettingRepository;
+import com.csm.paas.core.domain.setting.adapter.repository.ISettingRepository;
+import com.csm.paas.core.domain.setting.model.entity.SettingEntity;
 import com.csm.paas.core.infrastructure.dao.ISettingDao;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
+
+import java.util.List;
 
 @Slf4j
 @Repository
@@ -25,5 +28,15 @@ public class SettingRepository implements ISettingRepository {
             log.warn("设置 {} 不是整数: {}，回落默认值 {}", key, val, defaultValue);
             return defaultValue;
         }
+    }
+
+    @Override
+    public List<SettingEntity> queryAll() {
+        return settingDao.selectAll().stream()
+                .map(po -> SettingEntity.builder()
+                        .key(po.getKey()).val(po.getVal()).desc(po.getDesc())
+                        .updatedAt(po.getUpdatedAt()).createdAt(po.getCreatedAt())
+                        .build())
+                .toList();
     }
 }

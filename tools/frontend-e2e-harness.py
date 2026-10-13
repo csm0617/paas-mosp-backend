@@ -50,12 +50,15 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if TOKEN:
             req.add_header('Cookie', f'gateway-token={TOKEN}')
         started = time.time()
+        resp_headers = None
         try:
             with urllib.request.urlopen(req, timeout=60) as resp:
                 status, payload = resp.status, resp.read()
                 ctype = resp.headers.get('Content-Type', 'application/json')
+                resp_headers = resp.headers
         except urllib.error.HTTPError as e:
             status, payload, ctype = e.code, e.read(), 'application/json'
+            resp_headers = e.headers
         except Exception as e:  # noqa: BLE001
             status, payload, ctype = 599, json.dumps({'error': str(e)}).encode(), 'application/json'
         entry = {'method': method, 'path': rest, 'status': status,
@@ -66,6 +69,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.send_response(status)
         self.send_header('Content-Type', ctype)
         self.send_header('Content-Length', str(len(payload)))
+        # 把后端的 Set-Cookie 原样透给浏览器（登录流程必需）
+        for hname in ('Set-Cookie',):
+            for hv in resp_headers.get_all(hname, []) if resp_headers else []:
+                self.send_header(hname, hv)
         self.end_headers()
         if method != 'HEAD':
             self.wfile.write(payload)

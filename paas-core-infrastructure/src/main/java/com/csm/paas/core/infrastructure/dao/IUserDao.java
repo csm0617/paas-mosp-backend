@@ -14,4 +14,10 @@ public interface IUserDao {
             FROM g_user WHERE username = #{username}
             """)
     UserPO selectByUsername(@Param("username") String username);
+
+    @Select("SELECT username, last_login_role, avatar FROM g_user ORDER BY created_at")
+    java.util.List<UserPO> selectLoginList();
+
+    @Select("SELECT COUNT(*) FROM g_user")
+    long selectCount();
 }

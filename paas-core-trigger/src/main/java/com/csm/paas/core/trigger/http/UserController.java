@@ -2,6 +2,8 @@ package com.csm.paas.core.trigger.http;
 
 import com.csm.paas.core.api.dto.ResponseDTO;
 import com.csm.paas.core.api.dto.UserDTO;
+import com.csm.paas.core.api.dto.UserLoginItemDTO;
+import com.csm.paas.core.api.dto.UserLoginListDTO;
 import com.csm.paas.core.domain.user.adapter.repository.IUserRepository;
 import com.csm.paas.core.domain.user.model.valobj.SessionVO;
 import com.csm.paas.core.trigger.assembler.UserAssembler;
@@ -24,6 +26,24 @@ public class UserController {
 
     @Resource
     private IUserRepository userRepository;
+
+    /**
+     * 厂商 `GET /v1/user/get`：登录页的账号下拉。**公开**——实测厂商不带 cookie 也返回 200
+     * （鉴权在网关侧，见 docs/findings/14-vendor-auth-is-gateway-side.md）。
+     */
+    @GetMapping("/v1/user/get")
+    public ResponseDTO<UserLoginListDTO> loginList() {
+        return ResponseDTO.ok(UserLoginListDTO.builder()
+                .list(userRepository.queryLoginList().stream()
+                        .map(i -> UserLoginItemDTO.builder()
+                                .username(i.getUsername())
+                                .lastLoginRole(i.getLastLoginRole())
+                                .avatar(i.getAvatar())
+                                .build())
+                        .toList())
+                .total(userRepository.count())
+                .build());
+    }
 
     @GetMapping("/v1/user")
     public ResponseDTO<UserDTO> currentUser(HttpServletRequest request) {

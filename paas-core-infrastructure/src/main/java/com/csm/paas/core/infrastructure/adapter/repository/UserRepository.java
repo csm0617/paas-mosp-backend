@@ -7,6 +7,9 @@ import com.csm.paas.core.infrastructure.dao.po.UserPO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
+import com.csm.paas.core.domain.user.model.valobj.UserLoginItemVO;
+
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -28,5 +31,21 @@ public class UserRepository implements IUserRepository {
                 .lastLoginRole(po.getLastLoginRole()).nickname(po.getNickname()).uuid(po.getUuid())
                 .desc(po.getDesc()).avatar(po.getAvatar())
                 .build());
+    }
+
+    @Override
+    public List<UserLoginItemVO> queryLoginList() {
+        return userDao.selectLoginList().stream()
+                .map(po -> UserLoginItemVO.builder()
+                        .username(po.getUsername())
+                        .lastLoginRole(po.getLastLoginRole())
+                        .avatar(po.getAvatar())
+                        .build())
+                .toList();
+    }
+
+    @Override
+    public long count() {
+        return userDao.selectCount();
     }
 }

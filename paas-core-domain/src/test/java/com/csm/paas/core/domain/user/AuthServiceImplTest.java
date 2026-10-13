@@ -2,7 +2,7 @@ package com.csm.paas.core.domain.user;
 
 import com.csm.paas.core.domain.role.adapter.repository.IRoleRepository;
 import com.csm.paas.core.domain.role.model.entity.RoleEntity;
-import com.csm.paas.core.domain.user.adapter.repository.ISettingRepository;
+import com.csm.paas.core.domain.setting.adapter.repository.ISettingRepository;
 import com.csm.paas.core.domain.user.adapter.repository.IUserRepository;
 import com.csm.paas.core.domain.user.adapter.repository.IUserSessionRepository;
 import com.csm.paas.core.domain.user.model.entity.LoginResultEntity;

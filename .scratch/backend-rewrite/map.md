@@ -62,6 +62,9 @@ Label: `wayfinder:map`
 - （事实·重要）[前端首次 e2e 实测](docs/findings/13-frontend-e2e-first-run.md)：真实前端**渲染成功**、`/v1/user` 被真实消费（200）；但 `/software/*` 因 `access: canAdmin` 判不出而 403（cookie 不足以建立战位/权限态）。
 - （新发现）**页面外壳端点清单**：`/settings`、`/v1/lang/current`、`/v1/mode/current`、`/v1/user/get`、`/v1/licence/*`、`/ws/info` —— 不属于软件-服务-端口域，却是任何页面能启动的前置。工具：`tools/frontend-e2e-harness.py` + `tools/frontend-e2e-check.js`。
 
+- （事实·重要）[厂商鉴权在网关侧](docs/findings/14-vendor-auth-is-gateway-side.md)：`/v1/role`、`/v1/service`、`/settings`、`/v1/user/get` **无 cookie 也是 200**，只有 `/v1/user` 是应用级 401。**第 8 轮我加的 requireSession 属于过度收紧，本轮已撤回。**
+- （进展）外壳端点 `/settings`、`/v1/mode/current`、`/v1/lang/current`、`/v1/user/get` 已实现且与厂商样本一致；登录页已能拉到账号/语言数据，**卡在 `/v1/licence/info` 404**（页面停在"正在获取授权信息"，未定论）。
+
 ## Not yet specified
 
 <!-- 看得见、但还说不成一句精确问题的雾 -->

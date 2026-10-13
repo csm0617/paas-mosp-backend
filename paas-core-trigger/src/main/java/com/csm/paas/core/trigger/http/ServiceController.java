@@ -30,7 +30,9 @@ public class ServiceController {
 
     @GetMapping("/v1/service")
     public ResponseDTO<ServiceListResponseDTO> list(HttpServletRequest request) {
-        authSupport.requireSession(request);
+        // 厂商在这两个端点**不做**应用级校验（实测无 cookie 也 200），
+        // 鉴权由 gateway-auth 在边缘完成，见 docs/findings/14-vendor-auth-is-gateway-side.md
+
         ServiceListEntity entity = serviceQueryService.queryServiceList(namespace);
         return ResponseDTO.ok(ServiceListAssembler.toResponse(entity));
     }
