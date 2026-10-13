@@ -1,0 +1,32 @@
+server:
+  # 与厂商 gaop-be 同端口，便于后续整体替换时直接换 Deployment 镜像
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: paas-core
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:gaop}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USER:gaop}
+    password: ${MYSQL_PASSWORD:gaop123456}
+    hikari:
+      pool-name: paas-core-hikari
+      maximum-pool-size: 20
+      minimum-idle: 5
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+
+mybatis:
+  mapper-locations: classpath*:mybatis/mapper/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+logging:
+  level:
+    root: INFO
+    com.csm.paas.core: INFO

@@ -29,6 +29,8 @@ Label: `wayfinder:map`
 - （地图前 grilling 第 1 轮）[技术底座](docs/adr/0002-jdk21-boot3-fabric8-mybatis.md)：JDK 21 + Boot 3.3 + fabric8 7 + 保留 MyBatis + HikariCP。
 - （本轮）[分层与落点](docs/adr/0003-hexagonal-layers-and-local-tracker.md)：xfg 六边形分层；代码落 `/Users/csm/Desktop/PaaS/paas-core`，坐标 `com.csm.paas.core:paas-core`；决策与工单用本地 markdown tracker。
 
+- （工单 01）[建立 paas-core 工程骨架](.scratch/backend-rewrite/issues/01-project-skeleton.md)：7 模块 + Boot 3.3.5 + fabric8 7.9.0 + MyBatis 3.0.3 + springdoc 2.6.0，`mvn package` 绿，依赖树里 `io.kubernetes` 命中 0。
+
 ## Not yet specified
 
 <!-- 看得见、但还说不成一句精确问题的雾 -->

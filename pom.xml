@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.3.5</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.csm.paas.core</groupId>
+    <artifactId>paas-core</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+    <name>paas-core</name>
+    <description>以厂商 MSOP(gaop) 业务为蓝本、按 DDD 六边形分层重写的后端。第一条纵切以"厂商前端一行不改 + 契约比对全绿"为硬门槛。</description>
+
+    <modules>
+        <module>paas-core-types</module>
+        <module>paas-core-domain</module>
+        <module>paas-core-api</module>
+        <module>paas-core-case</module>
+        <module>paas-core-infrastructure</module>
+        <module>paas-core-trigger</module>
+        <module>paas-core-app</module>
+    </modules>
+
+    <properties>
+        <java.version>21</java.version>
+        <maven.compiler.release>21</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- 与 Spring Boot 3.3.x 匹配的版本，改动前先看 docs/findings/04-migration-blockers.md -->
+        <fabric8.version>7.9.0</fabric8.version>
+        <mybatis-spring-boot.version>3.0.3</mybatis-spring-boot.version>
+        <springdoc.version>2.6.0</springdoc.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- 外部 BOM -->
+            <dependency>
+                <groupId>io.fabric8</groupId>
+                <artifactId>kubernetes-client-bom</artifactId>
+                <version>${fabric8.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- 内部模块 -->
+            <dependency>
+                <groupId>com.csm.paas.core</groupId>
+                <artifactId>paas-core-types</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.csm.paas.core</groupId>
+                <artifactId>paas-core-domain</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.csm.paas.core</groupId>
+                <artifactId>paas-core-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.csm.paas.core</groupId>
+                <artifactId>paas-core-case</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.csm.paas.core</groupId>
+                <artifactId>paas-core-infrastructure</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.csm.paas.core</groupId>
+                <artifactId>paas-core-trigger</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>
