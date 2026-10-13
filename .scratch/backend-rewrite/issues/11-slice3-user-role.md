@@ -81,6 +81,19 @@ K1 端点总数 **63**（`UserController` 25 + `RoleController` 28 + `SubRoleCon
 
 **下一片**：3c 子角色（`GET /v1/sub_role/switchRole` 是 `/usermanage/account` 的**前置**，必须补），随后 3b 战位页。
 
+## 3b 完成记录（2026-10-14）
+
+已实现并过门槛，证据 [docs/findings/28-e2e-role-page.md](../../docs/findings/28-e2e-role-page.md)：
+
+- `GET /v1/role`（补 page/size/username 过滤）、`GET /v1/role/list`（补 userList）、
+  `GET /v1/role/switchRole`（新）、`GET /v1/role/{id}`（新，不存在时抛 `role.storage.not.found` → HTTP 400）；
+- **5 个端点与厂商逐字节相等**；A/B 页面（标题/表头/数据行/导航）全一致；
+- 新增端口 `IRoleOnlineUserRepository`（在线用户来自 Redis，不是库）；
+- 测试 41 → **57 条**全绿（离线）。
+
+**遗留**：`/usermanage/role` 还需要 `GET /v1/software`（K2 软件目录）才能用"关联应用"对话框——**属切片 1 的欠账**，
+不是切片 3 的范围；已记入地图。下一片进入**写路径与不变量**（用户/战位 CRUD + 级联删除）。
+
 ## 3b 战位页（`/usermanage/role`）开工前的取证结论（2026-10-14，已备齐，直接可写）
 
 数据源 = `GET /v1/role/switchRole?page&size&roleName&type`（`type` 1=战位 2=角色），**样本已抓**：

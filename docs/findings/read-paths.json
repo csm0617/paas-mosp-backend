@@ -268,5 +268,187 @@
         "disposition": "记录在案"
       }
     ]
+  },
+  "GET /v1/role/list": {
+    "itemContainer": "data.list",
+    "evidence": "docs/findings/25-k1-read-paths.md（p__role.61a39591 逐条核对）",
+    "readPaths": [
+      {
+        "path": "data.list",
+        "mode": "container",
+        "note": "战位表格 dataSource（p__role）"
+      },
+      {
+        "path": "data.total",
+        "note": "分页"
+      },
+      {
+        "path": "data.list[].key",
+        "note": "dataIndex=key；`\"admin\" === n.key` 客户端比较"
+      },
+      {
+        "path": "data.list[].name",
+        "note": "dataIndex=name"
+      },
+      {
+        "path": "data.list[].desc",
+        "note": "dataIndex=desc"
+      },
+      {
+        "path": "data.list[].updatedAt",
+        "note": "dataIndex=updatedAt"
+      },
+      {
+        "path": "data.list[].type",
+        "note": "战位/角色分栏"
+      },
+      {
+        "path": "data.list[].nameFr",
+        "note": "表单回填 nameFr"
+      },
+      {
+        "path": "data.list[].nameUs",
+        "note": "表单回填 nameUs"
+      },
+      {
+        "path": "data.list[].softwareList",
+        "mode": "container",
+        "note": "dataIndex=softwareList"
+      },
+      {
+        "path": "data.list[].userList",
+        "mode": "container",
+        "note": "dataIndex=username（关联用户）"
+      },
+      {
+        "path": "data.list[].subRoleList",
+        "mode": "container",
+        "note": "dataIndex=subRoleList"
+      },
+      {
+        "path": "data.list[].onLineUserList",
+        "mode": "container",
+        "note": "dataIndex=onLineUserList（1 次）"
+      }
+    ],
+    "knownDeviations": [
+      {
+        "path": "data.list[].adminOrDev / admin / dev",
+        "reason": "该页 chunk 出现 0 次——页面自己拿 `key` 比字面量，不读这三个布尔",
+        "disposition": "记录在案"
+      }
+    ]
+  },
+  "GET /v1/role/switchRole": {
+    "itemContainer": "data.list",
+    "evidence": "docs/findings/25-k1-read-paths.md（p__role.61a39591 逐条核对）",
+    "readPaths": [
+      {
+        "path": "data.list",
+        "mode": "container",
+        "note": "战位表格 dataSource（p__role）"
+      },
+      {
+        "path": "data.total",
+        "note": "分页"
+      },
+      {
+        "path": "data.list[].key",
+        "note": "dataIndex=key；`\"admin\" === n.key` 客户端比较"
+      },
+      {
+        "path": "data.list[].name",
+        "note": "dataIndex=name"
+      },
+      {
+        "path": "data.list[].desc",
+        "note": "dataIndex=desc"
+      },
+      {
+        "path": "data.list[].updatedAt",
+        "note": "dataIndex=updatedAt"
+      },
+      {
+        "path": "data.list[].type",
+        "note": "战位/角色分栏"
+      },
+      {
+        "path": "data.list[].nameFr",
+        "note": "表单回填 nameFr"
+      },
+      {
+        "path": "data.list[].nameUs",
+        "note": "表单回填 nameUs"
+      },
+      {
+        "path": "data.list[].softwareList",
+        "mode": "container",
+        "note": "dataIndex=softwareList"
+      },
+      {
+        "path": "data.list[].userList",
+        "mode": "container",
+        "note": "dataIndex=username（关联用户）"
+      },
+      {
+        "path": "data.list[].subRoleList",
+        "mode": "container",
+        "note": "dataIndex=subRoleList"
+      },
+      {
+        "path": "data.list[].onLineUserList",
+        "mode": "container",
+        "note": "dataIndex=onLineUserList（1 次）"
+      }
+    ],
+    "knownDeviations": [
+      {
+        "path": "data.list[].subRoleList 的多元素顺序",
+        "reason": "厂商 `getSubRoleListByRoleId` 用 HashSet 去重，**顺序不确定**；重写版按关联行顺序返回，多元素时无法逐字节对齐（本环境为空）",
+        "disposition": "未定论"
+      },
+      {
+        "path": "data.list[].onLineUserList 的来源",
+        "reason": "来自 Redis `login-list*` 扫描，与\"当前谁登录着\"耦合；A/B 对照时两侧必须同一时刻同一会话集合，否则会误判成差异",
+        "disposition": "记录在案"
+      }
+    ]
+  },
+  "GET /v1/role/{id}": {
+    "itemContainer": null,
+    "evidence": "docs/findings/25-k1-read-paths.md（p__role 编辑抽屉回填 key/name/nameFr/nameUs/desc/type）",
+    "readPaths": [
+      {
+        "path": "data.key",
+        "note": "编辑抽屉回填；保留字校验用"
+      },
+      {
+        "path": "data.name",
+        "note": "编辑抽屉回填"
+      },
+      {
+        "path": "data.nameFr",
+        "note": "厂商兜底为 name"
+      },
+      {
+        "path": "data.nameUs",
+        "note": "厂商兜底为 name"
+      },
+      {
+        "path": "data.desc",
+        "note": "编辑抽屉回填"
+      },
+      {
+        "path": "data.type",
+        "note": "战位/角色"
+      }
+    ],
+    "knownDeviations": [
+      {
+        "path": "data.onLineUserList / softwareList / userList / subRoleList",
+        "reason": "厂商该端点**四个集合全为 null**（实测样本），与 switchRole 相反；重写版同为 null",
+        "disposition": "记录在案"
+      }
+    ]
   }
 }

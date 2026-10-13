@@ -48,6 +48,14 @@ public class SubRoleRepository implements ISubRoleRepository {
                 .toList();
     }
 
+    @Override
+    public List<SubRoleEntity> queryByIds(List<String> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return subRoleDao.selectByIds(ids).stream().map(this::toEntity).toList();
+    }
+
     private SubRoleEntity toEntity(SubRolePO po) {
         return SubRoleEntity.builder()
                 .id(po.getId()).key(po.getKey()).name(po.getName()).desc(po.getDesc())

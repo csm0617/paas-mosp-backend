@@ -20,11 +20,12 @@ public final class SubRoleListAssembler {
     }
 
     public static SubRoleListResponseDTO toResponse(SubRoleListEntity entity) {
-        List<SubRoleItemDTO> list = entity.getList().stream().map(SubRoleListAssembler::toItem).toList();
+        List<SubRoleItemDTO> list = entity.getList().stream().map(SubRoleListAssembler::toItemDTO).toList();
         return SubRoleListResponseDTO.builder().list(list).total(entity.getTotal()).build();
     }
 
-    private static SubRoleItemDTO toItem(SubRoleEntity e) {
+    /** 单个子角色 → 契约项（`/v1/role/*` 内嵌的 subRoleList 也用它，保证两处形状一致）。 */
+    public static SubRoleItemDTO toItemDTO(SubRoleEntity e) {
         return SubRoleItemDTO.builder()
                 .id(e.getId())
                 .key(e.getKey())

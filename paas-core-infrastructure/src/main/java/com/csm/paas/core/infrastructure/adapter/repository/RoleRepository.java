@@ -3,14 +3,15 @@ package com.csm.paas.core.infrastructure.adapter.repository;
 import com.csm.paas.core.domain.role.adapter.repository.IRoleRepository;
 import com.csm.paas.core.domain.role.model.entity.RoleEntity;
 import com.csm.paas.core.domain.role.model.entity.RoleSoftwareEntity;
+import com.csm.paas.core.domain.role.model.valobj.RoleUserVO;
 import com.csm.paas.core.infrastructure.dao.IRoleDao;
 import com.csm.paas.core.infrastructure.dao.po.RolePO;
-import com.csm.paas.core.infrastructure.dao.po.RoleSoftwarePO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 /** Repository 实现：只调 dao，不含业务判断。 */
 @Slf4j
@@ -26,13 +27,60 @@ public class RoleRepository implements IRoleRepository {
     }
 
     @Override
-    public java.util.Optional<RoleEntity> queryByKey(String key) {
-        return java.util.Optional.ofNullable(roleDao.selectByKey(key)).map(this::toEntity);
+    public List<RoleEntity> queryPage(int offset, int size) {
+        return roleDao.selectPage(offset, size).stream().map(this::toEntity).toList();
     }
 
     @Override
     public long count() {
         return roleDao.selectCount();
+    }
+
+    @Override
+    public List<RoleEntity> queryByUsername(String username) {
+        return roleDao.selectByUsername(username).stream().map(this::toEntity).toList();
+    }
+
+    @Override
+    public Optional<RoleEntity> queryByKey(String key) {
+        return Optional.ofNullable(roleDao.selectByKey(key)).map(this::toEntity);
+    }
+
+    @Override
+    public Optional<RoleEntity> queryById(String id) {
+        return Optional.ofNullable(roleDao.selectById(id)).map(this::toEntity);
+    }
+
+    @Override
+    public List<RoleEntity> queryPageByType(int type, int offset, int size) {
+        return roleDao.selectPageByType(type, offset, size).stream().map(this::toEntity).toList();
+    }
+
+    @Override
+    public long countByType(int type) {
+        return roleDao.selectCountByType(type);
+    }
+
+    @Override
+    public List<RoleEntity> queryByTypeAndNameLike(int type, String likeKeyword) {
+        return roleDao.selectByTypeAndNameLike(type, likeKeyword).stream().map(this::toEntity).toList();
+    }
+
+    @Override
+    public List<RoleEntity> queryByNameLike(String likeKeyword) {
+        return roleDao.selectByNameLike(likeKeyword).stream().map(this::toEntity).toList();
+    }
+
+    @Override
+    public List<RoleUserVO> queryUsersByRoleId(String roleId) {
+        return roleDao.selectUsersByRoleId(roleId).stream()
+                .map(po -> RoleUserVO.builder().userId(po.getUserId()).userName(po.getUserName()).build())
+                .toList();
+    }
+
+    @Override
+    public List<String> querySubRoleIdsByRoleId(String roleId) {
+        return roleDao.selectSubRoleIdsByRoleId(roleId);
     }
 
     @Override

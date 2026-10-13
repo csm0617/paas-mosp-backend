@@ -103,6 +103,12 @@ Label: `wayfinder:map`
   - 三条照抄细节：列表接口 `userList`/`roleList` 恒为数组（新增接口却是 `null`）；`nameFr`/`nameUs` 在列表里恒为 null；关键字非空时**厂商漏了 `startPage`**（`total = list.size()`，不分页）。
   - **新记一条"差异不是缺口"**：A/B 的 `/api` 集合差异可能只是 **SockJS 传输形态**（xhr_streaming vs WS 升级），两侧都 200/204——下次别误判成实现缺口。
 
+- （**切片 3b 完成**）[席位管理页 e2e 成功](docs/findings/28-e2e-role-page.md)：厂商原样前端 + 我们的后端 → `/gaop/usermanage/role` 渲染 9 列表头 + 1 行真实数据；**5 个端点与厂商逐字节相等**（switchRole type1/type2、list、role、{id}）。
+  - 本轮真正的难点是**四个读端点的集合填充差异**（同一 16 键模型）：`/v1/role` 只填 softwareList；`/list` 多填 userList；`/switchRole` 四个全填（`onLineUserList` 恒为数组）；`/{id}` 四个全 null 但 `nameFr`/`nameUs` 兜底成 name。两个反直觉处已写进证据。
+  - 运行证据锁住了两处"最容易做错"：页面「关联应用」显示的正是**硬编码伪门户条目**；「已登录用户 = 1」证明 `onLineUserList` 来自 **Redis `login-list*` 扫描**。
+  - （未定论）厂商 `getSubRoleListByRoleId` 用 `HashSet`，多元素时顺序不确定 → 多子角色时无法逐字节对齐。
+  - （遗留缺口）`/usermanage/role` 还会调 **`GET /v1/software`**（我们 404）——属 **K2 软件目录**，即战位页的"关联应用"对话框需要 K2。
+
 ## Not yet specified
 
 <!-- 看得见、但还说不成一句精确问题的雾 -->

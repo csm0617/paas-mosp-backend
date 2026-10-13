@@ -45,6 +45,17 @@ public interface ISubRoleDao {
     List<SubRolePO> selectByNameLike(@Param("likeKeyword") String likeKeyword);
 
     /**
+     * 按 id 批量取子角色（厂商 `getSubRoleListByRoleId` 的第二段查询）。
+     */
+    @Select("""
+            <script>
+            SELECT id, `key`, name, `desc`, updated_at, created_at FROM g_sub_role
+            WHERE id IN <foreach item='item' collection='ids' open='(' separator=',' close=')'>#{item}</foreach>
+            </script>
+            """)
+    List<SubRolePO> selectByIds(@Param("ids") List<String> ids);
+
+    /**
      * 子角色关联的用户（厂商 `getRoleUser`：先查 `g_user_sub_role`，再按 id 查 `g_user`，
      * 用户不存在则跳过）。
      */

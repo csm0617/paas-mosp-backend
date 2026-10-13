@@ -22,4 +22,11 @@ public interface ISubRoleRepository {
 
     /** 子角色关联的战位（厂商 `getRoleRole`，`SubRoleServiceImpl.java:219-230`）。 */
     List<SubRoleRoleVO> queryRolesBySubRoleId(String subRoleId);
+
+    /**
+     * 按 id 批量取子角色（厂商 `getSubRoleListByRoleId`，`SubRoleServiceImpl.java:385-397`）。
+     * <p><b>厂商用 `HashSet` 去重，返回顺序不确定</b>；这里按传入 id 的顺序返回，属"更确定"的偏离
+     * （多元素时无法与厂商逐字节对齐，见 `docs/findings/28-e2e-role-page.md`）。
+     */
+    List<SubRoleEntity> queryByIds(List<String> ids);
 }
