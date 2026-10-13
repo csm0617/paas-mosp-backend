@@ -21,6 +21,7 @@ public class SoftwareWriteCaseImpl implements ISoftwareWriteCase {
     private final ISoftwareCommandService softwareCommandService;
     private final ISoftwareRepository softwareRepository;
     private final IRoleRepository roleRepository;
+    private final com.csm.paas.core.domain.software.service.ISoftwareDetailService softwareDetailService;
 
     @Override
     @Transactional
@@ -48,5 +49,24 @@ public class SoftwareWriteCaseImpl implements ISoftwareWriteCase {
 
         log.info("已删除软件 id={} key={}", softwareId, software.getKey());
         // 厂商在删掉 g_service_port 行时会 notificationGateway() 通知网关重载；我们尚未接管网关（findings/39）
+    }
+
+    @Override
+    @Transactional
+    public com.csm.paas.core.domain.software.model.entity.SoftwareInfoEntity editSoftware(
+            String softwareId, SoftwareFormVO form) {
+        SoftwareEntity updated = softwareCommandService.prepareUpdatedSoftware(softwareId, form);
+        softwareRepository.update(updated);
+
+        // 厂商返回"重新查出来的 SoftwareInfo"，但 nameUs/nameFr 取自**表单**（空则回退 name）
+        var detail = softwareDetailService.queryDetail(softwareId);
+        detail.setNameUs(org.springframework.util.StringUtils.hasText(form.getNameUs())
+                ? form.getNameUs() : detail.getSoftware().getName());
+        detail.setNameFr(org.springframework.util.StringUtils.hasText(form.getNameFr())
+                ? form.getNameFr() : detail.getSoftware().getName());
+
+        log.info("已修改软件 id={} key={}", softwareId, updated.getKey());
+        // 未实现：CS 类型的 WebSocket 通知；BS 类型改 key 后的服务重关联（要 K8s 与 g_software_app 映射）
+        return detail;
     }
 }

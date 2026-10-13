@@ -168,4 +168,62 @@ class SoftwareCommandServiceImplTest {
     private static SoftwareEntity soft(String id, String key) {
         return SoftwareEntity.builder().id(id).key(key).name("名字").type("WEB").build();
     }
+
+    // ---------- prepareUpdatedSoftware（修改）----------
+
+    /** 修改时 desc 传空白 → 落库 null；而**新增时同样的空白会变成空串**（两处相反，都照抄）。 */
+    @Test
+    void updateBlankDescBecomesNullWhileAddKeepsEmptyString() {
+        when(repository.queryById("s1")).thenReturn(java.util.Optional.of(
+                SoftwareEntity.builder().id("s1").key("myapp").name("旧名字").routerKey("/myapp/").build()));
+
+        SoftwareEntity updated = service().prepareUpdatedSoftware("s1",
+                SoftwareFormVO.builder().key("myapp").name("新名字").desc("").build());
+        assertNull(updated.getDesc(), "修改：空白 → null");
+
+        when(repository.existsKey("newapp")).thenReturn(false);
+        when(repository.existsName("新应用")).thenReturn(false);
+        SoftwareEntity created = service().prepareNewSoftware(
+                SoftwareFormVO.builder().key("newapp").name("新应用").desc("").build());
+        assertEquals("", created.getDesc(), "新增：空白 → 空串（厂商那个 setDesc(null) 被返回值覆盖了）");
+    }
+
+    /** 表单没带的字段会被置成 null（厂商 `BeanUtils.copyProperties` 连 null 一起拷）。 */
+    @Test
+    void updateNullsOutFieldsTheFormDoesNotCarry() {
+        when(repository.queryById("s1")).thenReturn(java.util.Optional.of(
+                SoftwareEntity.builder().id("s1").key("myapp").name("旧名字")
+                        .routerKey("/myapp/").location("旧地点").icon("旧图标").build()));
+
+        SoftwareEntity updated = service().prepareUpdatedSoftware("s1",
+                SoftwareFormVO.builder().key("myapp").name("新名字").build());
+
+        assertNull(updated.getRouterKey(), "routerKey 没带 → 被置 null（不是保持原值）");
+        assertNull(updated.getLocation());
+        assertNull(updated.getIcon());
+        assertEquals("/myapp/", SoftwareEntity.builder().id("s1").routerKey("/myapp/").build().getRouterKey(),
+                "（对照：实体本身能持有 routerKey）");
+    }
+
+    @Test
+    void updateRejectsDuplicateKeyAndNameWithTheSameI18nKey() {
+        when(repository.queryById("s1")).thenReturn(java.util.Optional.of(
+                SoftwareEntity.builder().id("s1").key("myapp").name("旧名字").build()));
+        when(repository.existsByKeyExcludingId("taken", "s1")).thenReturn(true);
+        assertEquals("software.key.identifier.existed", key(() -> service().prepareUpdatedSoftware("s1",
+                SoftwareFormVO.builder().key("taken").name("新名字").build())));
+
+        when(repository.existsByKeyExcludingId("myapp", "s1")).thenReturn(false);
+        when(repository.existsByNameExcludingId("占用的", "s1")).thenReturn(true);
+        assertEquals("software.key.identifier.existed", key(() -> service().prepareUpdatedSoftware("s1",
+                SoftwareFormVO.builder().key("myapp").name("占用的").build())),
+                "厂商 name 重复时用的**也是** software.key.identifier.existed");
+    }
+
+    @Test
+    void updateRequiresExistingRow() {
+        when(repository.queryById("nope")).thenReturn(java.util.Optional.empty());
+        assertEquals("software.not.exist.by.id", key(() -> service().prepareUpdatedSoftware("nope",
+                SoftwareFormVO.builder().key("myapp").name("新名字").build())));
+    }
 }

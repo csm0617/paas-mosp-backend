@@ -134,4 +134,86 @@ public class SoftwareCommandServiceImpl implements ISoftwareCommandService {
         return softwareRepository.queryById(softwareId)
                 .orElseThrow(() -> new WrongArgumentException("software.not.exist.by.id"));
     }
+
+    @Override
+    public SoftwareEntity prepareUpdatedSoftware(String softwareId, SoftwareFormVO form) {
+        SoftwareEntity existing = softwareRepository.queryById(softwareId)
+                .orElseThrow(() -> new WrongArgumentException("software.not.exist.by.id"));
+
+        if (form.getKey() != null && softwareRepository.existsByKeyExcludingId(form.getKey(), softwareId)) {
+            throw new WrongArgumentException("software.key.identifier.existed", form.getKey());
+        }
+        if (form.getName() != null && softwareRepository.existsByNameExcludingId(form.getName(), softwareId)) {
+            // 厂商 name 重复时用的**也是** software.key.identifier.existed（两个分支同一个键，照抄）
+            throw new WrongArgumentException("software.key.identifier.existed", form.getName());
+        }
+
+        SoftwareFormVO checked = SoftwareFormVO.builder().key(form.getKey()).name(form.getName()).build();
+        validateName(checked.getKey(), checked.getName() == null ? null : checked.getName());
+        validateKey(checked.getKey());
+
+        // 厂商 BeanUtils.copyProperties(form, sf)：**表单没带的字段会被置成 null**（含 routerKey）
+        return SoftwareEntity.builder()
+                .id(existing.getId())
+                .key(form.getKey())
+                .name(form.getName())
+                .appName(existing.getAppName())
+                .routerKey(form.getRouterKey())
+                .type(form.getType())
+                .version(existing.getVersion())
+                .createdAt(existing.getCreatedAt())
+                .updatedAt(existing.getUpdatedAt())
+                .framework(form.getFramework())
+                .execName(form.getExecName())
+                .location(form.getLocation())
+                .remoteIp(form.getRemoteIp())
+                .remoteName(form.getRemoteName())
+                .remotePassword(form.getRemotePassword())
+                .activeCreate(existing.getActiveCreate())
+                .activeExpire(existing.getActiveExpire())
+                .orderTop(existing.getOrderTop())
+                .orderTime(existing.getOrderTime())
+                // 厂商 softwareDescLimit 在修改路径里把空白 desc 置成 **null**
+                // （新增路径那次 null 被返回值覆盖成空串，两处恰好相反）
+                .desc(isBlank(form.getDesc()) ? null : form.getDesc())
+                .activeCode(existing.getActiveCode())
+                .screenshot(existing.getScreenshot())
+                .icon(form.getIcon())
+                .build();
+    }
+
+    /** 厂商用 commons-lang 的 `StringUtils.isBlank`（null/空串/全空白都算空）。 */
+    private static boolean isBlank(String v) {
+        return v == null || v.isBlank();
+    }
+
+    /** 与新增同一套 name 规则（厂商 `softwareNameLimit`）。 */
+    private void validateName(String key, String name) {
+        if (name == null || name.isEmpty()) {
+            throw new WrongArgumentException("software.name.must.not.null");
+        }
+        if (name.length() > 100 || name.length() < 2) {
+            throw new WrongArgumentException("software.name.illegal", name);
+        }
+    }
+
+    /** 与新增同一套 key 规则（厂商 `softwareKeyLimit`）。 */
+    private void validateKey(String key) {
+        if (key == null || key.isEmpty()) {
+            throw new WrongArgumentException("software.key.must.not.null");
+        }
+        char first = key.charAt(0);
+        if (Character.isDigit(first)) {
+            throw new WrongArgumentException("software.key.identifier.illegal.not.number.start", key);
+        }
+        if (first == '-') {
+            throw new WrongArgumentException("software.key.identifier.illegal.dash.start".replace(".dash.start", ".not.dash.start"), key);
+        }
+        if (!KEY_PATTERN.matcher(key).matches()) {
+            throw new WrongArgumentException("software.key.identifier.illegal.format", key);
+        }
+        if (key.length() > 36 || key.length() < 2) {
+            throw new WrongArgumentException("software.key.identifier.illegal.length", key);
+        }
+    }
 }

@@ -30,9 +30,33 @@ class SoftwareWriteCaseImplTest {
     private final ISoftwareCommandService commandService = mock(ISoftwareCommandService.class);
     private final ISoftwareRepository softwareRepository = mock(ISoftwareRepository.class);
     private final IRoleRepository roleRepository = mock(IRoleRepository.class);
+    private final com.csm.paas.core.domain.software.service.ISoftwareDetailService detailService =
+            mock(com.csm.paas.core.domain.software.service.ISoftwareDetailService.class);
 
     private SoftwareWriteCaseImpl useCase() {
-        return new SoftwareWriteCaseImpl(commandService, softwareRepository, roleRepository);
+        return new SoftwareWriteCaseImpl(commandService, softwareRepository, roleRepository, detailService);
+    }
+
+    /**
+     * 修改软件：先按领域规则构造"修改后的实体"（含"表单没带的字段会被置 null"），
+     * 再整行更新，最后以**重新查出来的详情**作为响应（`nameUs`/`nameFr` 取自表单）。
+     */
+    @Test
+    void editUpdatesRowThenReturnsDetailWithFormNames() {
+        SoftwareEntity updated = SoftwareEntity.builder().id("s1").key("myapp").name("新名字").build();
+        when(commandService.prepareUpdatedSoftware(org.mockito.ArgumentMatchers.eq("s1"), any()))
+                .thenReturn(updated);
+        var detail = com.csm.paas.core.domain.software.model.entity.SoftwareInfoEntity.builder()
+                .software(SoftwareEntity.builder().id("s1").key("myapp").name("新名字").build())
+                .build();
+        when(detailService.queryDetail("s1")).thenReturn(detail);
+
+        var result = useCase().editSoftware("s1", SoftwareFormVO.builder()
+                .key("myapp").name("新名字").nameUs("NewUs").build());
+
+        verify(softwareRepository).update(updated);
+        org.junit.jupiter.api.Assertions.assertEquals("NewUs", result.getNameUs(), "nameUs 取自表单");
+        org.junit.jupiter.api.Assertions.assertEquals("新名字", result.getNameFr(), "nameFr 表单为空 → 回退 name");
     }
 
     @Test

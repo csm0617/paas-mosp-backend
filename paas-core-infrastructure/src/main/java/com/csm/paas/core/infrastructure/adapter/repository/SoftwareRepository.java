@@ -115,6 +115,21 @@ public class SoftwareRepository implements ISoftwareRepository {
     }
 
     @Override
+    public boolean existsByKeyExcludingId(String key, String id) {
+        return softwareDao.countByKeyExcludingId(key, id) > 0;
+    }
+
+    @Override
+    public boolean existsByNameExcludingId(String name, String id) {
+        return softwareDao.countByNameExcludingId(name, id) > 0;
+    }
+
+    @Override
+    public void update(SoftwareEntity software) {
+        softwareDao.updateByPrimaryKey(toPO(software));
+    }
+
+    @Override
     public void insertWhiteListPath(String path, long createdAt) {
         softwareDao.insertWhiteListPath(path, createdAt);
     }

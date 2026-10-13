@@ -5,6 +5,7 @@ import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 import java.util.List;
 import java.util.Map;
@@ -78,6 +79,28 @@ public interface ISoftwareDao {
                     #{orderTop}, #{desc}, #{screenshot}, #{icon})
             """)
     int insert(SoftwarePO software);
+
+    @Select("SELECT COUNT(*) FROM g_software WHERE `key` = #{key} AND id <> #{id}")
+    long countByKeyExcludingId(@Param("key") String key, @Param("id") String id);
+
+    @Select("SELECT COUNT(*) FROM g_software WHERE name = #{name} AND id <> #{id}")
+    long countByNameExcludingId(@Param("name") String name, @Param("id") String id);
+
+    /**
+     * 整行更新（厂商 `updateByPrimaryKey`）。注意**不更新 `created_at`/`updated_at`**——
+     * 厂商的 `editSoftWare` 只 `copyProperties` 表单字段，时间戳保持原值（与"新增只设 createdAt"是同一种粗糙）。
+     */
+    @Update("""
+            UPDATE g_software SET `key` = #{key}, name = #{name}, app_name = #{appName}, router_key = #{routerKey},
+                                  type = #{type}, version = #{version}, framework = #{framework},
+                                  exec_name = #{execName}, location = #{location},
+                                  remote_ip = #{remoteIp}, remote_name = #{remoteName}, remote_password = #{remotePassword},
+                                  active_create = #{activeCreate}, active_expire = #{activeExpire},
+                                  order_top = #{orderTop}, order_time = #{orderTime}, `desc` = #{desc},
+                                  active_code = #{activeCode}, screenshot = #{screenshot}, icon = #{icon}
+            WHERE id = #{id}
+            """)
+    int updateByPrimaryKey(SoftwarePO software);
 
     /** 该战位已关联的软件数（厂商用它算下一个 `order`）。 */
     @Select("SELECT COUNT(*) FROM g_role_software WHERE role_id = #{roleId}")

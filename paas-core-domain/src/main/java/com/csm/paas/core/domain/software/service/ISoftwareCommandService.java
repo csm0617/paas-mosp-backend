@@ -48,4 +48,24 @@ public interface ISoftwareCommandService {
      * 不存在 → `software.not.exist.by.id`），返回该实体供调用方继续删除。
      */
     SoftwareEntity requireExisting(String softwareId);
+
+    /**
+     * 校验并构造（不落库）修改后的软件实体（厂商 `SoftwareController.editSoftWare:365-378` +
+     * `SoftwareService.editSoftWare:1482-1514`）。
+     *
+     * <p>校验顺序照抄：软件不存在 → `software.not.exist.by.id`；key 与他人重复 → `software.key.identifier.existed`；
+     * name 与他人重复 → **同一个键** `software.key.identifier.existed`（厂商两处用了同一个 key，照抄）；
+     * 然后 name/key 走与新增相同的规则（`software.name.*` / `software.key.identifier.illegal.*`）。
+     *
+     * <p>三处必须照抄的古怪：
+     * <ol>
+     *   <li>厂商用 `BeanUtils.copyProperties(form, sf)` ⇒ **表单里没带的字段会被置成 null**
+     *       （包括 `routerKey`）——不是"没带就不改"；</li>
+     *   <li>`desc` 空白时置 **null**（新增时那个 null 被返回值覆盖成空串，**修改时不会**，两处恰好相反）；</li>
+     *   <li>整行更新（`updateByPrimaryKey`），不是 selective。</li>
+     * </ol>
+     * <p><b>未实现</b>：CS 类型的 WebSocket 通知、BS 类型改 key 后的服务重关联（`unRelateServices`/`relateServices`
+     * 要 K8s 与 `g_software_app` 映射）。
+     */
+    SoftwareEntity prepareUpdatedSoftware(String softwareId, SoftwareFormVO form);
 }

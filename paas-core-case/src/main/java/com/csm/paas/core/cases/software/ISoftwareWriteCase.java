@@ -27,4 +27,14 @@ public interface ISoftwareWriteCase {
      * <p>厂商 `removeSoftware` 还会删 i18n 自动名（`deleteAutoNameMessage`），本环境是 no-op，待切片 5 回补。
      */
     void removeSoftware(String softwareId);
+
+    /**
+     * 修改软件（`PUT /v1/software/{id}`）：校验与"表单没带的字段会被置 null"在领域层，
+     * **整行更新在一个事务里**。
+     * <p>厂商返回的是**重新查出来的 `SoftwareInfo`（23 键）**，不是 Software；
+     * 且响应的 `nameUs`/`nameFr` 取自**表单**（非空则用表单值，空则回退 name），不是详情的默认回退。
+     * <p><b>未实现</b>：CS 类型的 WebSocket 通知、BS 类型改 key 后的服务重关联。
+     */
+    com.csm.paas.core.domain.software.model.entity.SoftwareInfoEntity editSoftware(
+            String softwareId, SoftwareFormVO form);
 }

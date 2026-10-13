@@ -56,6 +56,28 @@ public class SoftwareController {
     }
 
     /**
+     * 厂商 `PUT /v1/software/{id}`：修改软件。
+     * <p>三道闸照抄 `SoftwareController.java:365-378`：不存在 → 400 `software.not.exist.by.id`；
+     * key 与他人重复 → 400 `software.key.identifier.existed`；**name 与他人重复用的是同一个键**（厂商照抄点）。
+     * <p>返回的是 23 键的 `SoftwareInfo`（与 `GET /v1/software/{id}` 同形），且 `nameUs`/`nameFr` 取自表单。
+     */
+    @org.springframework.web.bind.annotation.PutMapping("/{id}")
+    public ResponseDTO<com.csm.paas.core.api.dto.SoftwareInfoDTO> editSoftware(
+            @org.springframework.web.bind.annotation.PathVariable String id,
+            @org.springframework.web.bind.annotation.RequestBody com.csm.paas.core.api.dto.SoftwareFormDTO form) {
+        var vo = com.csm.paas.core.domain.software.model.valobj.SoftwareFormVO.builder()
+                .key(form.getKey()).name(form.getName()).nameFr(form.getNameFr()).nameUs(form.getNameUs())
+                .type(form.getType()).routerKey(form.getRouterKey())
+                .desc(form.getDesc()).location(form.getLocation())
+                .remoteIp(form.getRemoteIp()).remoteName(form.getRemoteName()).remotePassword(form.getRemotePassword())
+                .framework(form.getFramework()).execName(form.getExecName()).icon(form.getIcon())
+                .screenShotList(form.getScreenShotList()).roleListKey(form.getRoleListKey())
+                .build();
+        return ResponseDTO.ok(com.csm.paas.core.trigger.assembler.SoftwareInfoAssembler.toResponse(
+                softwareWriteCase.editSoftware(id, vo)));
+    }
+
+    /**
      * 厂商 `DELETE /v1/software/{id}`：删除软件（含 4 张表的顺序删除，**整体一个事务**）。
      * <p>不存在 → 400 `software.not.exist.by.id`；厂商返回 `Response.ok(null)` → `data:null`。
      */

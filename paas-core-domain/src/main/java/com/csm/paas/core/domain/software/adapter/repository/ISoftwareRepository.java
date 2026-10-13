@@ -80,6 +80,15 @@ public interface ISoftwareRepository {
 
     void deleteById(String softwareId);
 
+    /** 除自己之外是否已存在该 key（厂商 `duplicateKey`，软件域）。 */
+    boolean existsByKeyExcludingId(String key, String id);
+
+    /** 除自己之外是否已存在该 name（厂商 `duplicateName`，软件域）。 */
+    boolean existsByNameExcludingId(String name, String id);
+
+    /** 整行更新（厂商 `updateByPrimaryKey`，**不是** selective）。 */
+    void update(SoftwareEntity software);
+
     /**
      * 软件**当前版本**对应的上传记录（厂商 `UploadStoreRecordMapper.getCurrentSoftwareVersionInfo`）：
      * `select * from g_upload_store_record ur left join g_software s on ur.id = s.version where s.id = ?`
