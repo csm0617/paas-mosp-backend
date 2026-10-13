@@ -44,12 +44,12 @@ public final class SoftwareInfoAssembler {
                 // 厂商 SoftwareInfo 的字段初始化器把 status 默认设成 "STOP"（不是 null）
                 .status("STOP")
                 .serviceList(null)
-                // 未激活/验签失败时厂商给 LicenceInfo.expired(code)：{end:-1, endIso8601:null, code, expired:true}
+                // 来自 getSoftwareLicenceInfo：未激活/校验失败时是 LicenceInfo.expired(code)
                 .licence(SoftwareLicenceDTO.builder()
-                        .end(-1L)
-                        .endIso8601(null)
-                        .code(e.getLicenceCode())
-                        .expired(true)
+                        .end(e.getLicence() == null ? -1L : e.getLicence().getEnd())
+                        .endIso8601(e.getLicence() == null ? null : e.getLicence().getEndIso8601())
+                        .code(e.getLicence() == null ? e.getLicenceCode() : e.getLicence().getCode())
+                        .expired(e.getLicence() == null || Boolean.TRUE.equals(e.getLicence().getExpired()))
                         .build())
                 .icon(s.getIcon())
                 .screenShotList(e.getScreenShotList())

@@ -20,4 +20,16 @@ public interface ILicenceRepository {
      * （实测该文件在本环境**不存在**）。base64 与拼接在领域服务里做（两条路径拼法不同，见 `ILicenceQueryService`）。
      */
     String rawMachineCode();
+
+    /**
+     * `g_activate` 里 `name='gaop'` 那行的 `public_key`（base64 X.509 RSA）——
+     * 厂商 `LicenceService.get():531-545`，用于校验**平台激活码**。
+     */
+    java.util.Optional<String> queryGaopActivatePublicKey();
+
+    /**
+     * `g_auth_info` 里 `jar_name='default_auth'` 的**最新一条**（按 `create_at` 降序）的 `public_key` ——
+     * 厂商 `checkSoftwareActiveCode:584-585`/`getPublicKeyAlgorithm:567-579`，用于校验**软件授权码**。
+     */
+    java.util.Optional<String> queryDefaultAuthPublicKey();
 }

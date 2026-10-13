@@ -28,6 +28,9 @@ public class SoftwareInfoEntity {
     private List<String> screenShotList;
     /** 机器码 + Base64(key) 拼出的软件码（`geneSoftwareCode`）。 */
     private String licenceCode;
+
+    /** 授权信息（厂商 `getSoftwareLicenceInfo` 的结果：未激活/校验失败时是 `LicenceInfo.expired(code)`）。 */
+    private com.csm.paas.core.domain.licence.model.entity.LicenceInfoEntity licence;
     private String version;
     private UploadStoreRecordVO uploadStoreRecord;
 }

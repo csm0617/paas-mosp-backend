@@ -192,6 +192,13 @@ Label: `wayfinder:map`
   - 工具层：**同一个坑第三次踩**——python heredoc 里嵌三引号导致解析失败、整段补丁静默不执行，还被前面的 `print("patched")` 掩盖，靠编译错误才发现。改用 edit 工具 + 每步 `grep -c` 验证（当场查出 4 个补丁全没落地）。
   - 测试 157 → **162 条**全绿。**软件域 CRUD + 发布态闭环**：列表 / 新增 / 详情 / 修改 / 删除 / 放行，六条全部对拉一致。
 
+- （**K3 开口**）[激活码校验](docs/findings/44-k3-activation-verify.md)：验签（RSA512 + issuer `gaop`）+ claim 解析 + **机器码交集** + 过期判定 + 异常映射，全部实现。
+  - **关键手段**：厂商私钥拿不到 ⇒ 测试里**自己生成一对 RSA 密钥**，把公钥塞进仓储、用配对私钥签出同构 JWT，让真实实现去验。**不用 mock 假装验签通过**；也因此把上一轮"active_code 分支不可达"的问题变成了"可达且已验证"。
+  - 两处**容易写成一样**的异常键已分别钉住：平台版 `licence.invalid.key.signature` vs 软件版 `licence.invalid.signature`。
+  - 实测事实：**JWT 的 exp 只到秒**（end 被截断）；**表名必须查真库**（我猜成 `g_auth_info`，真库是 **`g_auth`**）；`g_auth` 无 `default_auth` 行时厂商 `IndexOutOfBounds`，我们返回 null 折算成未激活（记录为收紧）。
+  - 软件详情的 `licence` 不再是硬编码 expired，改成真的走 `getSoftwareLicenceInfo` 两条路径。
+  - 测试 162 → **174 条**全绿。K3 仍缺：平台激活写入端点、GIS 在线授权、`/v1/licence/info` 的已激活分支。
+
 - （K3 预研结论）`LicenceInfo.expired(code)` = `{end:-1, endIso8601:null, code, expired:true}`，其中 `code = 机器码 + Base64(软件key)`；**"没有激活码"这一支不需要密码学**，可以在做 `GET /v1/software/{id}` 时一并实现（本轮没写，因为详情端点没做就没有调用方，写了是死代码）。
 
 ## Not yet specified

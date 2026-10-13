@@ -1,5 +1,23 @@
 package com.csm.paas.core.domain.licence.service.impl;
 
+import com.auth0.jwt.JWT;
+import com.auth0.jwt.JWTVerifier;
+import com.auth0.jwt.algorithms.Algorithm;
+import com.auth0.jwt.exceptions.InvalidClaimException;
+import com.auth0.jwt.exceptions.SignatureVerificationException;
+import com.auth0.jwt.exceptions.TokenExpiredException;
+import com.auth0.jwt.interfaces.DecodedJWT;
+import com.csm.paas.core.domain.licence.LicenceSets;
+import com.csm.paas.core.domain.licence.model.valobj.MachineCodeVO;
+import com.csm.paas.core.types.exception.WrongArgumentException;
+import java.security.KeyFactory;
+import java.security.interfaces.RSAPublicKey;
+import java.security.spec.X509EncodedKeySpec;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Set;
 import com.csm.paas.core.domain.licence.adapter.repository.ILicenceRepository;
 import com.csm.paas.core.domain.licence.model.entity.LicenceInfoEntity;
 import com.csm.paas.core.domain.licence.service.ILicenceQueryService;
@@ -65,6 +83,9 @@ public class LicenceQueryServiceImpl implements ILicenceQueryService {
      *  （`TenxCloudImpl.licencePlatform():539-543`）。 */
     private static final String DEFAULT_GAOP = "gaop";
 
+    /** 厂商 `LicenceKey.ISSUER`。 */
+    private static final String ISSUER = "gaop";
+
     @Override
     public String machineCode() {
         // 厂商 getMachineCodeBase64()：原始机器码 + "," + "gaop" + ","（**尾部多一个逗号**）
@@ -77,5 +98,106 @@ public class LicenceQueryServiceImpl implements ILicenceQueryService {
         // 厂商 getMachineCodeBase64ByService()：原始机器码 + "," + "gaop"（**没有尾逗号**）
         return Base64.getEncoder().encodeToString(
                 (licenceRepository.rawMachineCode() + "," + DEFAULT_GAOP).getBytes(StandardCharsets.US_ASCII));
+    }
+
+    // ---------- 激活码校验（K3 核心）----------
+
+    @Override
+    public LicenceInfoEntity checkActiveCode(String machineCodeBase64, String activeCode) {
+        MachineCodeVO machine = MachineCodeVO.parse(machineCodeBase64);
+        Set<String> gaopCodeSet = LicenceSets.parse(machine.getGaopCode());
+
+        String publicKey = licenceRepository.queryGaopActivatePublicKey()
+                .orElseThrow(() -> new WrongArgumentException("auth.get.activate.public.key.failed"));
+        try {
+            JWTVerifier verifier = JWT.require(rsa512(publicKey)).withIssuer(ISSUER).build();
+            DecodedJWT jwt = verifier.verify(strip(activeCode));
+            Set<String> machineSet = LicenceSets.parse(jwt.getClaim("machineCode").asString());
+            if (!LicenceSets.hasIntersection(gaopCodeSet, machineSet)) {
+                throw new WrongArgumentException("auth.invalid.auth.machine.id");
+            }
+            return toLicenceInfo(jwt.getExpiresAt(), machineCodeBase64);
+        } catch (SignatureVerificationException e) {
+            throw new WrongArgumentException("licence.invalid.key.signature");
+        } catch (TokenExpiredException e) {
+            throw new WrongArgumentException("licence.activation.code.expired");
+        } catch (InvalidClaimException e) {
+            throw new WrongArgumentException("licence.invalid.args", e.getMessage());
+        } catch (WrongArgumentException e) {
+            throw e;   // 上面自己抛的"无交集"，不要被下面的兜底吞掉
+        } catch (Exception e) {
+            log.error("激活码错误", e);
+            throw new WrongArgumentException(e.getMessage());
+        }
+    }
+
+    @Override
+    public LicenceInfoEntity checkSoftwareActiveCode(String machineCodeBase64, String activeCode, String softwareKey) {
+        String publicKey = licenceRepository.queryDefaultAuthPublicKey().orElse(null);
+        if (publicKey == null) {
+            // 厂商是 select.get(0) 直接 IndexOutOfBounds（缺陷）；我们按"授权软件公钥缺失"处理，交给上层记成未激活
+            log.warn("g_auth_info 里没有 default_auth 行，软件授权码无法校验");
+            return null;
+        }
+        try {
+            JWTVerifier verifier = JWT.require(rsa512(publicKey)).withIssuer(ISSUER).build();
+            DecodedJWT jwt = verifier.verify(strip(activeCode));
+            List<String> serviceIdList = jwt.getClaim("serviceIdList").asList(String.class);
+            if (serviceIdList == null || serviceIdList.isEmpty()) {
+                log.info("软件授权码中未获取到软件标识列表");
+                return expired(machineCodeBase64);
+            }
+            if (serviceIdList.contains(softwareKey)) {
+                return toLicenceInfo(jwt.getExpiresAt(), machineCodeBase64);
+            }
+            log.info("未解析出当前软件标识:{}", softwareKey);
+            return expired(machineCodeBase64);
+        } catch (SignatureVerificationException e) {
+            // 注意：软件版用的是 licence.invalid.signature（**不是**平台版的 licence.invalid.key.signature）
+            throw new WrongArgumentException("licence.invalid.signature");
+        } catch (TokenExpiredException e) {
+            throw new WrongArgumentException("licence.activation.code.expired");
+        } catch (InvalidClaimException e) {
+            throw new WrongArgumentException("licence.invalid.args", e.getMessage());
+        } catch (Exception e) {
+            log.error("软件授权码错误，按未激活处理", e);
+            return null;   // 厂商这里 return null，由调用方折算成 expired
+        }
+    }
+
+    /** 厂商 `LicenceInfo.expired(code)` = `{end:-1, code, expired:true}`（`endIso8601` 不设 ⇒ null）。 */
+    private static LicenceInfoEntity expired(String code) {
+        return LicenceInfoEntity.builder().end(-1L).code(code).expired(true).build();
+    }
+
+    /**
+     * 成功时的 4 个字段（厂商 `checkActiveCode:651-657` / `checkSoftwareActiveCode:603-609`）：
+     * `endIso8601` 用的是 **`ZoneId.systemDefault()`**，不是 UTC。
+     */
+    private static LicenceInfoEntity toLicenceInfo(java.util.Date expiresAt, String machineCodeBase64) {
+        long now = System.currentTimeMillis();
+        return LicenceInfoEntity.builder()
+                .end(expiresAt.getTime())
+                .code(machineCodeBase64)
+                .expired(now > expiresAt.getTime())
+                .endIso8601(DateTimeFormatter.ISO_DATE_TIME.format(
+                        LocalDateTime.ofInstant(expiresAt.toInstant(), ZoneId.systemDefault())))
+                .build();
+    }
+
+    /** 厂商 `checkActiveCode` 第一行：`activeCode.replaceAll("\\s*|\t|\r|\n", "")`。 */
+    private static String strip(String activeCode) {
+        return activeCode == null ? null : activeCode.replaceAll("\\s*|\t|\r|\n", "");
+    }
+
+    /** base64 X.509 公钥 → `Algorithm.RSA512`（厂商 `get()`/`getPublicKeyAlgorithm` 同款）。 */
+    private static Algorithm rsa512(String publicKeyBase64) {
+        try {
+            KeyFactory factory = KeyFactory.getInstance("RSA");
+            X509EncodedKeySpec spec = new X509EncodedKeySpec(Base64.getDecoder().decode(publicKeyBase64));
+            return Algorithm.RSA512((RSAPublicKey) factory.generatePublic(spec), null);
+        } catch (Exception e) {
+            throw new WrongArgumentException("auth.get.software.activate.public.key.failed");
+        }
     }
 }

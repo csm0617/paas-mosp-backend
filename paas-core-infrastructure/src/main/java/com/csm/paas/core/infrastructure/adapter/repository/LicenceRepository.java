@@ -14,6 +14,7 @@ import java.util.Optional;
 public class LicenceRepository implements ILicenceRepository {
 
     private final ISettingRepository settingRepository;
+    private final com.csm.paas.core.infrastructure.dao.ILicenceDao licenceDao;
 
     /**
      * 原始机器码（厂商配置项 `machine.code`）。
@@ -42,5 +43,15 @@ public class LicenceRepository implements ILicenceRepository {
     @Override
     public String rawMachineCode() {
         return rawMachineCode;
+    }
+
+    @Override
+    public Optional<String> queryGaopActivatePublicKey() {
+        return Optional.ofNullable(licenceDao.selectGaopActivatePublicKey()).filter(v -> !v.isBlank());
+    }
+
+    @Override
+    public Optional<String> queryDefaultAuthPublicKey() {
+        return Optional.ofNullable(licenceDao.selectDefaultAuthPublicKey()).filter(v -> !v.isBlank());
     }
 }

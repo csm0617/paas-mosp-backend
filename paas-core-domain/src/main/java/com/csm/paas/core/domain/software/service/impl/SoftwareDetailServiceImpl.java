@@ -73,9 +73,33 @@ public class SoftwareDetailServiceImpl implements ISoftwareDetailService {
                 .nameUs(nameUs)
                 .nameFr(nameFr)
                 .licenceCode(licenceCode)
+                .licence(softwareLicence(licenceCode, software))
                 .version(version)
                 .uploadStoreRecord(record)
                 .build();
+    }
+
+    /**
+     * 厂商 `SoftwareService.getSoftwareLicenceInfo:1613-1626`：
+     * `active_code` 为空 → `LicenceInfo.expired(softwareCode)`；
+     * 非空 → 校验；**校验抛异常或返回 null 也一律折算成 expired**。
+     */
+    private com.csm.paas.core.domain.licence.model.entity.LicenceInfoEntity softwareLicence(
+            String softwareCode, SoftwareEntity software) {
+        com.csm.paas.core.domain.licence.model.entity.LicenceInfoEntity expired =
+                com.csm.paas.core.domain.licence.model.entity.LicenceInfoEntity.builder()
+                        .end(-1L).code(softwareCode).expired(true).build();
+        if (software.getActiveCode() == null) {
+            return expired;
+        }
+        try {
+            var checked = licenceQueryService.checkSoftwareActiveCode(
+                    softwareCode, software.getActiveCode(), software.getKey());
+            return checked == null ? expired : checked;
+        } catch (Exception e) {
+            log.error("验证软件码失败: {}", software.getActiveCode(), e);
+            return expired;
+        }
     }
 
     /** 厂商 `geneSoftwareCode(machineCodeBase64, key)` = 机器码 + Base64(key)。 */

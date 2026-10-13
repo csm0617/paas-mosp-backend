@@ -11,6 +11,13 @@
     <artifactId>paas-core-domain</artifactId>
     <packaging>jar</packaging>
     <dependencies>
+        <!-- 与厂商同版本（gaop-be pom:228 也是 3.11.0）：授权码 JWT 的校验语义要和厂商一致 -->
+        <dependency>
+            <groupId>com.auth0</groupId>
+            <artifactId>java-jwt</artifactId>
+            <version>3.11.0</version>
+        </dependency>
+
         <dependency>
             <groupId>com.csm.paas.core</groupId>
             <artifactId>paas-core-types</artifactId>
