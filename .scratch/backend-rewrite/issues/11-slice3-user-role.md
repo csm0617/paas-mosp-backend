@@ -81,6 +81,31 @@ K1 端点总数 **63**（`UserController` 25 + `RoleController` 28 + `SubRoleCon
 
 **下一片**：3c 子角色（`GET /v1/sub_role/switchRole` 是 `/usermanage/account` 的**前置**，必须补），随后 3b 战位页。
 
+## 3b 战位页（`/usermanage/role`）开工前的取证结论（2026-10-14，已备齐，直接可写）
+
+数据源 = `GET /v1/role/switchRole?page&size&roleName&type`（`type` 1=战位 2=角色），**样本已抓**：
+`runtime-samples/v1_role_switchRole_type1.json`（1 行 admin）与 `_type2.json`（1 行 user）。照抄厂商
+`RoleService.switchRoleList`（`RoleService.java:191-261`）：
+
+1. **两条分支**：关键字空 → `PageHelper` 分页、`total` 取分页总数；关键字非空 → `name LIKE`、`total = list.size()`；
+   两条都按 `g_role.type = type` 过滤、按 `created_at` 倒序；
+2. **`admin`/`dev` 的 `softwareList` 被硬编码覆盖**为单条伪条目（`id=0`、`appId=key`、`appName=运维管理员门户/开发管理员门户`），
+   **即使 `g_role_software` 为空**；
+3. **`onLineUserList` 来自 Redis**：`SCAN login-list*` 取键（形如 `login-list:<user>:<roleKey>`），
+   按 `roleKey` 归组得到"该战位在线用户名"，无人在线时是 **`[]`**（不是 null）；
+4. **`admin`/`dev`/`adminOrDev` 是模型上的计算 getter**（`Role.java:33-43`，由 `key` 推导），不是数据库列；
+5. `userList` 条目形状 `{userId,userName}`；`subRoleList` 是子角色数组；
+6. `nameFr`/`nameUs` 在 `switchRoleList` 里**恒为 null**（只有 `GET /v1/role/{id}` 才填 `nameUs`）；
+7. `softwareList` 伪条目的 **12 个键**：`id,roleId,appId,appName,url,updatedAt,createdAt,order,software,icon,screenShotList,web`
+   （其余为 null）。
+
+**页面还需要的**：`GET /v1/role/{id}`（编辑抽屉）、`GET /v1/role/{roleId}/software`（**要会话**，无 cookie 是 401，
+与 `/v1/role` 的匿名不同）、`GET /v1/role/{roleId}/users`。前两个的样本已在 `runtime-samples/`。
+
+**读路径**（`p__role.61a39591.async.js`，已逐条核对，见 `25-k1-read-paths.md`）：
+`list[].key/name/desc/updatedAt/type/nameFr/nameUs/softwareList/userList/subRoleList/onLineUserList`；
+**`adminOrDev`/`admin`/`dev` 该页不读**（页面自己拿 `key` 比字面量）。
+
 **端点计数口径更正**：本工单开工时按 03 号证据记 **63** 条（把 `AuthController` 7 条归给 K3）；
 22 号档案按"controller 归属"记 **70** 条。**两个口径都不错，但对外引用时必须说明口径**——
 本切片仍只做"前端有调用者"的 49 条里的 K1 部分。
