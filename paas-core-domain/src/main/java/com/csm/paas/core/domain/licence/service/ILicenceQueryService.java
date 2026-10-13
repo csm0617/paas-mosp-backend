@@ -7,7 +7,18 @@ public interface ILicenceQueryService {
 
     LicenceInfoEntity queryInfo();
 
+    /**
+     * 厂商 `GET /v1/licence` 的 `code`：`Base64(原始机器码 + "," + "gaop" + ",")`——
+     * **注意尾部多一个逗号**（厂商 `LicenceService.getMachineCodeBase64()`，`:161-190`）。
+     */
     String machineCode();
+
+    /**
+     * 软件授权（软件详情里的 `licence.code` 前缀）：`Base64(原始机器码 + "," + "gaop")`——
+     * **没有尾部逗号**（厂商 `LicenceService.getMachineCodeBase64ByService()`，`:327-356`）。
+     * <p>两个方法就差这一个逗号，实测确认（见 `docs/findings/41` 的更正节）。
+     */
+    String machineCodeForSoftware();
 
     /**
      * 厂商 `GET /v1/licence/checkAndActiveGis`：GIS 授权检查。

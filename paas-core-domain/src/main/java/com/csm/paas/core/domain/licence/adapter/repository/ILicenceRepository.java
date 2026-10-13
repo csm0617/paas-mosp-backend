@@ -14,6 +14,10 @@ public interface ILicenceRepository {
 
     void saveSettingValue(String key, String val, String desc);
 
-    /** 机器码：环境相关（厂商由配置文件+本机文件推导），这里由配置提供。 */
-    String machineCode();
+    /**
+     * **原始机器码**（厂商 `LicenceService.machineCode`，配置项 `machine.code`）——**不是** base64，
+     * 也不含 platformId。厂商的推导顺序：配置值 → 若 `/data/licenceInfo/machine_codes.json` 有内容则用它
+     * （实测该文件在本环境**不存在**）。base64 与拼接在领域服务里做（两条路径拼法不同，见 `ILicenceQueryService`）。
+     */
+    String rawMachineCode();
 }

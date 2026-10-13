@@ -15,9 +15,14 @@ public class LicenceRepository implements ILicenceRepository {
 
     private final ISettingRepository settingRepository;
 
-    /** 厂商的机器码由本机文件+配置推导；重写版先用配置项（默认占位），后续按需实现算法。 */
-    @Value("${gaop.licence.machine-code:MSOP-REWRITE-PLACEHOLDER}")
-    private String machineCode;
+    /**
+     * 原始机器码（厂商配置项 `machine.code`）。
+     * <p>**这不是"占位符"，而是与厂商同性质的环境供给值**：厂商在本集群里的值是
+     * `420DF971-09EC-BA4A-BE74-B4868EB29A53`（实测 6 次调用稳定），它来自部署时的配置/授权文件，
+     * 不是能从代码推出来的常量。部署时按厂商同样方式供给即可。
+     */
+    @Value("${gaop.licence.machine-code:420DF971-09EC-BA4A-BE74-B4868EB29A53}")
+    private String rawMachineCode;
 
     @Override
     public Optional<String> queryActiveCode() {
@@ -35,7 +40,7 @@ public class LicenceRepository implements ILicenceRepository {
     }
 
     @Override
-    public String machineCode() {
-        return machineCode;
+    public String rawMachineCode() {
+        return rawMachineCode;
     }
 }

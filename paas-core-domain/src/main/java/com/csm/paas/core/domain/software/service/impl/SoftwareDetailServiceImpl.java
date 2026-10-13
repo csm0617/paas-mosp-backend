@@ -80,7 +80,7 @@ public class SoftwareDetailServiceImpl implements ISoftwareDetailService {
 
     /** 厂商 `geneSoftwareCode(machineCodeBase64, key)` = 机器码 + Base64(key)。 */
     private String licenceCode(String softwareKey) {
-        return licenceQueryService.machineCode()
+        return licenceQueryService.machineCodeForSoftware()
                 + Base64.getEncoder().encodeToString(softwareKey.getBytes(StandardCharsets.UTF_8));
     }
 }

@@ -181,7 +181,8 @@ Label: `wayfinder:map`
 - （**K2：软件详情**）[GET /v1/software/{id}](docs/findings/41-k2-software-detail-and-machine-code-gap.md)：**23/23 键一致，只差 1 个字段**（含 screenShotList 拆分、roleKey/NameList、status 默认 "STOP"、非 BS 时 serviceList 为 null、version=上传记录 id）。
   - 那个唯一差异是 `licence.code` 的机器码部分——**我们一直是占位符 `MSOP-REWRITE-PLACEHOLDER`**（`LicenceRepository` 的 `@Value` 默认值）。厂商 = `Base64(gaopCode + "," + "gaop")`；`platformId` 是硬编码 `"gaop"`，`/data/licenceInfo/machine_codes.json` 在厂商 pod 里**不存在** ⇒ 走配置值。
   - **更正旧记录**：早期把 `/v1/licence` 记为"已验证"其实只是**形状**对（`{code,existGist}`）；`code` 的**值一直是错的**。教训：只验形状不验值会埋雷，本轮被详情端点暴露。
-  - **未定论（做 K3 前必须定）**：厂商两条机器码方法差一个尾逗号，且两次调用解出的机器码**差一个字符**（`BE74` vs `BE87`）⇒ 厂商机器码**不是稳定值**。要么查清它读什么/怎么派生，要么按 ADR-0006 记成 L3 偏离并说明前端是否读它。
+  - ~~未定论（做 K3 前必须定）~~ → **已定论（本轮）**：机器码**稳定且可复刻**。原始机器码 = 配置项 `machine.code`（本集群 `420DF971-09EC-BA4A-BE74-B4868EB29A53`）；平台 id 是硬编码 `"gaop"`；两条拼法**只差一个尾逗号**（`/v1/licence` 带、软件详情不带）。已实现并**逐字节对拉一致**。
+  - **我上一轮那个「机器码不稳定」的结论作废**：`BE87` 是我**从终端手抄 base64** 时把 `NzQ` 看成 `ODc` 所致；程序化取数后连续 6 次/3 次都稳定。**教训：不透明值必须程序化提取，绝不手抄**——手抄会把"我没看清"伪装成"厂商不稳定"，而这种假结论最容易让人放弃对齐。
   - **同一个坑第二次踩**：`selectRelationRoles` 用 `Map` 取列，H2 列标签大写 → `[null]`（与 `selectIdAndKeyByKeys` 同源）。已改用 PO；结论：不确定大小写的库取多列一律用 PO。
   - 测试 152 → **155 条**全绿。
 

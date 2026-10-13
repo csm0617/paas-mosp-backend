@@ -7,6 +7,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+
 /**
  * 授权信息。
  * <p>照抄厂商 `LicenceService.getLicenceInfo()` 的**未激活分支**：没有激活码时给试用期，
@@ -27,7 +30,7 @@ public class LicenceQueryServiceImpl implements ILicenceQueryService {
     @Override
     public LicenceInfoEntity queryInfo() {
         long now = System.currentTimeMillis();
-        String machineCode = licenceRepository.machineCode();
+        String machineCode = machineCode();
         String activeCode = licenceRepository.queryActiveCode().orElse(null);
         if (activeCode != null) {
             // 激活码校验未实现（属 gaop-auth 域）——保守地按"未激活"处理，并记录
@@ -51,14 +54,28 @@ public class LicenceQueryServiceImpl implements ILicenceQueryService {
                 .build();
     }
 
-    @Override
-    public String machineCode() {
-        return licenceRepository.machineCode();
-    }
 
     @Override
     public boolean checkAndActiveGis() {
         // 厂商在本环境返回 false（无 GIS 授权）；GIS 在线激活属 gaop-auth 域，未实现
         return false;
+    }
+
+    /** 厂商 `DEFAULT_GAOP = "gaop"`（`LicenceService.java:99`），以及平台 id 硬编码 `gaop`
+     *  （`TenxCloudImpl.licencePlatform():539-543`）。 */
+    private static final String DEFAULT_GAOP = "gaop";
+
+    @Override
+    public String machineCode() {
+        // 厂商 getMachineCodeBase64()：原始机器码 + "," + "gaop" + ","（**尾部多一个逗号**）
+        return Base64.getEncoder().encodeToString(
+                (licenceRepository.rawMachineCode() + "," + DEFAULT_GAOP + ",").getBytes(StandardCharsets.US_ASCII));
+    }
+
+    @Override
+    public String machineCodeForSoftware() {
+        // 厂商 getMachineCodeBase64ByService()：原始机器码 + "," + "gaop"（**没有尾逗号**）
+        return Base64.getEncoder().encodeToString(
+                (licenceRepository.rawMachineCode() + "," + DEFAULT_GAOP).getBytes(StandardCharsets.US_ASCII));
     }
 }
