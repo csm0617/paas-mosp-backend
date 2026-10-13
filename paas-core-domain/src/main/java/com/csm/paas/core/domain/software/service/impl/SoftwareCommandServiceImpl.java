@@ -128,4 +128,10 @@ public class SoftwareCommandServiceImpl implements ISoftwareCommandService {
         // 厂商随后会 notificationGateway() 通知网关重载；我们尚未接管网关，见接口 javadoc
         return true;
     }
+
+    @Override
+    public SoftwareEntity requireExisting(String softwareId) {
+        return softwareRepository.queryById(softwareId)
+                .orElseThrow(() -> new WrongArgumentException("software.not.exist.by.id"));
+    }
 }

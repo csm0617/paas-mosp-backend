@@ -174,6 +174,12 @@ Label: `wayfinder:map`
   - **本轮刻意没做 `GET /v1/software/{id}`**：读了实现后确认它是**三个域的聚合**（`SoftwareInfo` 21+ 键里 `licence` 要 K3、`uploadStoreRecord` 要上传记录、`status`/`serviceList` 要 K8s 现场态）。在缺 K3 的前提下做它只能返回一堆 null 冒充数据——**留着不做**，先理清 `licence` 与上传记录的最小只读形态。
   - 测试 144 → **148 条**全绿。
 
+- （**K2 续**）[DELETE /v1/software/{id}](docs/findings/40-k2-software-delete.md)：成功响应 `data:null` 与不存在（400 "id指定软件不存在"）两侧一致；四表按厂商顺序删除（`g_role_software`(按 **app_id**) → `g_software_app` → `g_service_port` → `g_software`），库内实测清零。
+  - 两处声明：**收紧**——厂商这条链路没有事务（会半删），我们包进一个事务；**未实现**——删 `g_service_port` 有行时厂商会通知网关（同 findings/39 的待办）。
+  - **一处未端到端验证**：`g_software_app` 在本环境是空表、探针插不进去 ⇒ 那条 delete 没真正执行过；形状与其他三条相同，但如实标为"未端到端验证"。
+  - 测试 148 → **152 条**全绿。
+- （K3 预研结论）`LicenceInfo.expired(code)` = `{end:-1, endIso8601:null, code, expired:true}`，其中 `code = 机器码 + Base64(软件key)`；**"没有激活码"这一支不需要密码学**，可以在做 `GET /v1/software/{id}` 时一并实现（本轮没写，因为详情端点没做就没有调用方，写了是死代码）。
+
 ## Not yet specified
 
 <!-- 看得见、但还说不成一句精确问题的雾 -->

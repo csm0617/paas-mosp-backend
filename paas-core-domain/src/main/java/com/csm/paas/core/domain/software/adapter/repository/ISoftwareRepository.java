@@ -66,4 +66,16 @@ public interface ISoftwareRepository {
 
     /** 删掉该放行路径，返回删除行数（厂商据此判断"删除成功/失败"）。 */
     int deleteWhiteListPath(String path);
+
+    // ---------- 删除（厂商 SoftwareController.removeSoftWare + SoftwareService.removeSoftware）----------
+
+    /** 删 `g_role_software` 里该软件的关联（厂商 `deleteRoleSoftwareById` → `removeRoleSoftwareById`）。 */
+    void deleteRoleSoftwareBySoftwareId(String softwareId);
+
+    int deleteSoftwareAppBySoftwareId(String softwareId);
+
+    /** 删 `g_service_port` 里该软件的端口行，返回删除行数（厂商据此决定要不要通知网关）。 */
+    int deleteServicePortBySoftwareId(String softwareId);
+
+    void deleteById(String softwareId);
 }

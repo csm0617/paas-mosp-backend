@@ -103,6 +103,20 @@ public interface ISoftwareDao {
             """)
     List<Map<String, Object>> selectRelationRoles(@Param("roleIds") List<String> roleIds);
 
+    // ---------- 删除（厂商 removeSoftware，:1520-1533）----------
+
+    @org.apache.ibatis.annotations.Delete("DELETE FROM g_role_software WHERE app_id = #{softwareId}")
+    int deleteRoleSoftwareBySoftwareId(@Param("softwareId") String softwareId);
+
+    @org.apache.ibatis.annotations.Delete("DELETE FROM g_software_app WHERE software_id = #{softwareId}")
+    int deleteSoftwareAppBySoftwareId(@Param("softwareId") String softwareId);
+
+    @org.apache.ibatis.annotations.Delete("DELETE FROM g_service_port WHERE software_id = #{softwareId}")
+    int deleteServicePortBySoftwareId(@Param("softwareId") String softwareId);
+
+    @org.apache.ibatis.annotations.Delete("DELETE FROM g_software WHERE id = #{softwareId}")
+    int deleteById(@Param("softwareId") String softwareId);
+
     @Select("SELECT role_id FROM g_role_software WHERE app_id = #{softwareId}")
     List<String> selectRoleIdsBySoftwareId(@Param("softwareId") String softwareId);
 

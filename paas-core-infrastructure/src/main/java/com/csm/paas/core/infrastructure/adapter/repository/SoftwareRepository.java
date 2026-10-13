@@ -83,6 +83,26 @@ public class SoftwareRepository implements ISoftwareRepository {
     }
 
     @Override
+    public void deleteRoleSoftwareBySoftwareId(String softwareId) {
+        softwareDao.deleteRoleSoftwareBySoftwareId(softwareId);
+    }
+
+    @Override
+    public int deleteSoftwareAppBySoftwareId(String softwareId) {
+        return softwareDao.deleteSoftwareAppBySoftwareId(softwareId);
+    }
+
+    @Override
+    public int deleteServicePortBySoftwareId(String softwareId) {
+        return softwareDao.deleteServicePortBySoftwareId(softwareId);
+    }
+
+    @Override
+    public void deleteById(String softwareId) {
+        softwareDao.deleteById(softwareId);
+    }
+
+    @Override
     public java.util.Optional<SoftwareEntity> queryById(String softwareId) {
         SoftwarePO po = softwareDao.selectById(softwareId);
         return po == null ? java.util.Optional.empty() : java.util.Optional.of(toEntity(po));

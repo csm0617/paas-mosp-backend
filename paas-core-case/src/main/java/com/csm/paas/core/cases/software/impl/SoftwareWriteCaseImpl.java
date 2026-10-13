@@ -34,4 +34,19 @@ public class SoftwareWriteCaseImpl implements ISoftwareWriteCase {
         log.info("已新增软件 id={} key={} name={}", software.getId(), software.getKey(), software.getName());
         return software;
     }
+
+    @Override
+    @Transactional
+    public void removeSoftware(String softwareId) {
+        SoftwareEntity software = softwareCommandService.requireExisting(softwareId);
+
+        // 厂商顺序：g_role_software → g_software_app → g_service_port → g_software
+        softwareRepository.deleteRoleSoftwareBySoftwareId(softwareId);
+        softwareRepository.deleteSoftwareAppBySoftwareId(softwareId);
+        softwareRepository.deleteServicePortBySoftwareId(softwareId);
+        softwareRepository.deleteById(softwareId);
+
+        log.info("已删除软件 id={} key={}", softwareId, software.getKey());
+        // 厂商在删掉 g_service_port 行时会 notificationGateway() 通知网关重载；我们尚未接管网关（findings/39）
+    }
 }

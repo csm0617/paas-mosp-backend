@@ -16,4 +16,15 @@ public interface ISoftwareWriteCase {
      * <p>`roleListKey` 为 null 时厂商会 NPE（缺陷，它只判了 `.size()`）；我们按空列表处理。
      */
     SoftwareEntity addSoftware(SoftwareFormVO form);
+
+    /**
+     * 删除软件（`DELETE /v1/software/{id}`），**整个用例一个事务**。
+     * <p>厂商的删除顺序（`SoftwareController.removeSoftWare:388-395` + `SoftwareService.removeSoftware:1520-1533`）：
+     * `g_role_software`（按 app_id）→ `g_software_app` → `g_service_port` → `g_software` 主行；
+     * 其中删 `g_service_port` 有行时厂商会 `notificationGateway()`（起线程通知网关，未实现，见 findings/39）。
+     * <p>软件不存在 → `software.not.exist.by.id`（HTTP 400）。
+     * <p><b>我们与厂商的一处收紧</b>：厂商这条链路**没有事务**，中途失败会留下半删状态；我们把整个用例包进一个事务。
+     * <p>厂商 `removeSoftware` 还会删 i18n 自动名（`deleteAutoNameMessage`），本环境是 no-op，待切片 5 回补。
+     */
+    void removeSoftware(String softwareId);
 }

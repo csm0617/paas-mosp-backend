@@ -1,4 +1,2 @@
-/**
- * PO 对象（{Xxx}PO），与表字段一一对应。
- */
+/** MyBatis 持久化对象（PO）。 */
 package com.csm.paas.core.infrastructure.dao.po;

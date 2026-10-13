@@ -40,6 +40,16 @@ public class SoftwareController {
     private com.csm.paas.core.domain.software.service.ISoftwareCommandService softwareCommandService;
 
     /**
+     * 厂商 `DELETE /v1/software/{id}`：删除软件（含 4 张表的顺序删除，**整体一个事务**）。
+     * <p>不存在 → 400 `software.not.exist.by.id`；厂商返回 `Response.ok(null)` → `data:null`。
+     */
+    @org.springframework.web.bind.annotation.DeleteMapping("/{id}")
+    public ResponseDTO<Void> removeSoftware(@org.springframework.web.bind.annotation.PathVariable String id) {
+        softwareWriteCase.removeSoftware(id);
+        return ResponseDTO.ok(null);
+    }
+
+    /**
      * 厂商 `POST /v1/software/release`：放行 / 禁止放行软件（写/删白名单 `/<key>/**`）。
      * <p>`type=1` 放行；`type=0` 禁止（**只看第一个存在的软件**，删到即 true、删不到即 false）；
      * `list` 为空直接 true。规则见 `ISoftwareCommandService.releaseSoftware`。

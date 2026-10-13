@@ -42,4 +42,10 @@ public interface ISoftwareCommandService {
      * 网关切流还没做（ADR-0005），该副作用记入待办。
      */
     boolean releaseSoftware(Integer type, java.util.List<String> softwareIds);
+
+    /**
+     * 校验待删软件存在（厂商 `SoftwareController.removeSoftWare` 先 `existSoftware(id)`，
+     * 不存在 → `software.not.exist.by.id`），返回该实体供调用方继续删除。
+     */
+    SoftwareEntity requireExisting(String softwareId);
 }
