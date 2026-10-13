@@ -18,7 +18,7 @@ public final class LoginAssembler {
         UserEntity u = result.getUser();
         return LoginUserDTO.builder()
                 .id(u.getId()).username(u.getUsername()).password(null).status(u.getStatus())
-                .email(u.getEmail()).birth(u.getBirth()).phone(u.getPhone())
+                .email(u.getEmail()).birth(com.csm.paas.core.types.util.DateTimes.toDate(u.getBirth())).phone(u.getPhone())
                 .updatedAt(u.getUpdatedAt()).createdAt(u.getCreatedAt())
                 .lastLoginRole(u.getLastLoginRole()).nickname(u.getNickname()).uuid(u.getUuid())
                 .desc(u.getDesc()).avatar(u.getAvatar())

@@ -3,13 +3,17 @@ package com.csm.paas.core.trigger.http;
 import com.csm.paas.core.api.dto.ResponseDTO;
 import com.csm.paas.core.api.dto.LoginUserDTO;
 import com.csm.paas.core.api.dto.UserDTO;
+import com.csm.paas.core.api.dto.UserFormDTO;
 import com.csm.paas.core.api.dto.UserInfoListResponseDTO;
 import com.csm.paas.core.api.dto.UserLoginItemDTO;
 import com.csm.paas.core.api.dto.UserLoginListDTO;
 import com.csm.paas.core.domain.user.adapter.repository.IUserRepository;
 import com.csm.paas.core.domain.user.model.valobj.SessionVO;
 import com.csm.paas.core.domain.user.model.valobj.UserCallerVO;
+import com.csm.paas.core.domain.user.model.valobj.UserFormVO;
 import com.csm.paas.core.domain.user.service.IAuthService;
+import com.csm.paas.core.cases.user.IUserAddCase;
+import com.csm.paas.core.domain.user.model.entity.UserEntity;
 import com.csm.paas.core.domain.user.service.IUserCommandService;
 import com.csm.paas.core.domain.user.service.IUserQueryService;
 import com.csm.paas.core.trigger.assembler.LoginAssembler;
@@ -17,12 +21,16 @@ import com.csm.paas.core.trigger.assembler.UserAssembler;
 import com.csm.paas.core.trigger.assembler.UserInfoAssembler;
 import com.csm.paas.core.types.enums.ResponseCode;
 import com.csm.paas.core.types.exception.BusinessException;
+import com.csm.paas.core.types.exception.SystemException;
+import com.csm.paas.core.types.exception.WrongArgumentException;
 import com.csm.paas.core.types.util.PageUtils;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -48,6 +56,9 @@ public class UserController {
     @Resource
     private IUserCommandService userCommandService;
 
+    @Resource
+    private IUserAddCase userAddCase;
+
     /**
      * 厂商 `GET /v1/user/info`：用户管理列表（用户 + 关联战位 + 关联子角色）。
      * <p>**公开**：实测厂商不带 cookie 也 200（鉴权在网关侧，见 `docs/findings/14-vendor-auth-is-gateway-side.md`）。
@@ -63,6 +74,41 @@ public class UserController {
         String normalizedKeyword = keyword == null ? null : keyword.replaceAll(" +", "");
         return ResponseDTO.ok(UserInfoAssembler.toResponse(
                 userQueryService.queryUserInfoPage(normalizedPage, normalizedSize, normalizedKeyword)));
+    }
+
+    /**
+     * 厂商 `POST /v1/user`：新增用户。
+     * <p>控制器层的三道闸照抄厂商（`UserController.java:294-306`）：
+     * ① 调用者**必须有 admin 战位**，否则 `role.normal.user.cannot.user` → **HTTP 500**（SystemException，不是 400）；
+     * ② 用户名已存在 → 400 `user.username.already.exists`；③ 口令为空 → 400 `user.password.empty`。
+     * <p>校验与派生在领域层，落库 + 关系写入在 Case 层一个事务里（**厂商 `add` 没有事务，会留半成品用户**，
+     * 见 `docs/findings/30` §5）。
+     */
+    @PostMapping("/v1/user")
+    public ResponseDTO<UserDTO> addUser(@RequestBody UserFormDTO form, HttpServletRequest request) {
+        UserCallerVO caller = currentCaller(request);
+        if (!caller.isAdminRole()) {
+            throw new SystemException("role.normal.user.cannot.user");
+        }
+        String username = form.getUsername() == null ? null : form.getUsername().replaceAll(" +", "");
+        if (username != null && userRepository.queryByUsername(username).isPresent()) {
+            throw new WrongArgumentException("user.username.already.exists");
+        }
+        if (form.getPassword() == null || form.getPassword().isBlank()) {
+            throw new WrongArgumentException("user.password.empty");
+        }
+        UserEntity created = userAddCase.addUser(toFormVO(form));
+        return ResponseDTO.ok(UserAssembler.toResponse(created));
+    }
+
+    private static UserFormVO toFormVO(UserFormDTO form) {
+        return UserFormVO.builder()
+                .username(form.getUsername()).nickname(form.getNickname()).password(form.getPassword())
+                .status(form.getStatus()).email(form.getEmail()).birth(form.getBirth())
+                .phone(form.getPhone()).desc(form.getDesc()).avatar(form.getAvatar())
+                .roleListKey(form.getRoleListKey()).userListKey(form.getUserListKey())
+                .subRoleListId(form.getSubRoleListId())
+                .build();
     }
 
     /**

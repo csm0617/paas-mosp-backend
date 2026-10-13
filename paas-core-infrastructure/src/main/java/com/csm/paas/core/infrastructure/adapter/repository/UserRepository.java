@@ -93,6 +93,74 @@ public class UserRepository implements IUserRepository {
         userDao.deleteById(userId);
     }
 
+    @Override
+    public void insert(UserEntity user) {
+        userDao.insert(toPO(user));
+    }
+
+    @Override
+    public List<String> queryRoleIdsByKeys(List<String> keys) {
+        if (keys == null || keys.isEmpty()) {
+            return List.of();
+        }
+        // 厂商是"按入参顺序逐个 select by key，找不到就跳过"，所以这里要**按入参顺序**重排，
+        // 而不是直接用数据库返回的顺序（多 key 时会影响关联插入顺序）
+        java.util.Map<String, String> idByKey = new java.util.HashMap<>();
+        for (com.csm.paas.core.infrastructure.dao.po.RolePO row : userDao.selectIdAndKeyByKeys(keys)) {
+            idByKey.put(row.getKey(), row.getId());
+        }
+        java.util.LinkedHashSet<String> ordered = new java.util.LinkedHashSet<>();
+        for (String key : keys) {
+            String id = idByKey.get(key);
+            if (id != null) {
+                ordered.add(id);
+            }
+        }
+        return List.copyOf(ordered);
+    }
+
+    @Override
+    @Transactional
+    public void replaceUserRoleRelations(String userId, int type, List<String> roleIds) {
+        userDao.deleteUserRoleByUserIdAndRoleType(userId, type);
+        if (roleIds == null || roleIds.isEmpty()) {
+            return;
+        }
+        userDao.insertUserRoles(userId, roleIds, System.currentTimeMillis());
+    }
+
+    @Override
+    @Transactional
+    public void replaceUserSubRoleRelations(String userId, List<String> subRoleIds) {
+        userDao.deleteUserSubRoleByUserId(userId);
+        if (subRoleIds == null || subRoleIds.isEmpty()) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        for (String subRoleId : subRoleIds) {
+            userDao.insertUserSubRole(java.util.UUID.randomUUID().toString(), userId, subRoleId, now, now);
+        }
+    }
+
+    private UserPO toPO(UserEntity u) {
+        UserPO po = new UserPO();
+        po.setId(u.getId());
+        po.setUsername(u.getUsername());
+        po.setPassword(u.getPassword());
+        po.setStatus(u.getStatus());
+        po.setEmail(u.getEmail());
+        po.setBirth(u.getBirth());
+        po.setPhone(u.getPhone());
+        po.setUpdatedAt(u.getUpdatedAt());
+        po.setCreatedAt(u.getCreatedAt());
+        po.setLastLoginRole(u.getLastLoginRole());
+        po.setNickname(u.getNickname());
+        po.setUuid(u.getUuid());
+        po.setDesc(u.getDesc());
+        po.setAvatar(u.getAvatar());
+        return po;
+    }
+
     private UserEntity toEntity(UserPO po) {
         return UserEntity.builder()
                 .id(po.getId()).username(po.getUsername()).password(po.getPassword()).status(po.getStatus())

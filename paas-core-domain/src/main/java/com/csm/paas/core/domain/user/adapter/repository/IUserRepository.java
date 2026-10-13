@@ -53,4 +53,25 @@ public interface IUserRepository {
      * 该方法的调用方 `deleteUser` 打了 `@Transactional`（`:820`）。
      */
     void deleteUserCascade(String userId);
+
+    // ---------- 新增（厂商 UserService.add，UserService.java:450-545）----------
+
+    void insert(UserEntity user);
+
+    /** 按 key 批量取战位/角色 id（厂商在 `add`/`update` 里逐个 select by key，这里合成一条）。 */
+    List<String> queryRoleIdsByKeys(List<String> keys);
+
+    /**
+     * 按**类型**替换用户关联（厂商 `UserService.rolesRelate2User`，`:794-806`）：
+     * 先删该用户"该类型"的关联，再插入给定 roleId（不存在的 roleId 跳过）。
+     *
+     * @param type 1=战位 2=角色
+     */
+    void replaceUserRoleRelations(String userId, int type, List<String> roleIds);
+
+    /**
+     * 替换用户的子角色关联（厂商 `SubRoleService.userAddRole`，`SubRoleServiceImpl.java:347-359`）：
+     * 先删该用户全部 `g_user_sub_role`，再逐条插入（id 用随机 UUID）。
+     */
+    void replaceUserSubRoleRelations(String userId, List<String> subRoleIds);
 }

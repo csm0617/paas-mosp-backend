@@ -122,6 +122,19 @@ K1 端点总数 **63**（`UserController` 25 + `RoleController` 28 + `SubRoleCon
 
 **下一项**：`POST /v1/user`（新增，含用户名/口令校验、`uuid` 额度分配、关系写入，**放事务里**）、
 `PUT /v1/user/{userId}`（修改，含"非超管不可改超管"）、`POST /v1/user/userToRole`。
+
+## 新增用户完成（2026-10-14）
+
+`POST /v1/user` 已实现并过门槛，证据 [docs/findings/31-user-add-and-birth-timezone.md](../../docs/findings/31-user-add-and-birth-timezone.md)：
+
+- 四条错误路径与厂商**逐字节相同**（非管理员 → HTTP **500**；重名/空口令/口令过短 → 400）；
+- 成功响应除 `id`/时间戳/`password`（刻意置 null）外**逐字段相同**，含 `uuid` 分配与默认头像；
+- **修掉一条 8 小时时区差异**（Jackson 配置 + 驱动版本对 DATE 列的语义差），改为领域层 `LocalDate` + 显式换算；
+- 关系写入（战位/角色/子角色）在 Case 层一个事务里，**不复制厂商的"半成品用户"缺陷**；
+- 测试 84 → **101 条**全绿。
+
+**下一项**：`PUT /v1/user/{userId}`（修改；三条规则：非超管不可改超管、普通用户不可改他人、`desc` 空白置**空串**）
+与 `GET /v1/user/{userId}`、`GET /v1/user/detailByUserId`（用户管理编辑抽屉要用）。
 开工前要补一次探针：`birth` 的序列化格式（`date` 列 vs 厂商 `java.util.Date`）。
 
 ### 下一轮开工前的取证（2026-10-14 已实测，直接可用）

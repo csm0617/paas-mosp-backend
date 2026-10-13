@@ -1,18 +1,24 @@
 package com.csm.paas.core.domain.user;
 
+import com.csm.paas.core.domain.user.adapter.repository.IUserDefaultAvatarRepository;
 import com.csm.paas.core.domain.user.adapter.repository.IUserRepository;
 import com.csm.paas.core.domain.user.model.entity.UserEntity;
 import com.csm.paas.core.domain.user.model.valobj.DeleteUserOutcome;
 import com.csm.paas.core.domain.user.model.valobj.UserCallerVO;
+import com.csm.paas.core.domain.user.model.valobj.UserFormVO;
 import com.csm.paas.core.domain.user.service.impl.UserCommandServiceImpl;
 import com.csm.paas.core.types.exception.WrongArgumentException;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.crypto.bcrypt.BCrypt;
 
 import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -26,9 +32,10 @@ import static org.mockito.Mockito.when;
 class UserCommandServiceImplTest {
 
     private final IUserRepository userRepository = mock(IUserRepository.class);
+    private final IUserDefaultAvatarRepository defaultAvatarRepository = mock(IUserDefaultAvatarRepository.class);
 
     private UserCommandServiceImpl service() {
-        return new UserCommandServiceImpl(userRepository);
+        return new UserCommandServiceImpl(userRepository, defaultAvatarRepository);
     }
 
     @Test
@@ -96,5 +103,131 @@ class UserCommandServiceImplTest {
 
     private static UserEntity user(String id, String username) {
         return UserEntity.builder().id(id).username(username).status(1).build();
+    }
+
+    // ---------- prepareNewUser（新增用户的校验与派生）----------
+
+    @Test
+    void usernameRulesFollowVendor() {
+        assertEquals("user.username.not.empty", key(() -> service().prepareNewUser(form("   ", "abc123"))));
+        assertEquals("user.username.invalid.length", key(() -> service().prepareNewUser(form("a", "abc123"))));
+        assertEquals("user.username.invalid.length", key(() -> service().prepareNewUser(form("a".repeat(37), "abc123"))));
+    }
+
+    /**
+     * **锁住厂商的字符检查 bug**：他用的是 `matcher.matches()` + 字符类，只有"整串恰好一个黑名单字符"才命中，
+     * 而长度校验已经拒掉了长度 1 ⇒ 带 `@`/`#` 的用户名实际**能通过**。照抄不修好。
+     */
+    @Test
+    void blacklistCheckIsEffectivelyDeadForMultiCharUsernames() {
+        when(userRepository.queryAll()).thenReturn(List.of());
+        when(defaultAvatarRepository.queryDefaultAvatar()).thenReturn("AVATAR");
+
+        UserEntity created = service().prepareNewUser(form("a@b#c", "abc123"));
+
+        assertEquals("a@b#c", created.getUsername(), "厂商行为：多字符用户名里的特殊字符不会被拒");
+    }
+
+    @Test
+    void usernameSpacesAreStrippedBeforeValidation() {
+        when(userRepository.queryAll()).thenReturn(List.of());
+        when(defaultAvatarRepository.queryDefaultAvatar()).thenReturn("AVATAR");
+
+        assertEquals("ab", service().prepareNewUser(form(" a b ", "abc123")).getUsername());
+    }
+
+    @Test
+    void passwordRulesFollowVendor() {
+        assertEquals("user.password.invalid.length", key(() -> service().prepareNewUser(form("ab", "12345"))));
+        assertEquals("user.password.invalid.length", key(() -> service().prepareNewUser(form("ab", "1".repeat(37)))));
+        assertEquals("user.password.empty", key(() -> service().prepareNewUser(form("ab", "   "))));
+    }
+
+    @Test
+    void emailAndDescLengthLimits() {
+        UserFormVO tooLongEmail = form("ab", "abc123");
+        tooLongEmail.setEmail("x".repeat(37));
+        assertEquals("user.document.link.invalid.length", key(() -> service().prepareNewUser(tooLongEmail)));
+
+        UserFormVO tooLongDesc = form("ab", "abc123");
+        tooLongDesc.setDesc("x".repeat(256));
+        assertEquals("user.description.invalid.length", key(() -> service().prepareNewUser(tooLongDesc)));
+    }
+
+    @Test
+    void blankDescBecomesNullOnCreate() {
+        when(userRepository.queryAll()).thenReturn(List.of());
+        when(defaultAvatarRepository.queryDefaultAvatar()).thenReturn("AVATAR");
+
+        assertNull(service().prepareNewUser(form("ab", "abc123")).getDesc(),
+                "新增时空白 desc → null（注意修改时厂商置的是空串，两者不同）");
+    }
+
+    @Test
+    void passwordIsHashedAndAvatarFallsBackToVendorDefault() {
+        when(userRepository.queryAll()).thenReturn(List.of());
+        when(defaultAvatarRepository.queryDefaultAvatar()).thenReturn("AVATAR");
+
+        UserEntity created = service().prepareNewUser(form("ab", "abc123"));
+
+        assertTrue(created.getPassword().startsWith("$2a$"), "口令必须 BCrypt 哈希");
+        assertTrue(BCrypt.checkpw("abc123", created.getPassword()), "哈希必须能校验回原口令");
+        assertEquals("AVATAR", created.getAvatar());
+        assertNotNull(created.getId());
+        assertEquals(36, created.getId().length(), "id 是 UUID");
+    }
+
+    @Test
+    void explicitAvatarWins() {
+        when(userRepository.queryAll()).thenReturn(List.of());
+        UserFormVO withAvatar = form("ab", "abc123");
+        withAvatar.setAvatar("MY-AVATAR");
+
+        assertEquals("MY-AVATAR", service().prepareNewUser(withAvatar).getAvatar());
+    }
+
+    @Test
+    void uuidAllocationFollowsVendorAlgorithm() {
+        when(defaultAvatarRepository.queryDefaultAvatar()).thenReturn("AVATAR");
+
+        // 库里一个用户都没有 → 厂商给 -1
+        when(userRepository.queryAll()).thenReturn(List.of());
+        assertEquals(-1, service().prepareNewUser(form("ab", "abc123")).getUuid());
+
+        // 已有 uuid=0 的用户 → 下一个空位是 1
+        when(userRepository.queryAll()).thenReturn(List.of(userWithUuid("u1", "bob", 0)));
+        assertEquals(1, service().prepareNewUser(form("ab", "abc123")).getUuid());
+
+        // 已有用户的 uuid 全是 null → 从 0 开始
+        when(userRepository.queryAll()).thenReturn(List.of(userWithUuid("u1", "bob", null)));
+        assertEquals(0, service().prepareNewUser(form("ab", "abc123")).getUuid());
+
+        // 0、1 都占了但缺 2 → 取 2
+        when(userRepository.queryAll()).thenReturn(List.of(
+                userWithUuid("u0", "a0", 0), userWithUuid("u1", "a1", 1)));
+        assertEquals(2, service().prepareNewUser(form("ab", "abc123")).getUuid());
+    }
+
+    @Test
+    void uuidQuotaExceededAbove256UsersWithUuid() {
+        List<UserEntity> many = new java.util.ArrayList<>();
+        for (int i = 0; i < 257; i++) {
+            many.add(userWithUuid("u" + i, "user" + i, i));
+        }
+        when(userRepository.queryAll()).thenReturn(many);
+
+        assertEquals("user.data.limit.exceeded", key(() -> service().prepareNewUser(form("ab", "abc123"))));
+    }
+
+    private String key(java.util.concurrent.Callable<UserEntity> action) {
+        return assertThrows(WrongArgumentException.class, action::call).getI18nKey();
+    }
+
+    private static UserFormVO form(String username, String password) {
+        return UserFormVO.builder().username(username).password(password).nickname("昵称").status(1).build();
+    }
+
+    private static UserEntity userWithUuid(String id, String username, Integer uuid) {
+        return UserEntity.builder().id(id).username(username).status(1).uuid(uuid).build();
     }
 }

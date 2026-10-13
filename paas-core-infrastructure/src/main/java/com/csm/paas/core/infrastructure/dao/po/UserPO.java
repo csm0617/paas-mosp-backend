@@ -9,7 +9,8 @@ public class UserPO {
     private String password;
     private Integer status;
     private String email;
-    private Long birth;
+    /** 对应 `g_user.birth`（**`date` 列**）——用 `LocalDate`，避免驱动把日期读成带时区的瞬时值。 */
+    private java.time.LocalDate birth;
     private String phone;
     private Long updatedAt;
     private Long createdAt;

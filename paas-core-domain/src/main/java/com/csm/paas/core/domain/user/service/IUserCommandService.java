@@ -25,4 +25,15 @@ public interface IUserCommandService {
      * @return {@link DeleteUserOutcome#DELETED} 或 {@link DeleteUserOutcome#NOOP_NOT_PERMITTED}
      */
     DeleteUserOutcome deleteUser(String userId, UserCallerVO caller);
+
+    /**
+     * **构造**（不落库）一个新用户实体：跑完厂商 `add` 里的全部校验与派生。
+     * <p>校验与派生（照抄 `UserService.java:450-513`）：
+     * 用户名去空格 → 非空 / 字符黑名单 / 长度 2~36；口令去空格 → 长度 6~36；email ≤36；
+     * desc 空白→null、≤255；分配 `uuid`（0..254 中最小的未占用值，用户数 &gt;256 抛 `user.data.limit.exceeded`）；
+     * 口令 BCrypt；`avatar` 缺省用厂商的 `icon/avatar` 内容。
+     * <p><b>落库与关系写入不在这里</b>：由 Case 层在一个事务里完成（见 `IUserAddCase`）。
+     */
+    com.csm.paas.core.domain.user.model.entity.UserEntity prepareNewUser(
+            com.csm.paas.core.domain.user.model.valobj.UserFormVO form);
 }

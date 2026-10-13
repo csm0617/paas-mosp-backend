@@ -12,9 +12,19 @@ spring:
     # 错误响应的 msg 是本地化文案，必须与厂商逐字一致
     basename: i18n/messages
     encoding: UTF-8
+  jackson:
+    # 照抄厂商 `application.yml:11-13`：日期统一按 UTC 输出成 `...SSS'Z'` 的字面量格式。
+    # 实测影响 `birth`：不配这两行会输出 `2000-01-02T00:00:00.000+00:00`，
+    # 而厂商是 `2000-01-01T16:00:00.000Z`（注意 `'Z'` 在厂商那边是**字面量**，靠 time-zone=UTC 兜住）。
+    time-zone: UTC
+    date-format: yyyy-MM-dd'T'HH:mm:ss.SSS'Z'
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:gaop}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    # 参数照抄厂商的 k8s profile（`application-k8s.yml:7`）：
+    # `characterEncoding=utf-8&zeroDateTimeBehavior=convertToNull&useSSL=false&serverTimezone=UTC`。
+    # **`serverTimezone=UTC` 不是随手写的**：它决定 DATE 列（`g_user.birth`）读出来的瞬时值，
+    # 换成 Asia/Shanghai 会让 birth 的 ISO 串整体差 8 小时（实测对拉发现）。
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:gaop}?characterEncoding=utf-8&zeroDateTimeBehavior=convertToNull&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
     username: ${MYSQL_USER:gaop}
     password: ${MYSQL_PASSWORD:gaop123456}
     hikari:

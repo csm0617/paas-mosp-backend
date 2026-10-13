@@ -13,7 +13,11 @@ public class UserEntity {
     private String password;
     private Integer status;
     private String email;
-    private Long birth;
+    /**
+     * 生日。`g_user.birth` 是 **`date` 列**，所以领域里用 `LocalDate`；
+     * 与 JSON 的换算（含那条 8 小时时区坑）统一走 `DateTimes`，见其文档。
+     */
+    private java.time.LocalDate birth;
     private String phone;
     private Long updatedAt;
     private Long createdAt;
