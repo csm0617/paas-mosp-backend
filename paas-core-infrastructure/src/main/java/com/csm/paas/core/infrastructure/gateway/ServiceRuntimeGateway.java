@@ -2,6 +2,7 @@ package com.csm.paas.core.infrastructure.gateway;
 
 import io.fabric8.kubernetes.api.model.Service;
 import io.fabric8.kubernetes.api.model.apps.Deployment;
+import io.fabric8.kubernetes.api.model.apps.StatefulSet;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.utils.Serialization;
 import jakarta.annotation.Resource;
@@ -28,6 +29,12 @@ public class ServiceRuntimeGateway {
     public List<Deployment> listDeployments(String namespace) {
         List<Deployment> items = kubernetesClient.apps().deployments().inNamespace(namespace).list().getItems();
         log.info("fabric8 读到 namespace:{} 的 Deployment {} 个", namespace, items.size());
+        return items;
+    }
+
+    public List<StatefulSet> listStatefulSets(String namespace) {
+        List<StatefulSet> items = kubernetesClient.apps().statefulSets().inNamespace(namespace).list().getItems();
+        log.info("fabric8 读到 namespace:{} 的 StatefulSet {} 个", namespace, items.size());
         return items;
     }
 

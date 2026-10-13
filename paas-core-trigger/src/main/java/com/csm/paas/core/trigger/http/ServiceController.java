@@ -1,6 +1,7 @@
 package com.csm.paas.core.trigger.http;
 
 import com.csm.paas.core.api.dto.ResponseDTO;
+import com.csm.paas.core.api.dto.ServiceAuthDTO;
 import com.csm.paas.core.api.dto.ServiceItemDTO;
 import com.csm.paas.core.api.dto.ServiceListResponseDTO;
 import com.csm.paas.core.domain.software.model.entity.ServiceListEntity;
@@ -33,8 +34,17 @@ public class ServiceController {
 
         List<ServiceItemDTO> items = new ArrayList<>();
         for (ServiceRuntimeEntity s : entity.getServices()) {
+            ServiceAuthDTO authDTO = s.getServiceAuth() == null ? null : ServiceAuthDTO.builder()
+                    .serviceId(s.getServiceAuth().getServiceId())
+                    .auth(s.getServiceAuth().getAuth())
+                    .authType(s.getServiceAuth().getAuthType())
+                    .authTime(s.getServiceAuth().getAuthTime())
+                    .authInterval(s.getServiceAuth().getAuthInterval())
+                    .build();
+
             items.add(ServiceItemDTO.builder()
                     .service(s.getServiceSnapshot())
+                    .serviceAuth(authDTO)
                     .deployment(s.getDeploymentSnapshot())
                     .hostIP(s.getHostIP())
                     .restartCount(s.getRestartCount())

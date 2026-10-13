@@ -16,10 +16,23 @@
 
 **结论：JDK 21 + Spring Boot 3.3 + fabric8 7.9.0 + 六边形分层这条路是通的。**
 
+## 第三轮补强（2026-10-14 02:44）
+
+三件事都做完并实测：
+
+1. **列表改成 workload 驱动**（照 `TenxService.java:2307-2342`：StatefulSet→Deployment 遍历再找同名 Service）
+   → `total/count` 由 10 变成 **9，与厂商一致**；`gaop-mysql` 不再出现。
+2. **`runningDeployment` 改用厂商规则**（`replicas > 0` 计数，`TenxService.java:2349`）→ 我方 5；**厂商运行态仍是 0，原因未定论**。
+3. **MyBatis + 真实 MySQL 打通**（此前未验证的最后一环）：日志证据
+   `paas-core-hikari - Added connection com.mysql.cj.jdbc.ConnectionImpl@…`、
+   `ServiceAuthRepository : g_service_auth 读到 0 行`（MySQL 经 NodePort `172.16.209.25:30306`）；
+   `serviceAuth` 由该查询回填——表空 → null，与厂商运行态一致。
+
+**同一个请求路径上，fabric8（10 Service/0 StatefulSet/9 Deployment）、MyBatis（真实查询）、Spring MVC（JDK 21）全部跑通。**
+
 ## 四处真实差异（原型最值钱的产出）
 
-1. **列表驱动源不同**：厂商按 **Deployment / StatefulSet** 遍历再找同名 Service（`TenxService.allService`，`recovered/.../service/TenxService.java:2293` 起），我按 **Service** 遍历。
-   → 我的结果多一个 `gaop-mysql`（ExternalName，没有工作负载）。正式实现必须改成 workload 驱动。
+1. ~~列表驱动源不同~~ **已修复**（见上：改为 workload 驱动，`total` 与厂商一致）。
 2. **`runningDeployment` 语义**：厂商=0，我=5。
    厂商规则可查：`TenxService.java:2349` `(int) services.stream().filter(o -> o.getDeployment().getSpec().getReplicas() > 0).count()`；
    按该规则在本集群应为 **5**（`replicas>0` 的有 gaop-auth/be/gateway-auth/redis/web）。

@@ -30,6 +30,8 @@ public class ServiceRuntimeEntity {
     private String hostIP;
     private List<Integer> nodePorts;
     private String createdAt;
+    /** 授权状态（来自 g_service_auth；厂商侧为空时前端会显示"认证失败"）。 */
+    private ServiceAuthEntity serviceAuth;
     private Map<String, Object> serviceSnapshot;
     private Map<String, Object> deploymentSnapshot;
 }
