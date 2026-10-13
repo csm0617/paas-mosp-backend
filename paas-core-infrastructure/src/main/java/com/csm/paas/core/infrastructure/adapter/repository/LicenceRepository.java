@@ -46,6 +46,18 @@ public class LicenceRepository implements ILicenceRepository {
     }
 
     @Override
+    public void saveActiveCode(String activeCode) {
+        // 厂商 saveActiveCode 还会往授权文件写一份；我们只落 g_setting（记入 findings/46）
+        settingRepository.upsertValue("system.active.code", activeCode, "激活码");
+    }
+
+    @Override
+    public void clearActiveCode() {
+        // 厂商 clearActiveCode 还会删授权文件（并可能重启），我们只删 g_setting（记入 findings/46）
+        settingRepository.deleteValue("system.active.code");
+    }
+
+    @Override
     public Optional<String> queryGaopActivatePublicKey() {
         return Optional.ofNullable(licenceDao.selectGaopActivatePublicKey()).filter(v -> !v.isBlank());
     }

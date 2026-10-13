@@ -21,6 +21,13 @@ public interface ISettingDao {
     @Select("SELECT COUNT(*) FROM g_setting WHERE `key` = #{key}")
     int countByKey(@Param("key") String key);
 
+    @org.apache.ibatis.annotations.Update("UPDATE g_setting SET val = #{val}, `desc` = #{desc}, updated_at = #{updatedAt} WHERE `key` = #{key}")
+    int updateSetting(@Param("key") String key, @Param("val") String val,
+                      @Param("desc") String desc, @Param("updatedAt") long updatedAt);
+
+    @org.apache.ibatis.annotations.Delete("DELETE FROM g_setting WHERE `key` = #{key}")
+    int deleteSetting(@Param("key") String key);
+
     @org.apache.ibatis.annotations.Insert("INSERT INTO g_setting(`key`, val, `desc`, updated_at, created_at) "
             + "VALUES(#{key}, #{val}, #{desc}, #{now}, #{now})")
     int insertSetting(@Param("key") String key, @Param("val") String val,

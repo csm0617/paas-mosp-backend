@@ -49,4 +49,15 @@ public interface ILicenceQueryService {
      * 其它异常 → **返回 null**（调用方 `getSoftwareLicenceInfo` 把 null 当"未激活"）。
      */
     LicenceInfoEntity checkSoftwareActiveCode(String machineCodeBase64, String activeCode, String softwareKey);
+
+    /**
+     * 平台激活（厂商 `POST /v1/licence`，`LicenceController:54-63`）：
+     * **先校验（抛错则不落库）**、再落库激活码，最后返回 `/v1/licence/info` 的形状（7 键）。
+     * <p>未实现：厂商随后还会 `activeTenxLicence`（TenX 本地桩）与 `activeGisLicence`（GIS 未授权），
+     * 以及把激活码写到授权文件。
+     */
+    LicenceInfoEntity activate(String activeCode);
+
+    /** 清空授权信息（厂商 `DELETE /v1/licence`，`LicenceController:74-78`）：删激活码后返回 info 形状。 */
+    LicenceInfoEntity deactivate();
 }

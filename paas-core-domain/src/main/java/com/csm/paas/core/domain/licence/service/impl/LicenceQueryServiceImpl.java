@@ -50,28 +50,78 @@ public class LicenceQueryServiceImpl implements ILicenceQueryService {
         long now = System.currentTimeMillis();
         String machineCode = machineCode();
         String activeCode = licenceRepository.queryActiveCode().orElse(null);
+
+        // 厂商 getLicenceInfo:945-1020：有激活码就校验；**校验抛错也算 null**（catch 后继续走试用期那套）
+        com.csm.paas.core.domain.licence.model.entity.LicenceInfoEntity licenceInfo = null;
         if (activeCode != null) {
-            // 激活码校验未实现（属 gaop-auth 域）——保守地按"未激活"处理，并记录
-            log.warn("存在激活码但校验未实现，按未激活处理");
+            try {
+                licenceInfo = checkActiveCode(machineCode, activeCode);
+            } catch (Exception e) {
+                log.error("检查激活信息出现异常:{}", e.getMessage(), e);
+            }
         }
-        long trialPeriod = licenceRepository.querySettingValue(TRIAL_PERIOD_KEY)
+
+        long trialPeriod = resolveTrialPeriod(now);
+
+        // 分支 1/2：没有激活码，或有激活码但校验没能拿到结果 → 试用期语义（authStatus=false）
+        if (licenceInfo == null) {
+            return LicenceInfoEntity.builder()
+                    .end(-1L)
+                    .endIso8601(null)
+                    .code(machineCode)
+                    .expired(true)
+                    .authStatus(false)
+                    .currentTime(now)
+                    .trialPeriod(trialPeriod)
+                    .build();
+        }
+
+        // 分支 3：激活码校验通过（本环境 tenxEnd 恒为空——TenxCloudImpl.licences() 返回的 merged 是 null，
+        // 厂商那行 `merged.getLicenseUid()` 会 NPE 被空 catch 吞掉，所以永远走"用授权工具的时间"这一支）
+        String endIso8601 = licenceInfo.getEndIso8601();
+        int plus = endIso8601 == null ? -1 : endIso8601.indexOf('+');
+        if (plus != -1) {
+            endIso8601 = endIso8601.substring(0, plus);
+        }
+        long endTime = licenceInfo.getEnd();
+        return LicenceInfoEntity.builder()
+                .end(endTime)
+                .endIso8601(endIso8601)
+                .code(machineCode)
+                .expired(licenceInfo.getExpired())
+                // 厂商：`timeMillis > endTime` → authStatus=false，否则 true
+                .authStatus(now <= endTime)
+                .currentTime(now)
+                .trialPeriod(trialPeriod)
+                .build();
+    }
+
+    /** 厂商：已有 `g_setting['system.active.trial_period']` 就复用，否则建一条 now+30 天。 */
+    private long resolveTrialPeriod(long now) {
+        return licenceRepository.querySettingValue(TRIAL_PERIOD_KEY)
                 .map(Long::parseLong)
                 .orElseGet(() -> {
                     long expireAt = now + TRIAL_DAYS * 24 * 3600 * 1000L;
                     licenceRepository.saveSettingValue(TRIAL_PERIOD_KEY, String.valueOf(expireAt), "试用时间");
                     return expireAt;
                 });
-        return LicenceInfoEntity.builder()
-                .end(-1L)
-                .endIso8601(null)
-                .code(machineCode)
-                .expired(true)
-                .authStatus(false)
-                .currentTime(now)
-                .trialPeriod(trialPeriod)
-                .build();
     }
 
+    @Override
+    public LicenceInfoEntity activate(String activeCode) {
+        String stripped = strip(activeCode);
+        // 厂商 LicenceController:54-58：**先校验，抛错就不落库**
+        checkActiveCode(machineCode(), stripped);
+        licenceRepository.saveActiveCode(stripped);
+        // 未实现：厂商随后还会 activeTenxLicence（TenX 本地桩）/ activeGisLicence（GIS 未授权）
+        return queryInfo();
+    }
+
+    @Override
+    public LicenceInfoEntity deactivate() {
+        licenceRepository.clearActiveCode();
+        return queryInfo();
+    }
 
     @Override
     public boolean checkAndActiveGis() {

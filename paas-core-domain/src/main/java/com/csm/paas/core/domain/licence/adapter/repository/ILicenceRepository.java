@@ -32,4 +32,13 @@ public interface ILicenceRepository {
      * 厂商 `checkSoftwareActiveCode:584-585`/`getPublicKeyAlgorithm:567-579`，用于校验**软件授权码**。
      */
     java.util.Optional<String> queryDefaultAuthPublicKey();
+
+    /**
+     * 落库激活码（厂商 `LicenceService.saveActiveCode:467-`）：`g_setting['system.active.code']`
+     * **有则更新、无则插入**。厂商写完之后还会往授权文件写一份（本实现未做文件，记入 findings）。
+     */
+    void saveActiveCode(String activeCode);
+
+    /** 清空激活码（厂商 `clearActiveCode:448-460`）：删 `g_setting['system.active.code']`（并删授权文件，本实现未做文件）。 */
+    void clearActiveCode();
 }

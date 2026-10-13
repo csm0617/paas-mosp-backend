@@ -26,7 +26,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -214,5 +217,72 @@ class LicenceActivationVerifyTest {
 
         assertNull(service().checkSoftwareActiveCode(machineCode("A1"), "whatever", "myapp"),
                 "g_auth 里没有 default_auth → 厂商会 IndexOutOfBounds；我们返回 null，由调用方折算成 expired（记录为收紧）");
+    }
+
+    // ---------- 写入路径：activate / deactivate 与 queryInfo 的已激活分支 ----------
+
+    /** 激活码校验通过 → 落库 → `queryInfo` 走**已激活分支**（`authStatus=true`）。 */
+    @Test
+    void activatePersistsAndMakesInfoAuthorized() {
+        when(repository.queryGaopActivatePublicKey()).thenReturn(java.util.Optional.of(publicKeyB64));
+        // activate 用的是**服务端自己的机器码**（`machineCode()`），所以码里的机器码必须与之相交
+        when(repository.rawMachineCode()).thenReturn("RAW1");
+        Instant expiry = Instant.now().plusSeconds(3600);
+        String mc = machineCode("RAW1");
+        String code = sign(keyPair, "RAW1", null, expiry);
+        // 落库后再查时，激活码已经能被读到（mock 反映这一点）
+        // activate 内部会 saveActiveCode，然后 queryInfo 再读；用 answer 让"读"返回已存的码
+        java.util.concurrent.atomic.AtomicReference<String> stored = new java.util.concurrent.atomic.AtomicReference<>();
+        org.mockito.Mockito.doAnswer(i -> { stored.set(i.getArgument(0)); return null; })
+                .when(repository).saveActiveCode(anyString());
+        when(repository.queryActiveCode()).thenAnswer(i -> java.util.Optional.ofNullable(stored.get()));
+
+        LicenceInfoEntity info = service().activate(code);
+
+        verify(repository).saveActiveCode(code);
+        assertTrue(info.getAuthStatus(), "校验通过 → authStatus=true（已激活分支第一次可达）");
+        assertEquals(expiry.getEpochSecond() * 1000, info.getEnd());
+        assertEquals(mc, info.getCode());
+        assertEquals(Boolean.FALSE, info.getExpired());
+        assertNotNull(info.getCurrentTime());
+        assertNotNull(info.getTrialPeriod(), "已激活分支同样会带试用期字段（厂商照抄）");
+    }
+
+    /** 校验失败 → **不落库**，异常照抛（厂商先校验后保存）。 */
+    @Test
+    void activateDoesNotPersistWhenVerificationFails() {
+        when(repository.queryGaopActivatePublicKey()).thenReturn(java.util.Optional.of(publicKeyB64));
+        String code = sign(otherKeyPair, "A1", null, Instant.now().plusSeconds(3600));
+
+        assertThrows(WrongArgumentException.class, () -> service().activate(code));
+
+        verify(repository, never()).saveActiveCode(anyString());
+    }
+
+    /** 清空：删掉激活码后 info 回到试用期语义（authStatus=false）。 */
+    @Test
+    void deactivateClearsAndFallsBackToTrial() {
+        when(repository.queryActiveCode()).thenReturn(java.util.Optional.empty());
+        when(repository.querySettingValue("system.active.trial_period")).thenReturn(java.util.Optional.of("123456"));
+
+        LicenceInfoEntity info = service().deactivate();
+
+        verify(repository).clearActiveCode();
+        assertFalse(info.getAuthStatus());
+        assertEquals(-1L, info.getEnd());
+        assertEquals(123456L, info.getTrialPeriod());
+    }
+
+    /** 激活码存在但公钥缺失（校验抛错）→ 厂商 catch 后继续走试用期，**不是**整体报错。 */
+    @Test
+    void queryInfoFallsBackToTrialWhenStoredCodeFailsVerification() {
+        when(repository.queryActiveCode()).thenReturn(java.util.Optional.of("bad.code"));
+        when(repository.queryGaopActivatePublicKey()).thenReturn(java.util.Optional.empty());
+        when(repository.querySettingValue("system.active.trial_period")).thenReturn(java.util.Optional.of("999"));
+
+        LicenceInfoEntity info = service().queryInfo();
+
+        assertFalse(info.getAuthStatus());
+        assertEquals(999L, info.getTrialPeriod());
     }
 }

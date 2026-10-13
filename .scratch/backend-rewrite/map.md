@@ -201,6 +201,12 @@ Label: `wayfinder:map`
 - （**K3 写入路径勘查**）[勘查与清单](docs/findings/45-k3-write-path-recon.md)：本轮**零业务代码改动**，把 `POST /v1/licence` / `DELETE /v1/licence` 的语义与 `/v1/licence/info` 的三个分支勘查清楚，留下可直接开工的清单。
   - **排除一个疑似缺陷**：`getLicenceInfo` 用的是第三个机器码变体 `getMachineCodeBase64WithoutGisInfo`，实测其值与 `/v1/licence` **相同**（都带尾逗号）⇒ 我们现在的 `/v1/licence/info` 是对的。限定：本环境无 GIS，有 GIS 时未验证。
   - 已激活分支（`authStatus=true`）仍是空白，要等 `POST /v1/licence` 写出来才第一次可达。
+- （**K3 写入路径**）[POST/DELETE /v1/licence + 已激活分支](docs/findings/46-k3-activate-write-path.md)：**已激活分支第一次可达**（`authStatus = !(now > endTime)`）。
+  - 对拉：无效激活码的错误路径**逐字节一致**（连那条脏消息 `The string 'n�.' doesn't have a valid JSON format.` 都一模一样——因为把厂商那串 catch 链原样照搬了）；且确认**无副作用**（调用前后 `system.active.code` 都是 0 行）。
+  - `activate` 用的是**服务端自己的机器码**（测试第一次失败就是因为我拿别的机器码去签，必然无交集）。
+  - **清洁教训**：扫库发现第 30 轮留下的两行 `g_setting`（`i18n.software.<lang>.probeaddv`）——厂商 `saveAutoNameMessage` 的副作用，我当时只清了 `g_software`/`g_role_software`。**清洁要按"被调端点的写入路径"倒推要清哪些表**，不是只清刚看到的那几张。已清掉并做全库 `LIKE '%probe%'` 复扫。
+  - 未实现：TenX/GIS 侧效应、授权文件、时速云时间早于授权工具那一支（本环境因 `merged` 为 null 而**不可达**）。
+  - 测试 210 → **214 条**全绿。
   - **用例总数更正**：我此前逐轮报的「162/174」是**数错了**（grep 只匹配到部分模块的汇总行，且 surefire 报告目录混有旧文件）。按模块汇总行精确求和：**33 个测试类、210 条用例全绿**。教训与「手抄不透明值」「只验形状不验值」同源——**计数也是要验证的量**，必须用可复算的命令。
 
 - （K3 预研结论）`LicenceInfo.expired(code)` = `{end:-1, endIso8601:null, code, expired:true}`，其中 `code = 机器码 + Base64(软件key)`；**"没有激活码"这一支不需要密码学**，可以在做 `GET /v1/software/{id}` 时一并实现（本轮没写，因为详情端点没做就没有调用方，写了是死代码）。

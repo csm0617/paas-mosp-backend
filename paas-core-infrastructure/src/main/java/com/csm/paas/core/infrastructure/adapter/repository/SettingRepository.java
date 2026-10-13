@@ -47,6 +47,21 @@ public class SettingRepository implements ISettingRepository {
     }
 
     @Override
+    public void upsertValue(String key, String val, String desc) {
+        long now = System.currentTimeMillis();
+        if (settingDao.countByKey(key) == 0) {
+            settingDao.insertSetting(key, val, desc, now);
+        } else {
+            settingDao.updateSetting(key, val, desc, now);
+        }
+    }
+
+    @Override
+    public void deleteValue(String key) {
+        settingDao.deleteSetting(key);
+    }
+
+    @Override
     public void saveValueIfAbsent(String key, String val, String desc) {
         if (settingDao.countByKey(key) == 0) {
             settingDao.insertSetting(key, val, desc, System.currentTimeMillis());

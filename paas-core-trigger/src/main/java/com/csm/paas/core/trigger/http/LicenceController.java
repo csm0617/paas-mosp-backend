@@ -1,5 +1,6 @@
 package com.csm.paas.core.trigger.http;
 
+import com.csm.paas.core.api.dto.ActiveLicenceDTO;
 import com.csm.paas.core.api.dto.LicenceInfoDTO;
 import com.csm.paas.core.api.dto.MachineInfoDTO;
 import com.csm.paas.core.api.dto.ResponseDTO;
@@ -28,6 +29,24 @@ public class LicenceController {
                 .build());
     }
 
+    /**
+     * 厂商 `POST /v1/licence`：**平台激活**。
+     * <p>顺序照抄 `LicenceController:54-63`：先 strip 激活码 → `checkActiveCode` 校验
+     * （**抛错就直接 400，不落库**）→ 落库 → 返回 `/v1/licence/info` 的形状（7 键）。
+     * <p>未实现：厂商随后还会通知 TenX、激活 GIS、把码写到授权文件。
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/v1/licence")
+    public ResponseDTO<LicenceInfoDTO> activate(
+            @org.springframework.web.bind.annotation.RequestBody ActiveLicenceDTO param) {
+        return toInfo(licenceQueryService.activate(param.getActiveCode()));
+    }
+
+    /** 厂商 `DELETE /v1/licence`：清空授权信息，返回 info 形状。 */
+    @org.springframework.web.bind.annotation.DeleteMapping("/v1/licence")
+    public ResponseDTO<LicenceInfoDTO> deactivate() {
+        return toInfo(licenceQueryService.deactivate());
+    }
+
     /** 厂商 GET /v1/licence/checkAndActiveGis：GIS 授权检查（本环境为 false）。 */
     @GetMapping("/v1/licence/checkAndActiveGis")
     public ResponseDTO<Boolean> checkAndActiveGis() {
@@ -37,7 +56,11 @@ public class LicenceController {
     /** 厂商 GET /v1/licence/info：授权状态（未激活时给试用期）。 */
     @GetMapping("/v1/licence/info")
     public ResponseDTO<LicenceInfoDTO> info() {
-        LicenceInfoEntity e = licenceQueryService.queryInfo();
+        return toInfo(licenceQueryService.queryInfo());
+    }
+
+    /** 三个端点（`GET /info`、`POST /v1/licence`、`DELETE /v1/licence`）返回的都是这个 7 键形状。 */
+    private static ResponseDTO<LicenceInfoDTO> toInfo(LicenceInfoEntity e) {
         return ResponseDTO.ok(LicenceInfoDTO.builder()
                 .end(e.getEnd()).endIso8601(e.getEndIso8601()).code(e.getCode())
                 .expired(e.getExpired()).authStatus(e.getAuthStatus())

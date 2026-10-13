@@ -17,4 +17,10 @@ public interface ISettingRepository {
 
     /** 不存在则插入（厂商会在首次调用时落库试用期）。 */
     void saveValueIfAbsent(String key, String val, String desc);
+
+    /** 有则更新、无则插入（厂商 `saveActiveCode` 对 `system.active.code` 就是 upsert 语义）。 */
+    void upsertValue(String key, String val, String desc);
+
+    /** 删除该键（厂商 `clearActiveCode` 对 `system.active.code` 是删行）。 */
+    void deleteValue(String key);
 }
