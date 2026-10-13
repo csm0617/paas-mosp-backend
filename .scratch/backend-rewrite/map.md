@@ -207,6 +207,11 @@ Label: `wayfinder:map`
   - **清洁教训**：扫库发现第 30 轮留下的两行 `g_setting`（`i18n.software.<lang>.probeaddv`）——厂商 `saveAutoNameMessage` 的副作用，我当时只清了 `g_software`/`g_role_software`。**清洁要按"被调端点的写入路径"倒推要清哪些表**，不是只清刚看到的那几张。已清掉并做全库 `LIKE '%probe%'` 复扫。
   - 未实现：TenX/GIS 侧效应、授权文件、时速云时间早于授权工具那一支（本环境因 `merged` 为 null 而**不可达**）。
   - 测试 210 → **214 条**全绿。
+- （**服务切片开工**）[GET /v1/service/labels + 服务域清单](docs/findings/47-service-slice-labels-and-inventory.md)：对拉一致（7 个 label 键，键集合与值集合全同）。
+  - **唯一不能用字节对拉的端点**：厂商用 `HashMap` 聚合再 `forEach`，数组顺序天然不稳定 ⇒ 契约只能定在"键集合 + 每个键的值集合"。把这个比较方式写进文档，避免以后有人拿 diff 判它失败。
+  - 两个易读反的字段：`name` 是 **label 的键**（不是节点名）；`labels` 是该键的**去重值**（不是标签串）。
+  - **服务域清单**（厂商 30+ 端点，我们原只有 1 个）：分三类——只读+K8s 现场态 / 写 K8s（有真实副作用）/ 改 K8s annotation 上的业务元数据。下一轮建议：第一类挑 `GET /v1/service/{serviceName}`（可纯离线钉形状），第三类挑 `/updateName`（可在隔离 namespace 真验证）。
+  - 测试 214 → **216 条**全绿。
   - **用例总数更正**：我此前逐轮报的「162/174」是**数错了**（grep 只匹配到部分模块的汇总行，且 surefire 报告目录混有旧文件）。按模块汇总行精确求和：**33 个测试类、210 条用例全绿**。教训与「手抄不透明值」「只验形状不验值」同源——**计数也是要验证的量**，必须用可复算的命令。
 
 - （K3 预研结论）`LicenceInfo.expired(code)` = `{end:-1, endIso8601:null, code, expired:true}`，其中 `code = 机器码 + Base64(软件key)`；**"没有激活码"这一支不需要密码学**，可以在做 `GET /v1/software/{id}` 时一并实现（本轮没写，因为详情端点没做就没有调用方，写了是死代码）。

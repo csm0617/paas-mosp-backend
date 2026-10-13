@@ -28,6 +28,20 @@ public class ServiceController {
     @Value("${gaop.k8s.namespace:gaop-namespace}")
     private String namespace;
 
+    /**
+     * 厂商 `GET /v1/service/labels`：集群里**所有节点 label** 的键与去重值，产出 `[{name,labels}]`。
+     * <p>取节点失败时厂商抛 `SystemException("k8s.get.node.failed")`（HTTP 500）——我们交给全局异常处理器，
+     * 落进厂商同款 `code=-1` 信封。
+     * <p>**顺序不要依赖**：厂商用 `HashMap` 聚合再 `forEach`，同一环境两次调用顺序都可能不同。
+     */
+    @GetMapping("/v1/service/labels")
+    public ResponseDTO<java.util.List<com.csm.paas.core.api.dto.LabelListDTO>> labels() {
+        var merged = serviceQueryService.queryNodeLabels();
+        var list = new java.util.ArrayList<com.csm.paas.core.api.dto.LabelListDTO>();
+        merged.forEach((k, v) -> list.add(com.csm.paas.core.api.dto.LabelListDTO.builder().name(k).labels(v).build()));
+        return ResponseDTO.ok(list);
+    }
+
     @GetMapping("/v1/service")
     public ResponseDTO<ServiceListResponseDTO> list(HttpServletRequest request) {
         // 厂商在这两个端点**不做**应用级校验（实测无 cookie 也 200），

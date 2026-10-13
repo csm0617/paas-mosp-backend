@@ -11,4 +11,12 @@ import java.util.List;
 public interface IServiceRuntimePort {
 
     List<ServiceRuntimeEntity> queryServices(String namespace);
+
+    /**
+     * 集群里**所有节点 label** 的键与去重值（厂商 `ServiceController.getLabels:964-990`）：
+     * 遍历 `listNode` 的每个 `metadata.labels`，按 label 键聚合出值集合。
+     * <p><b>顺序不可依赖</b>：厂商是 `HashMap` 聚合再 `forEach`，两次调用顺序都可能不同——
+     * 所以对拉时只能比集合，不能比数组顺序。
+     */
+    java.util.Map<String, java.util.List<String>> queryNodeLabels();
 }

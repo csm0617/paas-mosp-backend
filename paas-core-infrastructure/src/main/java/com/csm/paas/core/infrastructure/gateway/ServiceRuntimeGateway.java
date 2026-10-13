@@ -26,6 +26,13 @@ public class ServiceRuntimeGateway {
         return items;
     }
 
+    /** 全部节点（厂商 `coreV1Api.listNode(...)`）。 */
+    public List<io.fabric8.kubernetes.api.model.Node> listNodes() {
+        List<io.fabric8.kubernetes.api.model.Node> items = kubernetesClient.nodes().list().getItems();
+        log.info("fabric8 读到节点 {} 个", items.size());
+        return items;
+    }
+
     public List<Deployment> listDeployments(String namespace) {
         List<Deployment> items = kubernetesClient.apps().deployments().inNamespace(namespace).list().getItems();
         log.info("fabric8 读到 namespace:{} 的 Deployment {} 个", namespace, items.size());

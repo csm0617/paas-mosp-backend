@@ -34,6 +34,26 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
     private final ServiceRuntimeGateway serviceRuntimeGateway;
 
     @Override
+    public Map<String, List<String>> queryNodeLabels() {
+        // 厂商：遍历每个节点的 metadata.labels，按 label 键把"值"塞进一个 set（HashMap 聚合，顺序不可依赖）
+        Map<String, java.util.Set<String>> collected = new java.util.HashMap<>();
+        for (io.fabric8.kubernetes.api.model.Node node : serviceRuntimeGateway.listNodes()) {
+            if (node.getMetadata() == null || node.getMetadata().getLabels() == null) {
+                continue;   // 厂商对 labels 为 null 是 catch(NullPointerException) 后忽略
+            }
+            node.getMetadata().getLabels().forEach((k, v) -> {
+                java.util.Set<String> values = collected.computeIfAbsent(k, key -> new java.util.LinkedHashSet<>());
+                if (v != null) {
+                    values.add(v);
+                }
+            });
+        }
+        Map<String, List<String>> result = new java.util.LinkedHashMap<>();
+        collected.forEach((k, v) -> result.put(k, new ArrayList<>(v)));
+        return result;
+    }
+
+    @Override
     public List<ServiceRuntimeEntity> queryServices(String namespace) {
         Map<String, Service> serviceByName = new LinkedHashMap<>();
         for (Service svc : serviceRuntimeGateway.listServices(namespace)) {

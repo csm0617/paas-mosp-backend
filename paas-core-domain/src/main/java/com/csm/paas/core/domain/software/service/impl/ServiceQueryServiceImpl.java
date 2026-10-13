@@ -31,6 +31,11 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
     private IServiceAuthRepository serviceAuthRepository;
 
     @Override
+    public Map<String, List<String>> queryNodeLabels() {
+        return serviceRuntimePort.queryNodeLabels();
+    }
+
+    @Override
     public ServiceListEntity queryServiceList(String namespace) {
         List<ServiceRuntimeEntity> services = serviceRuntimePort.queryServices(namespace);
 
