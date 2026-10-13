@@ -68,6 +68,9 @@ Label: `wayfinder:map`
 - （进展）[授权端点 + 登录页打通](docs/findings/15-licence-and-login-page.md)：`/v1/licence`、`/v1/licence/info`（试用期与厂商同值）、`/ws/info` 已实现；**登录页的账号/门户下拉已由我们的后端供数**，前端自发起 `/v1/role?username=admin`。仅剩"自动填口令"这一步的工具问题。
 - （未实现·低优先）`/v1/licence/checkAndActiveGis`、SockJS 真实传输端点。
 
+- （进展·重要）[真实前端已把我们的后端当后端用](docs/findings/16-frontend-drives-our-backend.md)：外壳全部端点 200（`/v1/user`、`/v1/user/get`、`/v1/role`、`/settings`、`/v1/lang/current`、`/v1/licence/info`、`/v1/mode/current`）。
+- （待解）`/software/workloads` 仍被路由守卫弹回登录页；可疑 404：`/v1/licence/checkAndActiveGis`、`/v1/pub/quickStart`（**未定论**，先补这两个再复测）。
+
 ## Not yet specified
 
 <!-- 看得见、但还说不成一句精确问题的雾 -->
