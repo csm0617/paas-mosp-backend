@@ -2,6 +2,8 @@ Type: research
 Status: claimed
 Blocked by: —
 
+> 路径基准：本仓为 `/Users/csm/Desktop/PaaS/paas-core/`；厂商证据在 `/Users/csm/Desktop/Project/msop/`（`recovered/`、`recovered-web/`、`docs/`），下文相对路径均以该目录为基准。
+
 ## Question
 
 JDK 21 + Spring Boot 3.3 + fabric8 7 的迁移障碍**逐条定论**，产出 `docs/findings/04-migration-blockers.md`。逐依赖给出：现版本 → 目标版本（或替代） → 是否必须改代码 → 一手证据链接（官方 release notes / migration guide 优先）。

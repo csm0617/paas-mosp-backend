@@ -2,6 +2,8 @@ Type: research
 Status: claimed
 Blocked by: —
 
+> 路径基准：本仓为 `/Users/csm/Desktop/PaaS/paas-core/`；厂商证据在 `/Users/csm/Desktop/Project/msop/`（`recovered/`、`recovered-web/`、`docs/`），下文相对路径均以该目录为基准。
+
 ## Question
 
 把"接口兼容"变成**可机器比对**的基线。三方交叉：

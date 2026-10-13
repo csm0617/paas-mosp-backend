@@ -2,6 +2,8 @@ Type: research
 Status: claimed
 Blocked by: —
 
+> 路径基准：本仓为 `/Users/csm/Desktop/PaaS/paas-core/`；厂商证据在 `/Users/csm/Desktop/Project/msop/`（`recovered/`、`recovered-web/`、`docs/`），下文相对路径均以该目录为基准。
+
 ## Question
 
 为**限界上下文切分**提供证据（本 ticket 不做切分决定，只给证据）。对 39 张表 / 79 个 DAO / 41 个 service / 39 个 controller 做聚类，产出 `docs/findings/03-context-evidence.md`：
