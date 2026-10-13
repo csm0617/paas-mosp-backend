@@ -34,9 +34,10 @@ public class SoftwareRepository implements ISoftwareRepository {
 
     @Override
     public List<RelationRoleVO> queryRelationRoles(List<String> roleIds) {
+        // 用 PO 而不是 Map：H2 的列标签是大写，Map 取键会拿到 null（同 selectIdAndKeyByKeys 的坑）
         return softwareDao.selectRelationRoles(roleIds).stream()
                 .map(row -> RelationRoleVO.builder()
-                        .id(str(row.get("id"))).name(str(row.get("name"))).key(str(row.get("key")))
+                        .id(row.getId()).name(row.getName()).key(row.getKey())
                         .build())
                 .toList();
     }
@@ -121,6 +122,19 @@ public class SoftwareRepository implements ISoftwareRepository {
     @Override
     public int deleteWhiteListPath(String path) {
         return softwareDao.deleteWhiteListPath(path);
+    }
+
+    @Override
+    public com.csm.paas.core.domain.software.model.valobj.UploadStoreRecordVO queryCurrentVersionRecord(String softwareId) {
+        com.csm.paas.core.infrastructure.dao.po.UploadStoreRecordPO po = softwareDao.selectCurrentVersionRecord(softwareId);
+        if (po == null) {
+            return null;
+        }
+        return com.csm.paas.core.domain.software.model.valobj.UploadStoreRecordVO.builder()
+                .id(po.getId()).realStoreFilename(po.getRealStoreFilename()).execFileName(po.getExecFileName())
+                .updatedAt(po.getUpdatedAt()).execFaultMessage(po.getExecFaultMessage())
+                .status(po.getStatus()).relationSoftwareId(po.getRelationSoftwareId())
+                .build();
     }
 
     private SoftwarePO toPO(SoftwareEntity s) {

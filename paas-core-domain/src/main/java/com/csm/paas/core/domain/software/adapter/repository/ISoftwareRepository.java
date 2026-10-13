@@ -2,6 +2,7 @@ package com.csm.paas.core.domain.software.adapter.repository;
 
 import com.csm.paas.core.domain.software.model.entity.SoftwareEntity;
 import com.csm.paas.core.domain.software.model.valobj.RelationRoleVO;
+import com.csm.paas.core.domain.software.model.valobj.UploadStoreRecordVO;
 
 import java.util.List;
 import java.util.Optional;
@@ -78,4 +79,11 @@ public interface ISoftwareRepository {
     int deleteServicePortBySoftwareId(String softwareId);
 
     void deleteById(String softwareId);
+
+    /**
+     * 软件**当前版本**对应的上传记录（厂商 `UploadStoreRecordMapper.getCurrentSoftwareVersionInfo`）：
+     * `select * from g_upload_store_record ur left join g_software s on ur.id = s.version where s.id = ?`
+     * —— 即"上传记录 id 等于软件 version 列"的那一条；没有则返回 null。
+     */
+    UploadStoreRecordVO queryCurrentVersionRecord(String softwareId);
 }

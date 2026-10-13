@@ -101,7 +101,7 @@ public interface ISoftwareDao {
             WHERE id IN <foreach item='item' collection='roleIds' open='(' separator=',' close=')'>#{item}</foreach>
             </script>
             """)
-    List<Map<String, Object>> selectRelationRoles(@Param("roleIds") List<String> roleIds);
+    List<com.csm.paas.core.infrastructure.dao.po.RelationRolePO> selectRelationRoles(@Param("roleIds") List<String> roleIds);
 
     // ---------- 删除（厂商 removeSoftware，:1520-1533）----------
 
@@ -116,6 +116,19 @@ public interface ISoftwareDao {
 
     @org.apache.ibatis.annotations.Delete("DELETE FROM g_software WHERE id = #{softwareId}")
     int deleteById(@Param("softwareId") String softwareId);
+
+    /**
+     * 软件当前版本对应的上传记录（厂商 `getCurrentSoftwareVersionInfo`）：
+     * `left join g_software s on ur.id = s.version where s.id = ?`。
+     */
+    @Select("""
+            SELECT ur.id, ur.real_store_filename, ur.exec_file_name, ur.updated_at,
+                   ur.exec_fault_message, ur.status, ur.relation_software_id
+            FROM g_upload_store_record ur
+            LEFT JOIN g_software s ON ur.id = s.version
+            WHERE s.id = #{softwareId}
+            """)
+    com.csm.paas.core.infrastructure.dao.po.UploadStoreRecordPO selectCurrentVersionRecord(@Param("softwareId") String softwareId);
 
     @Select("SELECT role_id FROM g_role_software WHERE app_id = #{softwareId}")
     List<String> selectRoleIdsBySoftwareId(@Param("softwareId") String softwareId);

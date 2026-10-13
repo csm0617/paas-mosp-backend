@@ -158,3 +158,14 @@ CREATE TABLE IF NOT EXISTS g_software_app (
     software_id VARCHAR(36),
     app_name    VARCHAR(128)
 );
+
+-- K2：软件当前版本的上传记录（详情端点的 version/uploadStoreRecord 来源）
+CREATE TABLE IF NOT EXISTS g_upload_store_record (
+    id                  VARCHAR(36) PRIMARY KEY,
+    real_store_filename VARCHAR(512),
+    exec_file_name      VARCHAR(255),
+    updated_at          BIGINT,
+    exec_fault_message  VARCHAR(512),
+    status              INT,
+    relation_software_id VARCHAR(36)
+);

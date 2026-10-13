@@ -39,6 +39,22 @@ public class SoftwareController {
     @Resource
     private com.csm.paas.core.domain.software.service.ISoftwareCommandService softwareCommandService;
 
+    @Resource
+    private com.csm.paas.core.domain.software.service.ISoftwareDetailService softwareDetailService;
+
+    /**
+     * 厂商 `GET /v1/software/{id}`：软件详情（23 键聚合）。
+     * <p>不存在 → 400 `software.software.id.not.found`（注意与删除用的 `software.not.exist.by.id` **不是同一个键**）。
+     * <p>`licence` 目前只实现"未激活"分支；`framework=BS` 的 `serviceList` 未实现（回到字段默认值）——
+     * 理由见 `ISoftwareDetailService` 的 javadoc。
+     */
+    @org.springframework.web.bind.annotation.GetMapping("/{id}")
+    public ResponseDTO<com.csm.paas.core.api.dto.SoftwareInfoDTO> softwareDetail(
+            @org.springframework.web.bind.annotation.PathVariable String id) {
+        return ResponseDTO.ok(com.csm.paas.core.trigger.assembler.SoftwareInfoAssembler.toResponse(
+                softwareDetailService.queryDetail(id)));
+    }
+
     /**
      * 厂商 `DELETE /v1/software/{id}`：删除软件（含 4 张表的顺序删除，**整体一个事务**）。
      * <p>不存在 → 400 `software.not.exist.by.id`；厂商返回 `Response.ok(null)` → `data:null`。

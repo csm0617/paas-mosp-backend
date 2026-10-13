@@ -178,6 +178,13 @@ Label: `wayfinder:map`
   - 两处声明：**收紧**——厂商这条链路没有事务（会半删），我们包进一个事务；**未实现**——删 `g_service_port` 有行时厂商会通知网关（同 findings/39 的待办）。
   - **一处未端到端验证**：`g_software_app` 在本环境是空表、探针插不进去 ⇒ 那条 delete 没真正执行过；形状与其他三条相同，但如实标为"未端到端验证"。
   - 测试 148 → **152 条**全绿。
+- （**K2：软件详情**）[GET /v1/software/{id}](docs/findings/41-k2-software-detail-and-machine-code-gap.md)：**23/23 键一致，只差 1 个字段**（含 screenShotList 拆分、roleKey/NameList、status 默认 "STOP"、非 BS 时 serviceList 为 null、version=上传记录 id）。
+  - 那个唯一差异是 `licence.code` 的机器码部分——**我们一直是占位符 `MSOP-REWRITE-PLACEHOLDER`**（`LicenceRepository` 的 `@Value` 默认值）。厂商 = `Base64(gaopCode + "," + "gaop")`；`platformId` 是硬编码 `"gaop"`，`/data/licenceInfo/machine_codes.json` 在厂商 pod 里**不存在** ⇒ 走配置值。
+  - **更正旧记录**：早期把 `/v1/licence` 记为"已验证"其实只是**形状**对（`{code,existGist}`）；`code` 的**值一直是错的**。教训：只验形状不验值会埋雷，本轮被详情端点暴露。
+  - **未定论（做 K3 前必须定）**：厂商两条机器码方法差一个尾逗号，且两次调用解出的机器码**差一个字符**（`BE74` vs `BE87`）⇒ 厂商机器码**不是稳定值**。要么查清它读什么/怎么派生，要么按 ADR-0006 记成 L3 偏离并说明前端是否读它。
+  - **同一个坑第二次踩**：`selectRelationRoles` 用 `Map` 取列，H2 列标签大写 → `[null]`（与 `selectIdAndKeyByKeys` 同源）。已改用 PO；结论：不确定大小写的库取多列一律用 PO。
+  - 测试 152 → **155 条**全绿。
+
 - （K3 预研结论）`LicenceInfo.expired(code)` = `{end:-1, endIso8601:null, code, expired:true}`，其中 `code = 机器码 + Base64(软件key)`；**"没有激活码"这一支不需要密码学**，可以在做 `GET /v1/software/{id}` 时一并实现（本轮没写，因为详情端点没做就没有调用方，写了是死代码）。
 
 ## Not yet specified
