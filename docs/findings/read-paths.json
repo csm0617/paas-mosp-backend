@@ -29,7 +29,8 @@
         "path": "data.services[].restartCount",
         "note": "重启次数列（`|| 0`，null 无差别）",
         "allowDeviation": true,
-        "deviationReason": "厂商部分项为 0、部分为 null（走的是 Prometheus/Pod 富化路径 ServiceController.java:1846-1872，本环境数据不全）；前端 `a.restartCount || 0` → 两者显示等价"
+        "deviationReason": "厂商部分项为 0、部分为 null（走的是 Prometheus/Pod 富化路径 ServiceController.java:1846-1872，本环境数据不全）；前端 `a.restartCount || 0` → 两者显示等价",
+        "deviationKind": "display-equivalent"
       },
       {
         "path": "data.services[].serviceAuth.auth",
@@ -39,7 +40,8 @@
         "path": "data.services[].mappingInfo",
         "note": "映射面板",
         "allowDeviation": true,
-        "deviationReason": "重写版**恒返回三键对象**（更完整、且修掉厂商对部分服务返回 null 的隐患）；厂商本环境 9 项里 4 项为 null"
+        "deviationReason": "重写版**恒返回三键对象**（更完整、且修掉厂商对部分服务返回 null 的隐患）；厂商本环境 9 项里 4 项为 null",
+        "deviationKind": "at-least-as-complete"
       },
       {
         "path": "data.services[].nameFr",

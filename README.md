@@ -15,7 +15,12 @@
 
 ```bash
 mvn -DskipTests package      # 产物：paas-core-app/target/paas-core-app-1.0.0-SNAPSHOT.jar
+mvn test                     # 离线门槛测试（7 条，约 6 秒，不需要集群）
 ```
+
+契约门槛分两半：**离线**部分由 `mvn test` 锁住形状与前端读取路径；**在线**部分用
+`python3 tools/contract-check.py "GET /v1/service"`（需要集群 + 已启动的重写后端）。
+详见 `docs/findings/10-offline-test-gate.md`。
 
 ## 模块
 

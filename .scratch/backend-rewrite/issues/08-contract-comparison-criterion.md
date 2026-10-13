@@ -35,6 +35,12 @@ fabric8 7 + Jackson 默认省略 null，并且多出 4 个较新的 K8s 字段�
 另有 **2 条"允许偏离"**（`restartCount`、`mappingInfo`，理由已逐条写入清单）——**需要你在本工单追认或否决**，
 以及决定 L3 的差异清单是"记录在案"还是"必须补齐"。
 
+## 追加（2026-10-14）：判定已可自动化
+
+`mvn test` 现在离线跑 L1+L2（含允许偏离的受控校验），`tools/contract-check.py` 在线跑同一套判定。
+**所以你只需要定一件事**：L2 的两条允许偏离（`restartCount` 显示等价、`mappingInfo` 我们更完整）是追认还是否决；
+以及 L3 的差异清单（client-java 的 null 噪声 / `proxy` 键 / fabric8 多出的新字段）是"记录在案"还是"必须补齐"。
+
 ## 验收
 
 答案写进 `## Answer`，并据此更新 ADR-0004 里"响应 JSON 形状"的判定方式。

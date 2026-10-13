@@ -4,7 +4,7 @@ import com.csm.paas.core.domain.software.adapter.repository.IServiceAuthReposito
 import com.csm.paas.core.domain.software.model.entity.ServiceAuthEntity;
 import com.csm.paas.core.infrastructure.dao.IServiceAuthDao;
 import com.csm.paas.core.infrastructure.dao.po.ServiceAuthPO;
-import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
 
@@ -13,10 +13,10 @@ import java.util.List;
 /** Repository 实现：只调 dao，不含业务判断。 */
 @Slf4j
 @Repository
+@RequiredArgsConstructor
 public class ServiceAuthRepository implements IServiceAuthRepository {
 
-    @Resource
-    private IServiceAuthDao serviceAuthDao;
+    private final IServiceAuthDao serviceAuthDao;
 
     @Override
     public List<ServiceAuthEntity> queryAll() {

@@ -5,7 +5,7 @@ import io.fabric8.kubernetes.api.model.apps.Deployment;
 import io.fabric8.kubernetes.api.model.apps.StatefulSet;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.utils.Serialization;
-import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -15,10 +15,10 @@ import java.util.Map;
 /** fabric8 7 的集群读取网关。只做读写，不含业务判断。 */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class ServiceRuntimeGateway {
 
-    @Resource
-    private KubernetesClient kubernetesClient;
+    private final KubernetesClient kubernetesClient;
 
     public List<Service> listServices(String namespace) {
         List<Service> items = kubernetesClient.services().inNamespace(namespace).list().getItems();

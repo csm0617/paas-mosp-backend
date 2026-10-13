@@ -7,7 +7,7 @@ import io.fabric8.kubernetes.api.model.Service;
 import io.fabric8.kubernetes.api.model.ServicePort;
 import io.fabric8.kubernetes.api.model.apps.Deployment;
 import io.fabric8.kubernetes.api.model.apps.StatefulSet;
-import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -25,13 +25,13 @@ import java.util.Map;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class ServiceRuntimePort implements IServiceRuntimePort {
 
     /** 厂商默认页大小（{@code page.setSize(10)}）。 */
     private static final int DEFAULT_PAGE_SIZE = 10;
 
-    @Resource
-    private ServiceRuntimeGateway serviceRuntimeGateway;
+    private final ServiceRuntimeGateway serviceRuntimeGateway;
 
     @Override
     public List<ServiceRuntimeEntity> queryServices(String namespace) {

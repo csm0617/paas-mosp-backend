@@ -51,6 +51,8 @@ Label: `wayfinder:map`
 - （工具）[契约比对器](tools/contract-check.py) + [读取路径清单](docs/findings/read-paths.json)：L1 形状 / L2 前端读取路径 / L3 已知偏离；`GET /v1/service` 目前 L1+L2 全过（含 2 条待追认的允许偏离）。
 - （证据）[厂商样本库](docs/findings/runtime-samples/manifest.json)：26 个只读端点实测响应，供后续各域做基线。
 
+- （门槛自动化）[离线测试门槛](docs/findings/10-offline-test-gate.md)：4 个测试类 7 条用例、`mvn test` 全绿且不需要集群；L1/L2 由回放厂商样本锁定，允许偏离按 `deviationKind` 受控。
+
 ## Not yet specified
 
 <!-- 看得见、但还说不成一句精确问题的雾 -->
