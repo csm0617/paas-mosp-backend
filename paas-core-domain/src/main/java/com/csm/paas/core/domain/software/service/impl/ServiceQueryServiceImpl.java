@@ -30,6 +30,28 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
     @Resource
     private IServiceAuthRepository serviceAuthRepository;
 
+    /** i18n 自动名落在 `g_setting`（键形如 `i18n.service.<lang>.<serviceKey>`）。 */
+    @Resource
+    private com.csm.paas.core.domain.setting.adapter.repository.ISettingRepository i18nRepository;
+
+    @Override
+    public boolean updateServiceName(String namespace, String serviceKey, String name, String nameUs, String nameFr) {
+        try {
+            serviceRuntimePort.patchDeploymentServiceLabel(namespace, serviceKey, name);
+        } catch (Exception e) {
+            log.error("修改服务名称失败（Deployment），回退 StatefulSet", e);
+            try {
+                serviceRuntimePort.patchStatefulSetServiceLabel(namespace, serviceKey, name);
+            } catch (Exception ex) {
+                throw new com.csm.paas.core.types.exception.SystemException("service.modify.name.failed");
+            }
+        }
+        // 厂商两条路径成功时都写 i18n 自动名（`g_setting['i18n.service.<lang>.<key>']`）
+        i18nRepository.upsertValue("i18n.service.en_US." + serviceKey, nameUs, "service name en_US");
+        i18nRepository.upsertValue("i18n.service.fr_FR." + serviceKey, nameFr, "service name fr_FR");
+        return true;
+    }
+
     @Override
     public Map<String, List<String>> queryNodeLabels() {
         return serviceRuntimePort.queryNodeLabels();

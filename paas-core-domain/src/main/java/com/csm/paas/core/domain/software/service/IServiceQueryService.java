@@ -12,4 +12,17 @@ public interface IServiceQueryService {
      * <p>返回 `label键 → 该键的去重值列表`；**顺序不可依赖**（厂商用 HashMap 聚合）。
      */
     java.util.Map<String, java.util.List<String>> queryNodeLabels();
+
+    /**
+     * 改服务显示名（厂商 `PUT /v1/service/updateName`，`ServiceController:1536-1561`）：
+     * <ol>
+     *   <li>先给 **Deployment** 打 patch，把注解 `gaop/serviceLabel` 换成 `name`；</li>
+     *   <li>上面**任意异常**都回退到给 **StatefulSet** 打同样的 patch；</li>
+     *   <li>回退也抛 `ApiException` → `service.modify.name.failed`（HTTP 500，走 `-1` 信封）；</li>
+     *   <li>成功（含回退成功）都落 i18n 自动名 `i18n.service.{en_US,fr_FR}.{serviceKey}` 并返回 true。</li>
+     * </ol>
+     * <p><b>未端到端验证</b>：这条会真的改 K8s 工作负载；拿厂商环境的工作负载做实验违反本项目的清理纪律，
+     * 所以只用**离线单测**钉住"patch 报文内容 + 回退顺序 + i18n 落库"，线上只对拉了"服务不存在时的错误契约"。
+     */
+    boolean updateServiceName(String namespace, String serviceKey, String name, String nameUs, String nameFr);
 }

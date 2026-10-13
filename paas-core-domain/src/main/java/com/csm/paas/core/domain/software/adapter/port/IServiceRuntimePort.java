@@ -19,4 +19,13 @@ public interface IServiceRuntimePort {
      * 所以对拉时只能比集合，不能比数组顺序。
      */
     java.util.Map<String, java.util.List<String>> queryNodeLabels();
+
+    /**
+     * 给 Deployment 打 JSON patch，替换 `spec.template.metadata.annotations.gaop/serviceLabel`
+     * （厂商 `ServiceController.updateServiceName:1536-1553` 的第一条路径）。失败时抛异常，由领域层决定是否回退 StatefulSet。
+     */
+    void patchDeploymentServiceLabel(String namespace, String serviceKey, String name);
+
+    /** 同上，但打在 StatefulSet 上（厂商失败回退路径）。 */
+    void patchStatefulSetServiceLabel(String namespace, String serviceKey, String name);
 }

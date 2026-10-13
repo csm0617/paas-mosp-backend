@@ -29,6 +29,19 @@ public class ServiceController {
     private String namespace;
 
     /**
+     * 厂商 `PUT /v1/service/updateName?serviceKey&name&nameUs&nameFr`：改服务显示名。
+     * <p>四个参数都是 **query parameter**（不是 body）。规则与未验证说明见 `IServiceQueryService.updateServiceName`。
+     */
+    @org.springframework.web.bind.annotation.PutMapping("/v1/service/updateName")
+    public ResponseDTO<Boolean> updateServiceName(
+            @org.springframework.web.bind.annotation.RequestParam String serviceKey,
+            @org.springframework.web.bind.annotation.RequestParam String name,
+            @org.springframework.web.bind.annotation.RequestParam String nameUs,
+            @org.springframework.web.bind.annotation.RequestParam String nameFr) {
+        return ResponseDTO.ok(serviceQueryService.updateServiceName(namespace, serviceKey, name, nameUs, nameFr));
+    }
+
+    /**
      * 厂商 `GET /v1/service/labels`：集群里**所有节点 label** 的键与去重值，产出 `[{name,labels}]`。
      * <p>取节点失败时厂商抛 `SystemException("k8s.get.node.failed")`（HTTP 500）——我们交给全局异常处理器，
      * 落进厂商同款 `code=-1` 信封。
