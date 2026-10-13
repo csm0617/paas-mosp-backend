@@ -3,9 +3,11 @@ package com.csm.paas.core.infrastructure.dao;
 import com.csm.paas.core.infrastructure.dao.po.RolePO;
 import com.csm.paas.core.infrastructure.dao.po.RoleSoftwarePO;
 import org.apache.ibatis.annotations.Delete;
+import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 import java.util.List;
 
@@ -137,4 +139,42 @@ public interface IRoleDao {
             ORDER BY r.created_at DESC
             """)
     List<String> selectRoleNamesByUsernameAndType(@Param("username") String username, @Param("type") int type);
+
+    // ---------- 写（新增 / 修改）----------
+
+    /** key **或** name 命中数（厂商 `existKeyName` 是 **OR**）。 */
+    @Select("SELECT COUNT(*) FROM g_role WHERE `key` = #{key} OR name = #{name}")
+    long countByKeyOrName(@Param("key") String key, @Param("name") String name);
+
+    @Select("SELECT COUNT(*) FROM g_role WHERE `key` = #{key} AND id <> #{id}")
+    long countByKeyExcludingId(@Param("key") String key, @Param("id") String id);
+
+    @Select("SELECT COUNT(*) FROM g_role WHERE name = #{name} AND id <> #{id}")
+    long countByNameExcludingId(@Param("name") String name, @Param("id") String id);
+
+    @Insert("""
+            INSERT INTO g_role (id, `key`, name, `desc`, type, created_at, updated_at)
+            VALUES (#{id}, #{key}, #{name}, #{desc}, #{type}, #{createdAt}, #{updatedAt})
+            """)
+    int insert(RolePO role);
+
+    @Update("""
+            UPDATE g_role SET `key` = #{key}, name = #{name}, `desc` = #{desc}, type = #{type},
+                              created_at = #{createdAt}, updated_at = #{updatedAt}
+            WHERE id = #{id}
+            """)
+    int update(RolePO role);
+
+    @Insert("""
+            INSERT INTO g_user_role (user_id, role_id, created_at) VALUES (#{userId}, #{roleId}, #{createdAt})
+            """)
+    int insertUserRole(@Param("userId") String userId, @Param("roleId") String roleId,
+                       @Param("createdAt") long createdAt);
+
+    @Insert("""
+            INSERT INTO g_sub_role_role (sub_role_id, role_id, created_at)
+            VALUES (#{subRoleId}, #{roleId}, #{createdAt})
+            """)
+    int insertSubRoleRole(@Param("subRoleId") String subRoleId, @Param("roleId") String roleId,
+                          @Param("createdAt") long createdAt);
 }

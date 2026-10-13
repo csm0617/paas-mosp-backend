@@ -177,6 +177,18 @@ class UserCommandServiceImplTest {
         assertEquals(36, created.getId().length(), "id 是 UUID");
     }
 
+    /** 厂商 add 只设 createdAt、不设 updatedAt ⇒ 新建用户的 updatedAt 必须是 null（实测对拉）。 */
+    @Test
+    void newUserHasNullUpdatedAt() {
+        when(userRepository.queryAll()).thenReturn(List.of());
+        when(defaultAvatarRepository.queryDefaultAvatar()).thenReturn("AVATAR");
+
+        UserEntity created = service().prepareNewUser(form("ab", "abc123"));
+
+        assertNull(created.getUpdatedAt(), "厂商不设 updatedAt（页面靠 updatedAt || createdAt 兜底）");
+        assertNotNull(created.getCreatedAt());
+    }
+
     @Test
     void explicitAvatarWins() {
         when(userRepository.queryAll()).thenReturn(List.of());

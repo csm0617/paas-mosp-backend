@@ -70,4 +70,26 @@ public interface IRoleRepository {
     void deleteRoleSoftwareByRoleId(String roleId);
 
     void deleteById(String roleId);
+
+    // ---------- 写（新增 / 修改，厂商 RoleService.addRole / editRole）----------
+
+    /** key **或** name 已存在（厂商 `existKeyName`，`RoleService.java:659-661`，注意是 **OR**）。 */
+    boolean existsByKeyOrName(String key, String name);
+
+    /** 除自己之外是否已存在该 key（厂商 `duplicateKey`）。 */
+    boolean existsByKeyExcludingId(String key, String id);
+
+    /** 除自己之外是否已存在该 name（厂商 `duplicateName`）。 */
+    boolean existsByNameExcludingId(String name, String id);
+
+    void insert(RoleEntity role);
+
+    /** 更新战位行（厂商 `editRole` 的 `updateByPrimaryKeySelective`）。 */
+    void update(RoleEntity role);
+
+    /** 用给定用户 id 列表**替换**该战位的用户关联（厂商 `usersRelateRole`）。 */
+    void replaceUserRelationsByRoleId(String roleId, List<String> userIds);
+
+    /** 用给定子角色 id 列表**替换**该战位的子角色关联（厂商 `subRolesRelateRole`）。 */
+    void replaceSubRoleRelationsByRoleId(String roleId, List<String> subRoleIds);
 }

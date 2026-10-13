@@ -142,6 +142,14 @@ Label: `wayfinder:map`
   - 两个名字很像的端点语义不同：`userToRole` 替换**全部**关联且**不校验** roleId 存在性、`HashSet` 去重、返回 `true`；`{id}/roles` 只替换 `type=1`、**逐个校验存在性**、不去重、返回 `null`。已分别实现并写进单测。
   - 测试 112 → **118 条**全绿。K1 的"用户"一侧读+写基本闭环；战位一侧还差新增/修改（`POST /v1/role`、`PUT /v1/role/{id}`）。
 
+- （**切片 3b 写路径**）[新增/修改战位 + 两处对拉发现的差异](docs/findings/35-role-write-and-two-parity-finds.md)：`POST /v1/role` 与 `PUT /v1/role/{id}` 响应**逐字段相同**，四条错误路径一致。
+  - **我自己引入的一处偏离（已修）**：新建用户的 `updatedAt` 被设成了 now，厂商是 **null**（`add` 只设 `createdAt`）。上轮对拉时我把两个时间戳一起放进"忽略集合"，顺手把"该字段是否该存在"也忽略了——**教训：'值必然不同'可以忽略，'该字段是否该有值'不能忽略**。
+  - **一处厂商缺陷（不复制）**：`PUT /v1/role/{id}` 的响应里 `name` 恒为 **null**——`RoleController.java:249` 把参数位置传错了（签名 `(module,language,key)`，却传了 `(module,key,name)`），`getAutoNameMessage` 必然返回 null 并覆盖掉已取出的名字。只影响响应，库里和随后的 GET 都正常。
+  - 保留字矩阵照抄：**只要表单带 `key` 就不许改内置战位**（哪怕 key 与当前相同）；不带 key 则可以只改名字；`cicd`/`root` 不受保护；新增时 key 上界写的是 `<0`（空 key 能过）。
+  - **对拉方法教训**："同一探针两侧顺序执行"会污染对照——唯一约束类用例两侧必须用互不相同的值。
+  - （未复现的异常）改完域代码后有一次 `K1UserInfoContractTest` 7 条全 404，随后连续两次全量 + 单独跑均全绿；如实记录。
+  - 测试 118 → **124 条**全绿。`POST /v1/role` 的 `softwareList`（软件名列表）需 `g_software`，**属 K2 欠账**。
+
 ## Not yet specified
 
 <!-- 看得见、但还说不成一句精确问题的雾 -->

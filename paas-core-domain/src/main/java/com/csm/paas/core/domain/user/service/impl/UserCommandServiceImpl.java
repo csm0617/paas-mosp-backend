@@ -140,7 +140,10 @@ public class UserCommandServiceImpl implements IUserCommandService {
                 .avatar(avatar)
                 .uuid(uuid)
                 .createdAt(now)
-                .updatedAt(now)
+                // 厂商 add 只设 createdAt、**不设 updatedAt**（UserService.java:507-513）⇒ 新建用户的
+                // updatedAt 是 null（2026-10-14 对拉实测：厂商 POST/GET 两个响应里都是 null）。
+                // 页面的"更新时间"列渲染 `updatedAt || createdAt`，所以显示不受影响，但**线值必须一致**。
+                .updatedAt(null)
                 .build();
     }
 

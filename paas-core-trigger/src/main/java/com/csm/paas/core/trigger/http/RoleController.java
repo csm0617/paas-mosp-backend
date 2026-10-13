@@ -5,7 +5,9 @@ import com.csm.paas.core.api.dto.RoleItemDTO;
 import com.csm.paas.core.api.dto.RoleListResponseDTO;
 import com.csm.paas.core.api.dto.RoleSoftwareDTO;
 import com.csm.paas.core.api.dto.RoleSoftwareListDTO;
+import com.csm.paas.core.api.dto.RoleFormDTO;
 import com.csm.paas.core.cases.role.IRoleDeleteCase;
+import com.csm.paas.core.cases.role.IRoleWriteCase;
 import com.csm.paas.core.domain.role.service.IRoleQueryService;
 import com.csm.paas.core.trigger.assembler.RoleListAssembler;
 import com.csm.paas.core.types.exception.WrongArgumentException;
@@ -15,6 +17,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -44,6 +49,9 @@ public class RoleController {
 
     @Resource
     private IRoleDeleteCase roleDeleteCase;
+
+    @Resource
+    private IRoleWriteCase roleWriteCase;
 
     @Resource
     private AuthSupport authSupport;
@@ -93,6 +101,35 @@ public class RoleController {
         return roleQueryService.queryDetail(id)
                 .map(role -> ResponseDTO.ok(RoleListAssembler.toItemDTO(role)))
                 .orElseThrow(() -> new WrongArgumentException("role.storage.not.found"));
+    }
+
+    /**
+     * 厂商 `POST /v1/role`：新增战位。
+     * <p>key **或** name 已存在 → 400 `role.storage.existed`；校验与关系写入见 `IRoleWriteCase`。
+     * <p>**`softwareList`（软件名列表）本轮未处理**——它需要 `g_software`，属 K2 域（见地图欠账）。
+     */
+    @PostMapping
+    public ResponseDTO<RoleItemDTO> addRole(@RequestBody RoleFormDTO form) {
+        return ResponseDTO.ok(RoleListAssembler.toItemDTO(roleWriteCase.addRole(toFormVO(form))));
+    }
+
+    /**
+     * 厂商 `PUT /v1/role/{id}`：修改战位。
+     * <p>保留字保护矩阵（**只要表单带 key 就不许改内置战位**；key 为 `admin`/`dev` 直接被拒）见
+     * `IRoleCommandService.prepareEditedRole` 的文档。返回的是重新查出来的行。
+     */
+    @PutMapping("/{id}")
+    public ResponseDTO<RoleItemDTO> editRole(@PathVariable String id, @RequestBody RoleFormDTO form) {
+        return ResponseDTO.ok(RoleListAssembler.toItemDTO(roleWriteCase.editRole(id, toFormVO(form))));
+    }
+
+    private static com.csm.paas.core.domain.role.model.valobj.RoleFormVO toFormVO(RoleFormDTO form) {
+        return com.csm.paas.core.domain.role.model.valobj.RoleFormVO.builder()
+                .key(form.getKey()).name(form.getName()).nameFr(form.getNameFr()).nameUs(form.getNameUs())
+                .desc(form.getDesc()).type(form.getType())
+                .softwareList(form.getSoftwareList()).userList(form.getUserList())
+                .subRoleIdList(form.getSubRoleIdList())
+                .build();
     }
 
     /**

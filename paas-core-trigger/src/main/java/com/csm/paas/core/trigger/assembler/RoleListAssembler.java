@@ -30,8 +30,16 @@ public final class RoleListAssembler {
                 .build();
     }
 
-    /** 战位实体 → 契约项；登录响应内嵌的 role 用的是**同一形状**（实测 16 键）。 */
+    /**
+     * 战位实体 → 契约项；登录响应内嵌的 role 用的是**同一形状**（实测 16 键）。
+     * <p>`admin`/`dev`/`adminOrDev` **在这里按 key 现算**，不信任实体里存的值：厂商那三个是
+     * **模型上的计算 getter**（`Role.java:33-43`），所以任何端点的响应里它们**永远不是 null**。
+     * 新建/修改战位的响应走的就是"重新查出来的行"，如果只靠领域层设置就会出现 null
+     * （2026-10-14 对拉实测到的差异：厂商 `false`、我们 `null`）。
+     */
     public static RoleItemDTO toItemDTO(RoleEntity role) {
+        boolean isAdmin = "admin".equals(role.getKey());
+        boolean isDev = "dev".equals(role.getKey());
         return RoleItemDTO.builder()
                 .id(role.getId())
                 .key(role.getKey())
@@ -46,9 +54,9 @@ public final class RoleListAssembler {
                 .softwareList(toSoftwareDTOs(role.getSoftwareList()))
                 .userList(toUserDTOs(role.getUserList()))
                 .subRoleList(toSubRoleDTOs(role.getSubRoleList()))
-                .admin(role.getAdmin())
-                .dev(role.getDev())
-                .adminOrDev(role.getAdminOrDev())
+                .admin(isAdmin)
+                .dev(isDev)
+                .adminOrDev(isAdmin || isDev)
                 .build();
     }
 

@@ -9,6 +9,7 @@ import com.csm.paas.core.infrastructure.dao.po.RolePO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -139,6 +140,69 @@ public class RoleRepository implements IRoleRepository {
     @Override
     public void deleteById(String roleId) {
         roleDao.deleteById(roleId);
+    }
+
+    @Override
+    public boolean existsByKeyOrName(String key, String name) {
+        return roleDao.countByKeyOrName(key, name) > 0;
+    }
+
+    @Override
+    public boolean existsByKeyExcludingId(String key, String id) {
+        return roleDao.countByKeyExcludingId(key, id) > 0;
+    }
+
+    @Override
+    public boolean existsByNameExcludingId(String name, String id) {
+        return roleDao.countByNameExcludingId(name, id) > 0;
+    }
+
+    @Override
+    public void insert(RoleEntity role) {
+        roleDao.insert(toPO(role));
+    }
+
+    @Override
+    public void update(RoleEntity role) {
+        roleDao.update(toPO(role));
+    }
+
+    @Override
+    @Transactional
+    public void replaceUserRelationsByRoleId(String roleId, List<String> userIds) {
+        roleDao.deleteUserRoleByRoleId(roleId);
+        if (userIds == null || userIds.isEmpty()) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        for (String userId : new java.util.LinkedHashSet<>(userIds)) {
+            roleDao.insertUserRole(userId, roleId, now);
+        }
+    }
+
+    @Override
+    @Transactional
+    public void replaceSubRoleRelationsByRoleId(String roleId, List<String> subRoleIds) {
+        roleDao.deleteSubRoleRoleByRoleId(roleId);
+        if (subRoleIds == null || subRoleIds.isEmpty()) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        for (String subRoleId : new java.util.LinkedHashSet<>(subRoleIds)) {
+            roleDao.insertSubRoleRole(subRoleId, roleId, now);
+        }
+    }
+
+    private RolePO toPO(RoleEntity role) {
+        RolePO po = new RolePO();
+        po.setId(role.getId());
+        po.setKey(role.getKey());
+        po.setName(role.getName());
+        po.setDesc(role.getDesc());
+        po.setType(role.getType());
+        po.setCreatedAt(role.getCreatedAt());
+        po.setUpdatedAt(role.getUpdatedAt());
+        return po;
     }
 
     private RoleEntity toEntity(RolePO po) {
