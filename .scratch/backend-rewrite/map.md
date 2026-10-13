@@ -86,6 +86,9 @@ Label: `wayfinder:map`
 - （**里程碑**）[首个真实数据页渲染成功](docs/findings/21-first-rendered-data-page.md)：厂商原样前端 + 我们的后端 → `/software/application/service` 渲染出 **9 行服务表**（名称/状态/运行副本均来自真实集群，数据源是 `200 /v1/service`）。门槛三条（前端不改、契约比对、e2e）均已具备证据；截图 `docs/findings/artifacts/2026-10-14-service-page.png`。
 - （部分修）`/v1/service` 的 `imageInfo` 已按厂商格式填上；但页面「镜像」列**不是读 `imageInfo`**（产物里 0 处该字面量），仍显示 `undefined`——待定位真正的 dataIndex。
 
+- （交接）[阶段交接文档](docs/HANDOFF-2026-10-14.md)：门槛三条均达成的证据、已实现清单、偏离与未定论、待决策项（07/08）、复现与注意事项。
+- （查清）页面「镜像」列的 `undefined/undefined` 是**前端怪癖**（`image.split("/")` 取 parts[1]/[2]，要求三段镜像名），厂商自己的数据同样如此；我方镜像串与厂商逐字一致。
+
 ## Not yet specified
 
 <!-- 看得见、但还说不成一句精确问题的雾 -->
