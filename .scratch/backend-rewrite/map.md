@@ -198,6 +198,9 @@ Label: `wayfinder:map`
   - 实测事实：**JWT 的 exp 只到秒**（end 被截断）；**表名必须查真库**（我猜成 `g_auth_info`，真库是 **`g_auth`**）；`g_auth` 无 `default_auth` 行时厂商 `IndexOutOfBounds`，我们返回 null 折算成未激活（记录为收紧）。
   - 软件详情的 `licence` 不再是硬编码 expired，改成真的走 `getSoftwareLicenceInfo` 两条路径。
   - K3 仍缺：平台激活写入端点、GIS 在线授权、`/v1/licence/info` 的已激活分支。
+- （**K3 写入路径勘查**）[勘查与清单](docs/findings/45-k3-write-path-recon.md)：本轮**零业务代码改动**，把 `POST /v1/licence` / `DELETE /v1/licence` 的语义与 `/v1/licence/info` 的三个分支勘查清楚，留下可直接开工的清单。
+  - **排除一个疑似缺陷**：`getLicenceInfo` 用的是第三个机器码变体 `getMachineCodeBase64WithoutGisInfo`，实测其值与 `/v1/licence` **相同**（都带尾逗号）⇒ 我们现在的 `/v1/licence/info` 是对的。限定：本环境无 GIS，有 GIS 时未验证。
+  - 已激活分支（`authStatus=true`）仍是空白，要等 `POST /v1/licence` 写出来才第一次可达。
   - **用例总数更正**：我此前逐轮报的「162/174」是**数错了**（grep 只匹配到部分模块的汇总行，且 surefire 报告目录混有旧文件）。按模块汇总行精确求和：**33 个测试类、210 条用例全绿**。教训与「手抄不透明值」「只验形状不验值」同源——**计数也是要验证的量**，必须用可复算的命令。
 
 - （K3 预研结论）`LicenceInfo.expired(code)` = `{end:-1, endIso8601:null, code, expired:true}`，其中 `code = 机器码 + Base64(软件key)`；**"没有激活码"这一支不需要密码学**，可以在做 `GET /v1/software/{id}` 时一并实现（本轮没写，因为详情端点没做就没有调用方，写了是死代码）。
