@@ -95,6 +95,17 @@ public class RoleController {
                 roleQueryService.querySwitchRoleList(normalizedName, normalizedPage, normalizedSize, type)));
     }
 
+    /**
+     * 厂商 `GET /v1/role/exist_role_name?roleName=`：战位名是否已存在（返回布尔）。
+     * <p>字面量路径与 `/{id}` 并存时 Spring 优先匹配更具体的字面量，所以不会被 `/{id}` 吃掉。
+     * <p>实测提醒：库里战位名是**双重编码**的中文（`docs/findings/11`），拿正常 UTF-8 的中文去查
+     * 永远是 `false`——厂商也一样（对拉时三个名字都返回 false）。
+     */
+    @GetMapping("/exist_role_name")
+    public ResponseDTO<Boolean> existRoleName(@RequestParam String roleName) {
+        return ResponseDTO.ok(roleQueryService.existsByName(roleName));
+    }
+
     /** 厂商 `GET /v1/role/{id}`：战位详情；不存在时抛厂商同款 `role.storage.not.found`（HTTP 400）。 */
     @GetMapping("/{id}")
     public ResponseDTO<RoleItemDTO> roleDetail(@PathVariable String id) {

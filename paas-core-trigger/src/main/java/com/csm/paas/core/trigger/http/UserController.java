@@ -6,6 +6,7 @@ import com.csm.paas.core.api.dto.LoginUserDTO;
 import com.csm.paas.core.api.dto.UserDTO;
 import com.csm.paas.core.api.dto.UserDetailDTO;
 import com.csm.paas.core.api.dto.UserFormDTO;
+import com.csm.paas.core.api.dto.UserListByRoleDTO;
 import com.csm.paas.core.api.dto.UserInfoListResponseDTO;
 import com.csm.paas.core.api.dto.UserLoginItemDTO;
 import com.csm.paas.core.api.dto.UserLoginListDTO;
@@ -84,6 +85,19 @@ public class UserController {
         String normalizedKeyword = keyword == null ? null : keyword.replaceAll(" +", "");
         return ResponseDTO.ok(UserInfoAssembler.toResponse(
                 userQueryService.queryUserInfoPage(normalizedPage, normalizedSize, normalizedKeyword)));
+    }
+
+    /**
+     * 厂商 `GET /v1/user/{roleId}/users?page&size`：某战位下的用户列表。
+     * <p>响应键是 **`userList`**（不是 `list`）；厂商**不过滤 root 的 total、却过滤列表里的 root**；
+     * 厂商还会把口令哈希一起返回，我们置 null（刻意偏离）。
+     */
+    @GetMapping("/v1/user/{roleId}/users")
+    public ResponseDTO<UserListByRoleDTO> usersByRoleId(@PathVariable String roleId,
+                                                       @RequestParam(required = false) Integer page,
+                                                       @RequestParam(required = false) Integer size) {
+        return ResponseDTO.ok(UserAssembler.toResponse(userQueryService.queryUsersByRoleId(
+                roleId, PageUtils.normalizePage(page), PageUtils.normalizeSize(size))));
     }
 
     /**

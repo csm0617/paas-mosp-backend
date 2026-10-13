@@ -70,6 +70,32 @@ public interface IUserDao {
             """)
     java.util.List<UserPO> selectAll();
 
+    /**
+     * 某战位下的用户，分页（厂商 `UserService.queryUsersByRoleId` 的三表 join + PageHelper）。
+     * <p>**不过滤 `root`**——厂商也在列表层过滤，`total` 仍含 root。
+     */
+    @Select("""
+            SELECT u.id, u.username, u.password, u.status, u.email, u.birth, u.phone,
+                   u.updated_at, u.created_at, u.last_login_role, u.nickname, u.uuid, u.`desc`, u.avatar
+            FROM g_user u
+            JOIN g_user_role ur ON ur.user_id = u.id
+            JOIN g_role r ON r.id = ur.role_id
+            WHERE r.id = #{roleId}
+            ORDER BY u.created_at DESC
+            LIMIT #{size} OFFSET #{offset}
+            """)
+    java.util.List<UserPO> selectPageByRoleId(@Param("roleId") String roleId,
+                                              @Param("offset") int offset,
+                                              @Param("size") int size);
+
+    @Select("""
+            SELECT COUNT(*) FROM g_user u
+            JOIN g_user_role ur ON ur.user_id = u.id
+            JOIN g_role r ON r.id = ur.role_id
+            WHERE r.id = #{roleId}
+            """)
+    long selectCountByRoleId(@Param("roleId") String roleId);
+
     /** 用户关联的战位 key（厂商 `RoleList.containAdminRole()` 的判定依据）。 */
     @Select("""
             SELECT r.`key` FROM g_user_role ur

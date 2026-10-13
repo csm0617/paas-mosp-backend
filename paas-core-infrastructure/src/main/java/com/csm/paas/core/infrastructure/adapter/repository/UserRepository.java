@@ -75,6 +75,16 @@ public class UserRepository implements IUserRepository {
     }
 
     @Override
+    public List<UserEntity> queryPageByRoleId(String roleId, int offset, int size) {
+        return userDao.selectPageByRoleId(roleId, offset, size).stream().map(this::toEntity).toList();
+    }
+
+    @Override
+    public long countByRoleId(String roleId) {
+        return userDao.selectCountByRoleId(roleId);
+    }
+
+    @Override
     public List<String> queryRoleKeysByUsername(String username) {
         return userDao.selectRoleKeysByUsername(username);
     }

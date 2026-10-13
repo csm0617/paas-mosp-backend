@@ -150,6 +150,11 @@ Label: `wayfinder:map`
   - （未复现的异常）改完域代码后有一次 `K1UserInfoContractTest` 7 条全 404，随后连续两次全量 + 单独跑均全绿；如实记录。
   - 测试 118 → **124 条**全绿。`POST /v1/role` 的 `softwareList`（软件名列表）需 `g_software`，**属 K2 欠账**。
 
+- （**切片 3 收尾**）[exist_role_name + {roleId}/users + K2 规模](docs/findings/36-k1-tail-and-k2-software-scope.md)：两个端点对拉一致（`exist_role_name` 三个名字两侧都 `false`——库里是双重编码中文，**厂商也查不到 `true`**；`{roleId}/users` 键名是 **`userList`** 且 `total` 含被列表过滤掉的 `root`）。
+  - **过程教训**：本轮用 Python 脚本一次改 5 个文件，其中一条 `replace` **静默没生效**却照样打印 "patched"，编译也通过（没有编译期引用）——是**测试失败**才暴露的。改完必须**逐文件 grep 校验**，且对"新增映射"这类无编译期引用的改动要有**运行期断言**。
+  - **K2 `/v1/software` 的真实规模（重要）**：它不是"只读列表"，而是**带 K8s 富化的聚合端点**——每个软件行要额外算 `releaseStatus`/`web`（0/2/按 Deployment）/`url`（CS 类型拼 `gaop://cs?...`）/`roleList`，加上 22 列与两级排序（**`order_top` 恒降序在前**）。**因此放弃"先做一个只返回 id/name 的简化版"**：那会让前端拿到缺字段的数据，宁可晚一轮做完整。
+  - **下一轮开工清单**：22 列 + 4 个附加键；`releaseStatus`/`web` 的推导需**各建探针软件行**（本环境 `g_software` 为 **0 行**，现有样本只锁住空分支）；探针两侧用不同 key/name。
+
 ## Not yet specified
 
 <!-- 看得见、但还说不成一句精确问题的雾 -->

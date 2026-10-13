@@ -152,6 +152,9 @@ public interface IRoleDao {
     @Select("SELECT COUNT(*) FROM g_role WHERE name = #{name} AND id <> #{id}")
     long countByNameExcludingId(@Param("name") String name, @Param("id") String id);
 
+    @Select("SELECT COUNT(*) FROM g_role WHERE name = #{name}")
+    long countByName(@Param("name") String name);
+
     @Insert("""
             INSERT INTO g_role (id, `key`, name, `desc`, type, created_at, updated_at)
             VALUES (#{id}, #{key}, #{name}, #{desc}, #{type}, #{createdAt}, #{updatedAt})

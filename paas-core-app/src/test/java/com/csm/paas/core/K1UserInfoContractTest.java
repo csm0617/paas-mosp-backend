@@ -212,6 +212,37 @@ class K1UserInfoContractTest {
     }
 
     @Test
+    void existRoleNameReturnsBoolean() {
+        ResponseEntity<Map> yes = rest.getForEntity("/v1/role/exist_role_name?roleName=运维管理员门户", Map.class);
+        assertEquals(HttpStatus.OK, yes.getStatusCode());
+        assertEquals(true, yes.getBody().get("data"));
+
+        ResponseEntity<Map> no = rest.getForEntity("/v1/role/exist_role_name?roleName=没有这个名字", Map.class);
+        assertEquals(false, no.getBody().get("data"));
+    }
+
+    /**
+     * `GET /v1/user/{roleId}/users`：键名是 **`userList`**（不是 `list`）；
+     * 厂商会把口令哈希一起返回，我们置 null（刻意偏离）。
+     */
+    @Test
+    void usersByRoleIdReturnsUserListShape() {
+        ResponseEntity<Map> res = rest.getForEntity("/v1/user/" + ADMIN_ROLE_ID + "/users?page=1&size=20", Map.class);
+
+        assertEquals(HttpStatus.OK, res.getStatusCode());
+        Map<String, Object> body = res.getBody();
+        assertNotNull(body);
+        assertEquals(Set.of("userList", "total"), keys(body.get("data")), "键名是 userList 不是 list");
+
+        Map<String, Object> data = (Map<String, Object>) body.get("data");
+        java.util.List<Map<String, Object>> users = (java.util.List<Map<String, Object>>) data.get("userList");
+        assertEquals(1, users.size(), "admin 用户关联着 admin 战位");
+        assertEquals(14, users.get(0).size(), "条目是 14 键的 User 形状");
+        assertEquals("admin", users.get(0).get("username"));
+        assertNull(users.get(0).get("password"), "重写版不下发口令哈希（刻意偏离）");
+    }
+
+    @Test
     void unmappedPathStaysSpring404NotEnvelope() {        ResponseEntity<Map> res = rest.getForEntity("/v1/definitely_not_mapped_xyz", Map.class);
 
         assertEquals(HttpStatus.NOT_FOUND, res.getStatusCode());

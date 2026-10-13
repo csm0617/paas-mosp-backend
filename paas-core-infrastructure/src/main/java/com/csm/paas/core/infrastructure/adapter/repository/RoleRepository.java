@@ -158,6 +158,11 @@ public class RoleRepository implements IRoleRepository {
     }
 
     @Override
+    public boolean existsByName(String name) {
+        return roleDao.countByName(name) > 0;
+    }
+
+    @Override
     public void insert(RoleEntity role) {
         roleDao.insert(toPO(role));
     }

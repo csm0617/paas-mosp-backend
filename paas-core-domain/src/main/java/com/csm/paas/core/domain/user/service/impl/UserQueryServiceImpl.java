@@ -6,6 +6,7 @@ import com.csm.paas.core.domain.role.service.RolePortalSupport;
 import com.csm.paas.core.domain.subrole.adapter.repository.ISubRoleRepository;
 import com.csm.paas.core.domain.user.adapter.repository.IUserRepository;
 import com.csm.paas.core.domain.user.model.entity.UserDetailEntity;
+import com.csm.paas.core.domain.user.model.entity.UserListByRoleEntity;
 import com.csm.paas.core.domain.user.model.entity.UserEntity;
 import com.csm.paas.core.domain.user.model.entity.UserInfoEntity;
 import com.csm.paas.core.domain.user.model.entity.UserInfoPageEntity;
@@ -126,6 +127,14 @@ public class UserQueryServiceImpl implements IUserQueryService {
                 .admin(roles.stream().anyMatch(r -> ADMIN_ROLE_KEY.equals(r.getKey())))
                 .belongRole(belongRole)
                 .build();
+    }
+
+    @Override
+    public UserListByRoleEntity queryUsersByRoleId(String roleId, int page, int size) {
+        List<UserEntity> users = userRepository.queryPageByRoleId(roleId, PageUtils.offset(page, size), size);
+        long total = userRepository.countByRoleId(roleId);
+        List<UserEntity> list = users.stream().filter(u -> !ROOT_USERNAME.equals(u.getUsername())).toList();
+        return UserListByRoleEntity.builder().userList(list).total(total).build();
     }
 
     private List<RoleEntity> rolesByType(String username, int type) {

@@ -41,6 +41,15 @@ public interface IUserRepository {
      */
     List<String> queryRoleNamesByUsernameAndType(String username, int type);
 
+    /**
+     * 某战位下的用户，分页（厂商 `UserService.queryUsersByRoleId`，`:863-875`）。
+     * <p>注意厂商**列表里过滤掉 `root`，但 `total` 取分页总数（含 root）**；调用方负责过滤。
+     */
+    List<UserEntity> queryPageByRoleId(String roleId, int offset, int size);
+
+    /** 某战位下的用户总数（含 root）。 */
+    long countByRoleId(String roleId);
+
     /** 用户关联的子角色名（厂商 {@code SubRoleService.getSubRoleName(userId)}）。 */
     List<String> querySubRoleNamesByUserId(String userId);
 

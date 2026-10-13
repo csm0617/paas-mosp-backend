@@ -29,6 +29,9 @@ public interface IRoleQueryService {
 
     Optional<RoleEntity> queryByKey(String key);
 
+    /** 战位名是否已存在（厂商 `GET /v1/role/exist_role_name`）。 */
+    boolean existsByName(String roleName);
+
     /** 战位下的软件列表（厂商 `GET /v1/role/software`）。 */
     List<RoleSoftwareEntity> querySoftwareByRoleId(String roleId);
 }

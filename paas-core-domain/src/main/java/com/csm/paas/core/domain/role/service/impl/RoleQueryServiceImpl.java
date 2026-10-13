@@ -145,6 +145,11 @@ public class RoleQueryServiceImpl implements IRoleQueryService {
     }
 
     @Override
+    public boolean existsByName(String roleName) {
+        return roleRepository.existsByName(roleName);
+    }
+
+    @Override
     public List<RoleSoftwareEntity> querySoftwareByRoleId(String roleId) {
         return roleRepository.querySoftwareByRoleId(roleId);
     }

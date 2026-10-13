@@ -82,6 +82,9 @@ public interface IRoleRepository {
     /** 除自己之外是否已存在该 name（厂商 `duplicateName`）。 */
     boolean existsByNameExcludingId(String name, String id);
 
+    /** name 是否存在（厂商 `existRoleName`，`GET /v1/role/exist_role_name`）。 */
+    boolean existsByName(String name);
+
     void insert(RoleEntity role);
 
     /** 更新战位行（厂商 `editRole` 的 `updateByPrimaryKeySelective`）。 */
