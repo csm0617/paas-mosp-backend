@@ -1,0 +1,912 @@
+apiVersion: v1
+items:
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "5"
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"labels":{"app":"gaop-auth"},"name":"gaop-auth","namespace":"gaop-namespace"},"spec":{"replicas":1,"selector":{"matchLabels":{"app":"gaop-auth"}},"template":{"metadata":{"labels":{"app":"gaop-auth"}},"spec":{"containers":[{"env":[{"name":"JAVA_TOOL_OPTIONS","value":"-Xms64m -Xmx192m -XX:MaxMetaspaceSize=128m -Xss512k -XX:+UseSerialGC"},{"name":"GAOP_MYSQL_HOST","value":"gaop-mysql"},{"name":"GAOP_MYSQL_PORT","value":"3306"},{"name":"GAOP_MYSQL_USERNAME","valueFrom":{"secretKeyRef":{"key":"username","name":"gaop-app"}}},{"name":"GAOP_MYSQL_PASSWORD","valueFrom":{"secretKeyRef":{"key":"password","name":"gaop-app"}}},{"name":"TZ","value":"Asia/Shanghai"}],"image":"system_containers/gaop-auth:0.0.3-arm64","imagePullPolicy":"IfNotPresent","name":"gaop-auth","ports":[{"containerPort":19526,"name":"http"}],"readinessProbe":{"failureThreshold":30,"initialDelaySeconds":30,"periodSeconds":10,"tcpSocket":{"port":19526}},"resources":{"limits":{"memory":"384Mi"},"requests":{"memory":"64Mi"}}}],"serviceAccountName":"msop"}}}}
+    creationTimestamp: "2026-10-13T15:22:33Z"
+    generation: 7
+    labels:
+      app: gaop-auth
+    name: gaop-auth
+    namespace: gaop-namespace
+    resourceVersion: "6311534"
+    uid: bb55f82f-3068-4e99-9c3d-64e3950dba89
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: gaop-auth
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          kubectl.kubernetes.io/restartedAt: "2026-10-13T15:44:16Z"
+        creationTimestamp: null
+        labels:
+          app: gaop-auth
+      spec:
+        containers:
+        - env:
+          - name: JAVA_TOOL_OPTIONS
+            value: -Xms64m -Xmx192m -XX:MaxMetaspaceSize=128m -Xss512k -XX:+UseSerialGC
+          - name: GAOP_MYSQL_HOST
+            value: gaop-mysql
+          - name: GAOP_MYSQL_PORT
+            value: "3306"
+          - name: GAOP_MYSQL_USERNAME
+            valueFrom:
+              secretKeyRef:
+                key: username
+                name: gaop-app
+          - name: GAOP_MYSQL_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                key: password
+                name: gaop-app
+          - name: TZ
+            value: Asia/Shanghai
+          image: system_containers/gaop-auth:0.0.3-arm64
+          imagePullPolicy: IfNotPresent
+          name: gaop-auth
+          ports:
+          - containerPort: 19526
+            name: http
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 30
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            tcpSocket:
+              port: 19526
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: 384Mi
+            requests:
+              memory: 64Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: msop
+        serviceAccountName: msop
+        terminationGracePeriodSeconds: 30
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2026-10-13T15:37:31Z"
+      lastUpdateTime: "2026-10-13T16:38:00Z"
+      message: ReplicaSet "gaop-auth-58d9fd8698" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2026-10-13T17:18:12Z"
+      lastUpdateTime: "2026-10-13T17:18:12Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 7
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "8"
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"labels":{"app":"gaop-be"},"name":"gaop-be","namespace":"gaop-namespace"},"spec":{"replicas":1,"selector":{"matchLabels":{"app":"gaop-be"}},"template":{"metadata":{"labels":{"app":"gaop-be"}},"spec":{"containers":[{"env":[{"name":"JAVA_TOOL_OPTIONS","value":"-Xms96m -Xmx320m -XX:MaxMetaspaceSize=128m -Xss512k -XX:+UseSerialGC"},{"name":"TZ","value":"Asia/Shanghai"},{"name":"FLYWAY_ENABLE","value":"false"},{"name":"GAOP_MYSQL_HOST","value":"gaop-mysql"},{"name":"GAOP_MYSQL_PORT","value":"3306"},{"name":"GAOP_MYSQL_USERNAME","valueFrom":{"secretKeyRef":{"key":"username","name":"gaop-app"}}},{"name":"GAOP_MYSQL_PASSWORD","valueFrom":{"secretKeyRef":{"key":"password","name":"gaop-app"}}},{"name":"REDIS_HOST","value":"gaop-redis"},{"name":"REDIS_PORT","value":"6379"},{"name":"GAOP_GATEWAY_HOST","value":"gaop-gateway-auth"},{"name":"GAOP_GATEWAY_PORT","value":"5000"},{"name":"GAOP_IMAGE_HOST","value":"gaop-image-uploader"},{"name":"GAOP_IMAGE_PORT","value":"18080"}],"image":"gaop-be:V1.3.4-20260415-1857-arm64","imagePullPolicy":"IfNotPresent","name":"gaop-be","ports":[{"containerPort":8080,"name":"http"},{"containerPort":31000,"name":"jdwp"}],"readinessProbe":{"failureThreshold":30,"initialDelaySeconds":40,"periodSeconds":10,"tcpSocket":{"port":8080}},"resources":{"limits":{"memory":"640Mi"},"requests":{"memory":"96Mi"}}}],"serviceAccountName":"msop"}}}}
+    creationTimestamp: "2026-10-13T15:22:33Z"
+    generation: 10
+    labels:
+      app: gaop-be
+    name: gaop-be
+    namespace: gaop-namespace
+    resourceVersion: "6311739"
+    uid: a57e7cf9-0b3c-4281-9b1d-492329c46216
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: gaop-be
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          kubectl.kubernetes.io/restartedAt: "2026-10-13T15:58:19Z"
+        creationTimestamp: null
+        labels:
+          app: gaop-be
+      spec:
+        containers:
+        - env:
+          - name: JAVA_TOOL_OPTIONS
+            value: -Xms96m -Xmx320m -XX:MaxMetaspaceSize=128m -Xss512k -XX:+UseSerialGC
+          - name: TZ
+            value: Asia/Shanghai
+          - name: FLYWAY_ENABLE
+            value: "false"
+          - name: GAOP_MYSQL_HOST
+            value: gaop-mysql
+          - name: GAOP_MYSQL_PORT
+            value: "3306"
+          - name: GAOP_MYSQL_USERNAME
+            valueFrom:
+              secretKeyRef:
+                key: username
+                name: gaop-app
+          - name: GAOP_MYSQL_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                key: password
+                name: gaop-app
+          - name: REDIS_HOST
+            value: gaop-redis
+          - name: REDIS_PORT
+            value: "6379"
+          - name: GAOP_GATEWAY_HOST
+            value: gaop-gateway-auth
+          - name: GAOP_GATEWAY_PORT
+            value: "5000"
+          - name: GAOP_IMAGE_HOST
+            value: gaop-image-uploader
+          - name: GAOP_IMAGE_PORT
+            value: "18080"
+          image: gaop-be:V1.3.4-20260415-1857-arm64
+          imagePullPolicy: IfNotPresent
+          name: gaop-be
+          ports:
+          - containerPort: 8080
+            name: http
+            protocol: TCP
+          - containerPort: 31000
+            name: jdwp
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 30
+            initialDelaySeconds: 40
+            periodSeconds: 10
+            successThreshold: 1
+            tcpSocket:
+              port: 8080
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: 640Mi
+            requests:
+              memory: 96Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: msop
+        serviceAccountName: msop
+        terminationGracePeriodSeconds: 30
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2026-10-13T15:37:31Z"
+      lastUpdateTime: "2026-10-13T16:38:01Z"
+      message: ReplicaSet "gaop-be-7958b5884b" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2026-10-13T17:18:23Z"
+      lastUpdateTime: "2026-10-13T17:18:23Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 10
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "3"
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"labels":{"app":"gaop-diagnostic"},"name":"gaop-diagnostic","namespace":"gaop-namespace"},"spec":{"replicas":1,"selector":{"matchLabels":{"app":"gaop-diagnostic"}},"template":{"metadata":{"labels":{"app":"gaop-diagnostic"}},"spec":{"containers":[{"env":[{"name":"JAVA_TOOL_OPTIONS","value":"-Xms64m -Xmx192m -XX:MaxMetaspaceSize=128m -Xss512k -XX:+UseSerialGC"},{"name":"MYSQL_HOST","value":"gaop-mysql"},{"name":"USER","valueFrom":{"secretKeyRef":{"key":"username","name":"gaop-app"}}},{"name":"PASSWD","valueFrom":{"secretKeyRef":{"key":"password","name":"gaop-app"}}},{"name":"TZ","value":"Asia/Shanghai"}],"image":"system_containers/gaop-diagnostic:1.0.0-arm64","imagePullPolicy":"IfNotPresent","name":"gaop-diagnostic","ports":[{"containerPort":55555,"name":"http"}],"readinessProbe":{"failureThreshold":30,"initialDelaySeconds":30,"periodSeconds":10,"tcpSocket":{"port":55555}},"resources":{"limits":{"memory":"384Mi"},"requests":{"memory":"64Mi"}}}],"serviceAccountName":"msop"}}}}
+    creationTimestamp: "2026-10-13T15:22:33Z"
+    generation: 4
+    labels:
+      app: gaop-diagnostic
+    name: gaop-diagnostic
+    namespace: gaop-namespace
+    resourceVersion: "6306770"
+    uid: 33c2a353-d4a4-4240-8f3f-bf0b643f9fa7
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 0
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: gaop-diagnostic
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          app: gaop-diagnostic
+      spec:
+        containers:
+        - env:
+          - name: JAVA_TOOL_OPTIONS
+            value: -Xms64m -Xmx192m -XX:MaxMetaspaceSize=128m -Xss512k -XX:+UseSerialGC
+          - name: MYSQL_HOST
+            value: gaop-mysql
+          - name: USER
+            valueFrom:
+              secretKeyRef:
+                key: username
+                name: gaop-app
+          - name: PASSWD
+            valueFrom:
+              secretKeyRef:
+                key: password
+                name: gaop-app
+          - name: TZ
+            value: Asia/Shanghai
+          image: system_containers/gaop-diagnostic:1.0.0-arm64
+          imagePullPolicy: IfNotPresent
+          name: gaop-diagnostic
+          ports:
+          - containerPort: 55555
+            name: http
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 30
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            tcpSocket:
+              port: 55555
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: 384Mi
+            requests:
+              memory: 64Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: msop
+        serviceAccountName: msop
+        terminationGracePeriodSeconds: 30
+  status:
+    conditions:
+    - lastTransitionTime: "2026-10-13T15:23:24Z"
+      lastUpdateTime: "2026-10-13T15:23:24Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    - lastTransitionTime: "2026-10-13T15:22:33Z"
+      lastUpdateTime: "2026-10-13T16:38:00Z"
+      message: ReplicaSet "gaop-diagnostic-7669dbdf97" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    observedGeneration: 4
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "5"
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"labels":{"app":"gaop-fdfs"},"name":"gaop-fdfs","namespace":"gaop-namespace"},"spec":{"replicas":1,"selector":{"matchLabels":{"app":"gaop-fdfs"}},"template":{"metadata":{"labels":{"app":"gaop-fdfs"}},"spec":{"containers":[{"env":[{"name":"JAVA_TOOL_OPTIONS","value":"-Xms64m -Xmx160m -XX:MaxMetaspaceSize=128m -Xss512k -XX:+UseSerialGC"},{"name":"GAOP_MYSQL_HOST","value":"gaop-mysql"},{"name":"GAOP_MYSQL_PORT","value":"3306"},{"name":"GAOP_MYSQL_USERNAME","valueFrom":{"secretKeyRef":{"key":"username","name":"gaop-app"}}},{"name":"GAOP_MYSQL_PASSWORD","valueFrom":{"secretKeyRef":{"key":"password","name":"gaop-app"}}},{"name":"GAOP_MINIO_HOST","value":"http://minio-service.default.svc.cluster.local:9000"},{"name":"GAOP_MINIO_ACCCESSKEY","valueFrom":{"secretKeyRef":{"key":"rootUser","name":"gaop-minio"}}},{"name":"GAOP_MINIO_SECRETKEY","valueFrom":{"secretKeyRef":{"key":"rootPassword","name":"gaop-minio"}}},{"name":"GAOP_MINIO_BUCKET","value":"gaop"},{"name":"TZ","value":"Asia/Shanghai"}],"image":"gaop-fdfs:0.0.18-arm64","imagePullPolicy":"IfNotPresent","name":"gaop-fdfs","ports":[{"containerPort":9527,"name":"http"}],"readinessProbe":{"failureThreshold":30,"initialDelaySeconds":30,"periodSeconds":10,"tcpSocket":{"port":9527}},"resources":{"limits":{"memory":"320Mi"},"requests":{"memory":"64Mi"}}}],"serviceAccountName":"msop"}}}}
+    creationTimestamp: "2026-10-13T15:22:33Z"
+    generation: 6
+    labels:
+      app: gaop-fdfs
+    name: gaop-fdfs
+    namespace: gaop-namespace
+    resourceVersion: "6306761"
+    uid: 1c1db63b-62ca-49ed-9cd4-d25c21ad9a1c
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 0
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: gaop-fdfs
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          kubectl.kubernetes.io/restartedAt: "2026-10-13T15:44:16Z"
+        creationTimestamp: null
+        labels:
+          app: gaop-fdfs
+      spec:
+        containers:
+        - env:
+          - name: JAVA_TOOL_OPTIONS
+            value: -Xms64m -Xmx160m -XX:MaxMetaspaceSize=128m -Xss512k -XX:+UseSerialGC
+          - name: GAOP_MYSQL_HOST
+            value: gaop-mysql
+          - name: GAOP_MYSQL_PORT
+            value: "3306"
+          - name: GAOP_MYSQL_USERNAME
+            valueFrom:
+              secretKeyRef:
+                key: username
+                name: gaop-app
+          - name: GAOP_MYSQL_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                key: password
+                name: gaop-app
+          - name: GAOP_MINIO_HOST
+            value: http://minio-service.default.svc.cluster.local:9000
+          - name: GAOP_MINIO_ACCCESSKEY
+            valueFrom:
+              secretKeyRef:
+                key: rootUser
+                name: gaop-minio
+          - name: GAOP_MINIO_SECRETKEY
+            valueFrom:
+              secretKeyRef:
+                key: rootPassword
+                name: gaop-minio
+          - name: GAOP_MINIO_BUCKET
+            value: gaop
+          - name: TZ
+            value: Asia/Shanghai
+          image: gaop-fdfs:0.0.18-arm64
+          imagePullPolicy: IfNotPresent
+          name: gaop-fdfs
+          ports:
+          - containerPort: 9527
+            name: http
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 30
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            tcpSocket:
+              port: 9527
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: 320Mi
+            requests:
+              memory: 64Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: msop
+        serviceAccountName: msop
+        terminationGracePeriodSeconds: 30
+  status:
+    conditions:
+    - lastTransitionTime: "2026-10-13T15:23:13Z"
+      lastUpdateTime: "2026-10-13T15:23:13Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    - lastTransitionTime: "2026-10-13T15:22:33Z"
+      lastUpdateTime: "2026-10-13T16:38:00Z"
+      message: ReplicaSet "gaop-fdfs-5b6bc4bcfb" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    observedGeneration: 6
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "5"
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"labels":{"app":"gaop-gateway-auth"},"name":"gaop-gateway-auth","namespace":"gaop-namespace"},"spec":{"replicas":1,"selector":{"matchLabels":{"app":"gaop-gateway-auth"}},"template":{"metadata":{"labels":{"app":"gaop-gateway-auth"}},"spec":{"containers":[{"env":[{"name":"JAVA_TOOL_OPTIONS","value":"-Xms64m -Xmx192m -XX:MaxMetaspaceSize=128m -Xss512k -XX:+UseSerialGC"},{"name":"MYSQL_HOST","value":"gaop-mysql"},{"name":"MYSQL_USERNAME","valueFrom":{"secretKeyRef":{"key":"username","name":"gaop-app"}}},{"name":"MYSQL_PASSWORD","valueFrom":{"secretKeyRef":{"key":"password","name":"gaop-app"}}},{"name":"REDIS_HOST","value":"gaop-redis"},{"name":"REDIS_PORT","value":"6379"},{"name":"GAOP_BE_HOST","value":"gaop-be"},{"name":"GAOP_FE_HOST","value":"gaop-web"},{"name":"TZ","value":"Asia/Shanghai"}],"image":"gaop-gateway-auth:v1.0.11-arm64","imagePullPolicy":"IfNotPresent","name":"gaop-gateway-auth","ports":[{"containerPort":5000,"name":"http"}],"readinessProbe":{"failureThreshold":30,"initialDelaySeconds":30,"periodSeconds":10,"tcpSocket":{"port":5000}},"resources":{"limits":{"memory":"384Mi"},"requests":{"memory":"64Mi"}}}],"serviceAccountName":"msop"}}}}
+    creationTimestamp: "2026-10-13T15:22:33Z"
+    generation: 7
+    labels:
+      app: gaop-gateway-auth
+    name: gaop-gateway-auth
+    namespace: gaop-namespace
+    resourceVersion: "6311538"
+    uid: f605f14f-9342-4f55-b5b5-5eab4c244431
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: gaop-gateway-auth
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          kubectl.kubernetes.io/restartedAt: "2026-10-13T15:44:16Z"
+        creationTimestamp: null
+        labels:
+          app: gaop-gateway-auth
+      spec:
+        containers:
+        - env:
+          - name: JAVA_TOOL_OPTIONS
+            value: -Xms64m -Xmx192m -XX:MaxMetaspaceSize=128m -Xss512k -XX:+UseSerialGC
+          - name: MYSQL_HOST
+            value: gaop-mysql
+          - name: MYSQL_USERNAME
+            valueFrom:
+              secretKeyRef:
+                key: username
+                name: gaop-app
+          - name: MYSQL_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                key: password
+                name: gaop-app
+          - name: REDIS_HOST
+            value: gaop-redis
+          - name: REDIS_PORT
+            value: "6379"
+          - name: GAOP_BE_HOST
+            value: gaop-be
+          - name: GAOP_FE_HOST
+            value: gaop-web
+          - name: TZ
+            value: Asia/Shanghai
+          image: gaop-gateway-auth:v1.0.11-arm64
+          imagePullPolicy: IfNotPresent
+          name: gaop-gateway-auth
+          ports:
+          - containerPort: 5000
+            name: http
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 30
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            tcpSocket:
+              port: 5000
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: 384Mi
+            requests:
+              memory: 64Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: msop
+        serviceAccountName: msop
+        terminationGracePeriodSeconds: 30
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2026-10-13T15:22:33Z"
+      lastUpdateTime: "2026-10-13T16:38:01Z"
+      message: ReplicaSet "gaop-gateway-auth-7794b5c4df" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2026-10-13T17:18:12Z"
+      lastUpdateTime: "2026-10-13T17:18:12Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 7
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "5"
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"labels":{"app":"gaop-image-uploader"},"name":"gaop-image-uploader","namespace":"gaop-namespace"},"spec":{"replicas":1,"selector":{"matchLabels":{"app":"gaop-image-uploader"}},"template":{"metadata":{"labels":{"app":"gaop-image-uploader"}},"spec":{"containers":[{"env":[{"name":"JAVA_TOOL_OPTIONS","value":"-Xms64m -Xmx192m -XX:MaxMetaspaceSize=128m -Xss512k -XX:+UseSerialGC"},{"name":"GAOP_MYSQL_HOST","value":"gaop-mysql"},{"name":"GAOP_MYSQL_PORT","value":"3306"},{"name":"GAOP_MYSQL_USERNAME","valueFrom":{"secretKeyRef":{"key":"username","name":"gaop-app"}}},{"name":"GAOP_MYSQL_PASSWORD","valueFrom":{"secretKeyRef":{"key":"password","name":"gaop-app"}}},{"name":"DOCKER_URL","value":"unix:///var/run/docker.sock"},{"name":"TZ","value":"Asia/Shanghai"}],"image":"gaop-image-uploader:0.0.17-20250514-1548-arm64","imagePullPolicy":"IfNotPresent","name":"gaop-image-uploader","ports":[{"containerPort":18080,"name":"http"}],"readinessProbe":{"failureThreshold":30,"initialDelaySeconds":30,"periodSeconds":10,"tcpSocket":{"port":18080}},"resources":{"limits":{"memory":"384Mi"},"requests":{"memory":"64Mi"}},"volumeMounts":[{"mountPath":"/var/run/docker.sock","name":"docker-sock"}]}],"serviceAccountName":"msop","volumes":[{"hostPath":{"path":"/var/run/docker.sock","type":"Socket"},"name":"docker-sock"}]}}}}
+    creationTimestamp: "2026-10-13T15:22:33Z"
+    generation: 6
+    labels:
+      app: gaop-image-uploader
+    name: gaop-image-uploader
+    namespace: gaop-namespace
+    resourceVersion: "6306796"
+    uid: 3c9bf167-8d03-40e6-b525-ead674b0be53
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 0
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: gaop-image-uploader
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          kubectl.kubernetes.io/restartedAt: "2026-10-13T15:44:17Z"
+        creationTimestamp: null
+        labels:
+          app: gaop-image-uploader
+      spec:
+        containers:
+        - env:
+          - name: JAVA_TOOL_OPTIONS
+            value: -Xms64m -Xmx192m -XX:MaxMetaspaceSize=128m -Xss512k -XX:+UseSerialGC
+          - name: GAOP_MYSQL_HOST
+            value: gaop-mysql
+          - name: GAOP_MYSQL_PORT
+            value: "3306"
+          - name: GAOP_MYSQL_USERNAME
+            valueFrom:
+              secretKeyRef:
+                key: username
+                name: gaop-app
+          - name: GAOP_MYSQL_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                key: password
+                name: gaop-app
+          - name: DOCKER_URL
+            value: unix:///var/run/docker.sock
+          - name: TZ
+            value: Asia/Shanghai
+          image: gaop-image-uploader:0.0.17-20250514-1548-arm64
+          imagePullPolicy: IfNotPresent
+          name: gaop-image-uploader
+          ports:
+          - containerPort: 18080
+            name: http
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 30
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            tcpSocket:
+              port: 18080
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: 384Mi
+            requests:
+              memory: 64Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /var/run/docker.sock
+            name: docker-sock
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: msop
+        serviceAccountName: msop
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - hostPath:
+            path: /var/run/docker.sock
+            type: Socket
+          name: docker-sock
+  status:
+    conditions:
+    - lastTransitionTime: "2026-10-13T15:43:42Z"
+      lastUpdateTime: "2026-10-13T15:43:42Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    - lastTransitionTime: "2026-10-13T15:37:31Z"
+      lastUpdateTime: "2026-10-13T16:38:01Z"
+      message: ReplicaSet "gaop-image-uploader-5f698778ff" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    observedGeneration: 6
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "1"
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"labels":{"app":"gaop-redis"},"name":"gaop-redis","namespace":"gaop-namespace"},"spec":{"replicas":1,"selector":{"matchLabels":{"app":"gaop-redis"}},"template":{"metadata":{"labels":{"app":"gaop-redis"}},"spec":{"containers":[{"args":["redis-server","--save","","--appendonly","no","--maxmemory","96mb","--maxmemory-policy","allkeys-lru"],"image":"redis:7.4","imagePullPolicy":"IfNotPresent","name":"redis","ports":[{"containerPort":6379,"name":"redis"}],"resources":{"limits":{"memory":"128Mi"},"requests":{"memory":"32Mi"}}}]}}}}
+    creationTimestamp: "2026-10-13T15:19:08Z"
+    generation: 3
+    labels:
+      app: gaop-redis
+    name: gaop-redis
+    namespace: gaop-namespace
+    resourceVersion: "6311388"
+    uid: 0951d458-5100-4191-9838-57de76a64320
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: gaop-redis
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          app: gaop-redis
+      spec:
+        containers:
+        - args:
+          - redis-server
+          - --save
+          - ""
+          - --appendonly
+          - "no"
+          - --maxmemory
+          - 96mb
+          - --maxmemory-policy
+          - allkeys-lru
+          image: redis:7.4
+          imagePullPolicy: IfNotPresent
+          name: redis
+          ports:
+          - containerPort: 6379
+            name: redis
+            protocol: TCP
+          resources:
+            limits:
+              memory: 128Mi
+            requests:
+              memory: 32Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2026-10-13T15:19:08Z"
+      lastUpdateTime: "2026-10-13T15:19:10Z"
+      message: ReplicaSet "gaop-redis-94cf49cd6" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2026-10-13T17:17:34Z"
+      lastUpdateTime: "2026-10-13T17:17:34Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 3
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "2"
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"labels":{"app":"gaop-startup"},"name":"gaop-startup","namespace":"gaop-namespace"},"spec":{"replicas":1,"selector":{"matchLabels":{"app":"gaop-startup"}},"template":{"metadata":{"labels":{"app":"gaop-startup"}},"spec":{"containers":[{"env":[{"name":"JAVA_TOOL_OPTIONS","value":"-Xms64m -Xmx192m -XX:MaxMetaspaceSize=128m -Xss512k -XX:+UseSerialGC"},{"name":"TZ","value":"Asia/Shanghai"}],"image":"system_containers/gaop-startup:0.0.7-arm64","imagePullPolicy":"IfNotPresent","name":"gaop-startup","ports":[{"containerPort":9889,"name":"http"}],"readinessProbe":{"failureThreshold":30,"initialDelaySeconds":30,"periodSeconds":10,"tcpSocket":{"port":9889}},"resources":{"limits":{"memory":"320Mi"},"requests":{"memory":"64Mi"}}}],"serviceAccountName":"msop"}}}}
+    creationTimestamp: "2026-10-13T15:22:33Z"
+    generation: 3
+    labels:
+      app: gaop-startup
+    name: gaop-startup
+    namespace: gaop-namespace
+    resourceVersion: "6306800"
+    uid: f7676e60-98aa-4d0d-9241-f1ca39fb2aba
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 0
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: gaop-startup
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          app: gaop-startup
+      spec:
+        containers:
+        - env:
+          - name: JAVA_TOOL_OPTIONS
+            value: -Xms64m -Xmx192m -XX:MaxMetaspaceSize=128m -Xss512k -XX:+UseSerialGC
+          - name: TZ
+            value: Asia/Shanghai
+          image: system_containers/gaop-startup:0.0.7-arm64
+          imagePullPolicy: IfNotPresent
+          name: gaop-startup
+          ports:
+          - containerPort: 9889
+            name: http
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 30
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            tcpSocket:
+              port: 9889
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: 320Mi
+            requests:
+              memory: 64Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: msop
+        serviceAccountName: msop
+        terminationGracePeriodSeconds: 30
+  status:
+    conditions:
+    - lastTransitionTime: "2026-10-13T15:23:14Z"
+      lastUpdateTime: "2026-10-13T15:23:14Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    - lastTransitionTime: "2026-10-13T15:22:33Z"
+      lastUpdateTime: "2026-10-13T16:38:01Z"
+      message: ReplicaSet "gaop-startup-65c6cbb995" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    observedGeneration: 3
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "4"
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"labels":{"app":"gaop-web","app.kubernetes.io/part-of":"msop"},"name":"gaop-web","namespace":"gaop-namespace"},"spec":{"replicas":1,"selector":{"matchLabels":{"app":"gaop-web"}},"template":{"metadata":{"labels":{"app":"gaop-web"}},"spec":{"containers":[{"image":"system_containers/gaop-web:V1.3.4-20260415-1900-arm64","imagePullPolicy":"IfNotPresent","livenessProbe":{"httpGet":{"path":"/index.html","port":80},"initialDelaySeconds":10,"periodSeconds":15},"name":"gaop-web","ports":[{"containerPort":80,"name":"http"}],"readinessProbe":{"httpGet":{"path":"/index.html","port":80},"initialDelaySeconds":2,"periodSeconds":5},"resources":{"limits":{"memory":"128Mi"},"requests":{"memory":"32Mi"}}}]}}}}
+    creationTimestamp: "2026-10-13T14:11:37Z"
+    generation: 6
+    labels:
+      app: gaop-web
+      app.kubernetes.io/part-of: msop
+    name: gaop-web
+    namespace: gaop-namespace
+    resourceVersion: "6311804"
+    uid: e3bb82dd-b77c-4747-ac1d-e8675f211bd4
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: gaop-web
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          app: gaop-web
+      spec:
+        containers:
+        - image: system_containers/gaop-web:V1.3.4-20260415-1900-arm64
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /index.html
+              port: 80
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            successThreshold: 1
+            timeoutSeconds: 1
+          name: gaop-web
+          ports:
+          - containerPort: 80
+            name: http
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /index.html
+              port: 80
+              scheme: HTTP
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: 128Mi
+            requests:
+              memory: 32Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2026-10-13T14:11:38Z"
+      lastUpdateTime: "2026-10-13T16:38:01Z"
+      message: ReplicaSet "gaop-web-76dcbcc8f6" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2026-10-13T17:19:05Z"
+      lastUpdateTime: "2026-10-13T17:19:05Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 6
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+kind: List
+metadata:
+  resourceVersion: ""

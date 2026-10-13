@@ -1,0 +1,1 @@
+{"msg":"OK","code":0,"data":{"software":{"running":0,"stop":0,"pending":0},"service":{"running":5,"stop":4,"pending":0},"pod":{"running":5,"stop":1,"pending":0}}}

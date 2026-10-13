@@ -17,6 +17,14 @@ Blocked by: 01, 04
 具名端口在 **fabric8 7.9.0 模型层**已验证可正常反序列化（`docs/findings/named-port-fabric8-7.9.0.md`，2/2 用例通过）。
 本 ticket 要回答的是**真实集群数据**上是否还有别的不兼容字段，以及整条链路（Trigger→API→Case→Domain←Infrastructure）能否对齐厂商 JSON。
 
+## 运行时基线（已就绪，可直接 diff）
+
+`docs/findings/runtime-samples/` 里有 2026-10-14 从运行中厂商后端抓的原始响应：
+`POST /v1/software/overView`（162 B）、`GET /v1/software`（58 B）、`GET /v1/service`（67 KB，含 9 个服务项）、
+`GET /k8s/api/v1/namespaces/gaop-namespace/services`（14 KB）、`/v1/app`（恒空）。
+信封是 `{msg,code,data}`；**失败响应的 data 里带 Java 堆栈 trace**；K8s 代理路径把数字序列化成 `19526.0`。
+采集方式与端点全表见 `docs/findings/runtime-samples/README.md`。
+
 ## 验收
 
 - `curl` 实测输出与厂商响应 diff 一致（贴证据）。
