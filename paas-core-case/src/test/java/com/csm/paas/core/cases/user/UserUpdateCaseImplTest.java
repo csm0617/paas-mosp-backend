@@ -27,9 +27,11 @@ class UserUpdateCaseImplTest {
 
     private final IUserCommandService userCommandService = mock(IUserCommandService.class);
     private final IUserRepository userRepository = mock(IUserRepository.class);
+    private final com.csm.paas.core.domain.role.adapter.repository.IRoleRepository roleRepository =
+            mock(com.csm.paas.core.domain.role.adapter.repository.IRoleRepository.class);
 
     private UserUpdateCaseImpl useCase() {
-        return new UserUpdateCaseImpl(userCommandService, userRepository);
+        return new UserUpdateCaseImpl(userCommandService, userRepository, roleRepository);
     }
 
     @Test
@@ -82,5 +84,63 @@ class UserUpdateCaseImplTest {
 
         verify(userRepository).queryRoleIdsByKeys(List.of("nope"));
         verify(userRepository).replaceUserRoleRelations("u1", 1, List.of());
+    }
+
+    // ---------- userToRole / {userId}/roles ----------
+
+    @Test
+    void userToRoleReplacesAllRelationsAndDeduplicates() {
+        when(userRepository.queryById("u1")).thenReturn(java.util.Optional.of(
+                UserEntity.builder().id("u1").username("bob").build()));
+
+        boolean result = useCase().replaceUserRoles("u1", List.of("r1", "r2", "r1"));
+
+        org.junit.jupiter.api.Assertions.assertTrue(result, "厂商恒返回 true");
+        // 去重后按入参顺序（厂商用 HashSet，顺序不确定；我们保留顺序以便可复现）
+        verify(userRepository).replaceAllUserRoleRelations("u1", List.of("r1", "r2"));
+    }
+
+    @Test
+    void userToRoleWithEmptyListOnlyDeletes() {
+        when(userRepository.queryById("u1")).thenReturn(java.util.Optional.of(
+                UserEntity.builder().id("u1").username("bob").build()));
+
+        useCase().replaceUserRoles("u1", List.of());
+
+        verify(userRepository).replaceAllUserRoleRelations("u1", List.of());
+    }
+
+    @Test
+    void userToRoleRejectsMissingUser() {
+        when(userRepository.queryById("nope")).thenReturn(java.util.Optional.empty());
+
+        com.csm.paas.core.types.exception.WrongArgumentException e =
+                org.junit.jupiter.api.Assertions.assertThrows(
+                        com.csm.paas.core.types.exception.WrongArgumentException.class,
+                        () -> useCase().replaceUserRoles("nope", List.of("r1")));
+        org.junit.jupiter.api.Assertions.assertEquals("user.missing.user.info", e.getI18nKey());
+    }
+
+    @Test
+    void relatePositionsOnlyTouchesType1AndSkipsUnknownKeys() {
+        when(userRepository.queryById("u1")).thenReturn(java.util.Optional.of(
+                UserEntity.builder().id("u1").username("bob").build()));
+        when(roleRepository.filterExistingIds(List.of("r-admin", "r-nope"))).thenReturn(List.of("r-admin"));
+
+        useCase().relatePositions("u1", List.of("r-admin", "r-nope"));
+
+        verify(userRepository).replaceUserRoleRelations("u1", 1, List.of("r-admin"));
+    }
+
+    @Test
+    void relatePositionsRejectsMissingUserWithItsOwnKey() {
+        when(userRepository.queryById("nope")).thenReturn(java.util.Optional.empty());
+
+        com.csm.paas.core.types.exception.WrongArgumentException e =
+                org.junit.jupiter.api.Assertions.assertThrows(
+                        com.csm.paas.core.types.exception.WrongArgumentException.class,
+                        () -> useCase().relatePositions("nope", List.of("r1")));
+        org.junit.jupiter.api.Assertions.assertEquals("user.not.found", e.getI18nKey(),
+                "这个端点用的是 user.not.found，与 userToRole 的 user.missing.user.info 不同");
     }
 }

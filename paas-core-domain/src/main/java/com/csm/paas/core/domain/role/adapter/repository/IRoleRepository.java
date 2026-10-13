@@ -26,6 +26,12 @@ public interface IRoleRepository {
      */
     List<RoleEntity> queryByUsernameAndType(String username, int type);
 
+    /**
+     * 过滤出真实存在的战位/角色 id——厂商 `rolesRelate2User`（`UserService.java:798`）对每个 roleId
+     * 先 `selectByPrimaryKey`，不存在就 `continue`。
+     */
+    List<String> filterExistingIds(List<String> ids);
+
     Optional<RoleEntity> queryByKey(String key);
 
     Optional<RoleEntity> queryById(String id);

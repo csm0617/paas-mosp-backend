@@ -18,4 +18,21 @@ public interface IUserUpdateCase {
      * </ul>
      */
     UserEntity updateUser(String userId, UserFormVO form);
+
+    /**
+     * 厂商 `POST /v1/user/userToRole`：**替换用户的全部战位/角色关联**（不分类型）。
+     * <p>厂商 `UserService.UserRelationRole`（`:1869-1892`）：`roleIdList` 先过 `HashSet` **去重**
+     * （所以顺序不确定），然后删掉该用户所有 `g_user_role` 再逐条插入；列表为空则只删不插。
+     * <p>用户不存在 → `user.missing.user.info`（"找不到改用户信息，无法进行关联操作"）。
+     *
+     * @return 厂商恒返回 `true`
+     */
+    boolean replaceUserRoles(String userId, java.util.List<String> roleIdList);
+
+    /**
+     * 厂商 `POST /v1/user/{userId}/roles`：**只替换 `type=1`（战位）**的关联。
+     * <p>厂商 `UserController.roleRelate2user`（`:432-440`）→ `rolesRelate2User(userId, 1, roleIdList)`；
+     * 用户不存在 → `user.not.found`；按 id 找不到的战位**跳过**。
+     */
+    void relatePositions(String userId, java.util.List<String> roleIdList);
 }

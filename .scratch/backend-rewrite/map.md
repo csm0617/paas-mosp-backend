@@ -137,6 +137,11 @@ Label: `wayfinder:map`
   - 关系语义与新增**相反**：`PUT` 里三个列表为空即**删除**该类关联（新增是跳过）。
   - （清理教训）探针改过的**既有行**也要按字节恢复——`admin` 的 `nickname`/`desc` 是双重编码字节，已逐字节核对恢复。
 
+- （**切片 3a 补齐三个端点**）[按主键查用户 + 两个战位配置端点](docs/findings/34-user-by-id-and-role-relation.md)：`GET /v1/user/{id}` **整体 JSON 相等**；`userToRole`/`{id}/roles` 的响应与**库内关系条数**两侧一致。
+  - **四个"找不到用户"文案各不相同**（全部实测）：删用户 `user.id.not.found` / 查用户 `user.id.query.not.found` / `{id}/roles` 用 `user.not.found` / `userToRole` 用 `user.missing.user.info`——**任何"统一成一个键"的整理都会破坏其中三条**。
+  - 两个名字很像的端点语义不同：`userToRole` 替换**全部**关联且**不校验** roleId 存在性、`HashSet` 去重、返回 `true`；`{id}/roles` 只替换 `type=1`、**逐个校验存在性**、不去重、返回 `null`。已分别实现并写进单测。
+  - 测试 112 → **118 条**全绿。K1 的"用户"一侧读+写基本闭环；战位一侧还差新增/修改（`POST /v1/role`、`PUT /v1/role/{id}`）。
+
 ## Not yet specified
 
 <!-- 看得见、但还说不成一句精确问题的雾 -->

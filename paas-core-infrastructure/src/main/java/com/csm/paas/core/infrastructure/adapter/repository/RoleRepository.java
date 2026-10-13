@@ -42,6 +42,14 @@ public class RoleRepository implements IRoleRepository {
     }
 
     @Override
+    public List<String> filterExistingIds(List<String> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return roleDao.selectExistingIds(ids);
+    }
+
+    @Override
     public List<RoleEntity> queryByUsernameAndType(String username, int type) {
         return roleDao.selectByUsernameAndType(username, type).stream().map(this::toEntity).toList();
     }

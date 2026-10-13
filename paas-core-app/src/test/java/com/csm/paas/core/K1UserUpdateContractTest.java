@@ -193,4 +193,79 @@ class K1UserUpdateContractTest {
                 """, Integer.class, userId, type);
         return n == null ? 0 : n;
     }
+
+    // ---------- GET /v1/user/{userId} / userToRole / {userId}/roles ----------
+
+    @Test
+    void userByIdReturnsVendorShapedUserWithNullPassword() {
+        ResponseEntity<Map> res = rest.getForEntity("/v1/user/" + BOB_ID, Map.class);
+
+        assertEquals(HttpStatus.OK, res.getStatusCode());
+        Map<String, Object> data = (Map<String, Object>) res.getBody().get("data");
+        assertEquals(14, data.size(), "厂商就是 14 个键");
+        assertEquals("bob", data.get("username"));
+        org.junit.jupiter.api.Assertions.assertNull(data.get("password"), "厂商这个端点把口令置 null");
+    }
+
+    @Test
+    void userByIdRejectsUnknownIdWithItsOwnMessage() {
+        ResponseEntity<Map> res = rest.getForEntity("/v1/user/nope", Map.class);
+
+        assertEquals(HttpStatus.BAD_REQUEST, res.getStatusCode());
+        assertEquals("查询无此用户ID", res.getBody().get("msg"),
+                "user.id.query.not.found（与删用户的 user.id.not.found 不是同一个键）");
+    }
+
+    @Test
+    void userToRoleReplacesAllRelations() {
+        ResponseEntity<Map> res = rest.exchange("/v1/user/userToRole", HttpMethod.POST,
+                jsonEntity("{\"userId\":\"" + BOB_ID + "\",\"roleIdList\":[\"" + ADMIN_ROLE_ID + "\",\"" + USER_ROLE_ID + "\"]}"),
+                Map.class);
+
+        assertEquals(HttpStatus.OK, res.getStatusCode());
+        assertEquals(true, res.getBody().get("data"));
+        assertEquals(2, countAllRoleRelations(BOB_ID), "全部关联被替换成两条");
+    }
+
+    @Test
+    void userToRoleRejectsUnknownUser() {
+        ResponseEntity<Map> res = rest.exchange("/v1/user/userToRole", HttpMethod.POST,
+                jsonEntity("{\"userId\":\"nope\",\"roleIdList\":[\"r\"]}"), Map.class);
+
+        assertEquals(HttpStatus.BAD_REQUEST, res.getStatusCode());
+        assertEquals("找不到改用户信息，无法进行关联操作", res.getBody().get("msg"));
+    }
+
+    @Test
+    void relatePositionsOnlyReplacesType1() {
+        ResponseEntity<Map> res = rest.exchange("/v1/user/" + BOB_ID + "/roles", HttpMethod.POST,
+                jsonEntity("[\"" + ADMIN_ROLE_ID + "\"]"), Map.class);
+
+        assertEquals(HttpStatus.OK, res.getStatusCode());
+        org.junit.jupiter.api.Assertions.assertNull(res.getBody().get("data"), "厂商返回 Response.ok(null)");
+        assertEquals(1, countRoleRelation(BOB_ID, 1), "战位被替换成 admin");
+        assertEquals(1, countRoleRelation(BOB_ID, 2),
+                "type=2 的角色关联**不受影响**——厂商的 deleteRelateUserToRole 只删指定类型");
+    }
+
+    @Test
+    void relatePositionsRejectsUnknownUser() {
+        ResponseEntity<Map> res = rest.exchange("/v1/user/nope/roles", HttpMethod.POST,
+                jsonEntity("[\"" + ADMIN_ROLE_ID + "\"]"), Map.class);
+
+        assertEquals(HttpStatus.BAD_REQUEST, res.getStatusCode());
+        assertEquals("用户不存在", res.getBody().get("msg"), "user.not.found");
+    }
+
+    private HttpEntity<String> jsonEntity(String json) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.add(HttpHeaders.COOKIE, "gateway-token=any");
+        return new HttpEntity<>(json, headers);
+    }
+
+    private int countAllRoleRelations(String userId) {
+        Integer n = jdbc.queryForObject("SELECT COUNT(*) FROM g_user_role WHERE user_id = ?", Integer.class, userId);
+        return n == null ? 0 : n;
+    }
 }

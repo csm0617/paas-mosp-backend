@@ -136,6 +136,16 @@ public class UserRepository implements IUserRepository {
 
     @Override
     @Transactional
+    public void replaceAllUserRoleRelations(String userId, List<String> roleIds) {
+        userDao.deleteUserRoleByUserId(userId);
+        if (roleIds == null || roleIds.isEmpty()) {
+            return;
+        }
+        userDao.insertUserRoles(userId, roleIds, System.currentTimeMillis());
+    }
+
+    @Override
+    @Transactional
     public void replaceUserSubRoleRelations(String userId, List<String> subRoleIds) {
         userDao.deleteUserSubRoleByUserId(userId);
         if (subRoleIds == null || subRoleIds.isEmpty()) {

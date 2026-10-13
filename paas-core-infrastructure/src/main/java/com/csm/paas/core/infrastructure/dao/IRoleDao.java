@@ -93,6 +93,15 @@ public interface IRoleDao {
     @Select("SELECT COUNT(*) FROM g_role")
     long selectCount();
 
+    /** 过滤出真实存在的战位/角色 id（厂商 `rolesRelate2User` 里逐个 `selectByPrimaryKey` 的等价写法）。 */
+    @Select("""
+            <script>
+            SELECT id FROM g_role
+            WHERE id IN <foreach item='item' collection='ids' open='(' separator=',' close=')'>#{item}</foreach>
+            </script>
+            """)
+    List<String> selectExistingIds(@Param("ids") List<String> ids);
+
     // ---------- 删除（厂商 RoleService.deleteRoleRelation 的 6 张表，顺序见 Case 层）----------
 
     @Delete("DELETE FROM g_sub_role_role WHERE role_id = #{roleId}")

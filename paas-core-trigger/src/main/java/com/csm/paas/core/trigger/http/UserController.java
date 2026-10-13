@@ -1,6 +1,7 @@
 package com.csm.paas.core.trigger.http;
 
 import com.csm.paas.core.api.dto.ResponseDTO;
+import com.csm.paas.core.api.dto.RoleRelationDTO;
 import com.csm.paas.core.api.dto.LoginUserDTO;
 import com.csm.paas.core.api.dto.UserDTO;
 import com.csm.paas.core.api.dto.UserDetailDTO;
@@ -29,11 +30,13 @@ import com.csm.paas.core.types.exception.WrongArgumentException;
 import com.csm.paas.core.types.util.PageUtils;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
+import java.util.List;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -160,6 +163,38 @@ public class UserController {
                 .roleListKey(form.getRoleListKey()).userListKey(form.getUserListKey())
                 .subRoleListId(form.getSubRoleListId())
                 .build();
+    }
+
+    /**
+     * 厂商 `GET /v1/user/{userId}`：按主键查用户（**14 键**，`password` 被厂商置 null）。
+     * <p>不存在 → `user.id.query.not.found`（"查询无此用户ID"）——注意与相邻的
+     * `user.id.not.found`（"查无此id的用户"，删用户路径）**是两个不同的键**，都实测过。
+     * <p>**公开**（厂商不校验会话）。
+     */
+    @GetMapping("/v1/user/{userId}")
+    public ResponseDTO<UserDTO> userById(@PathVariable String userId) {
+        return userRepository.queryById(userId)
+                .map(u -> ResponseDTO.ok(UserAssembler.toResponse(u)))
+                .orElseThrow(() -> new WrongArgumentException("user.id.query.not.found"));
+    }
+
+    /**
+     * 厂商 `POST /v1/user/userToRole`：**替换用户全部**战位/角色关联（不分类型）。
+     * <p>`roleIdList` 先去重；用户不存在 → 400 `user.missing.user.info`。返回 `true`。
+     */
+    @PostMapping("/v1/user/userToRole")
+    public ResponseDTO<Boolean> userToRole(@RequestBody RoleRelationDTO form) {
+        return ResponseDTO.ok(userUpdateCase.replaceUserRoles(form.getUserId(), form.getRoleIdList()));
+    }
+
+    /**
+     * 厂商 `POST /v1/user/{userId}/roles`：**只替换战位（type=1）**关联。
+     * <p>用户不存在 → 400 `user.not.found`；厂商返回 `Response.ok(null)` → `data:null`。
+     */
+    @PostMapping("/v1/user/{userId}/roles")
+    public ResponseDTO<Void> relatePositions(@PathVariable String userId, @RequestBody List<String> roleIdList) {
+        userUpdateCase.relatePositions(userId, roleIdList);
+        return ResponseDTO.ok(null);
     }
 
     /**

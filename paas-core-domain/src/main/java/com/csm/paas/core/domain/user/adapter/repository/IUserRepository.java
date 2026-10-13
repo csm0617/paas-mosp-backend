@@ -77,6 +77,14 @@ public interface IUserRepository {
     void replaceUserRoleRelations(String userId, int type, List<String> roleIds);
 
     /**
+     * **替换用户的全部**战位/角色关联（不分类型）——厂商 `UserService.UserRelationRole`
+     * （`UserService.java:1869-1892`，`POST /v1/user/userToRole`）：
+     * 先删该用户**所有** `g_user_role`，再按去重后的 roleId 逐条插入。
+     * <p>与 {@link #replaceUserRoleRelations} 的区别：那个只动**指定类型**的关联。
+     */
+    void replaceAllUserRoleRelations(String userId, List<String> roleIds);
+
+    /**
      * 替换用户的子角色关联（厂商 `SubRoleService.userAddRole`，`SubRoleServiceImpl.java:347-359`）：
      * 先删该用户全部 `g_user_sub_role`，再逐条插入（id 用随机 UUID）。
      */
