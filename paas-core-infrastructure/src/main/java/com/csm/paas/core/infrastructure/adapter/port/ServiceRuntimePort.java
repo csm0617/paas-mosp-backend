@@ -62,6 +62,33 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
                 .toList();
     }
 
+    /** 从 workload 快照里取容器镜像（厂商 `imageInfo`）。 */
+    @SuppressWarnings("unchecked")
+    private String imageOf(Map<String, Object> snapshot) {
+        Object spec = snapshot.get("spec");
+        if (!(spec instanceof Map<?, ?> specMap)) {
+            return null;
+        }
+        Object template = specMap.get("template");
+        if (!(template instanceof Map<?, ?> templateMap)) {
+            return null;
+        }
+        Object podSpec = templateMap.get("spec");
+        if (!(podSpec instanceof Map<?, ?> podSpecMap)) {
+            return null;
+        }
+        Object containers = podSpecMap.get("containers");
+        if (!(containers instanceof java.util.List<?> list) || list.isEmpty()) {
+            return null;
+        }
+        Object first = list.get(0);
+        if (!(first instanceof Map<?, ?> container)) {
+            return null;
+        }
+        Object image = container.get("image");
+        return image instanceof String str ? str : null;
+    }
+
     /** 从原样快照里取创建时间（用于厂商那套"按创建时间倒序"）。 */
     private String creationTimestampOf(Map<String, Object> snapshot) {
         Object metadata = snapshot.get("metadata");
@@ -92,6 +119,7 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
                 .targetPort(targetPort)
                 .protocol(firstPort != null ? firstPort.getProtocol() : null)
                 .replicas(replicas)
+                .image(imageOf(workloadSnapshot))
                 .createdAt(creationTimestampOf(workloadSnapshot))
                 .serviceSnapshot(svc != null ? serviceRuntimeGateway.toSnapshot(svc) : null)
                 .deploymentSnapshot(workloadSnapshot)

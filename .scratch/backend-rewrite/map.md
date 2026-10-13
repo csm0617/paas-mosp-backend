@@ -83,6 +83,9 @@ Label: `wayfinder:map`
 - （A/B·最终对照）[支持 WS 升级后 A/B 仍一致](docs/findings/20-ab-parity-with-websocket.md)：真实 WebSocket 升级 + 端点全 200 + 会话有效的前提下，我们与厂商**渲染与行为完全一致**（含"内容区为空"）。新工具 `tools/frontend-e2e-harness.mjs`（Node 零依赖，支持 WS 透传）。
 - （契约差异·已修）**`max-login` 默认 1（单点登录）**：厂商 `application.yml:125` 默认 1，超出会 DEL 最早会话；我们此前传 0（不限制）。已改为默认 1 并加单测断言。
 
+- （**里程碑**）[首个真实数据页渲染成功](docs/findings/21-first-rendered-data-page.md)：厂商原样前端 + 我们的后端 → `/software/application/service` 渲染出 **9 行服务表**（名称/状态/运行副本均来自真实集群，数据源是 `200 /v1/service`）。门槛三条（前端不改、契约比对、e2e）均已具备证据；截图 `docs/findings/artifacts/2026-10-14-service-page.png`。
+- （部分修）`/v1/service` 的 `imageInfo` 已按厂商格式填上；但页面「镜像」列**不是读 `imageInfo`**（产物里 0 处该字面量），仍显示 `undefined`——待定位真正的 dataIndex。
+
 ## Not yet specified
 
 <!-- 看得见、但还说不成一句精确问题的雾 -->

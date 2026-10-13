@@ -32,6 +32,7 @@ public final class ServiceListAssembler {
                     // 厂商运行态恒为该三键对象（值可为 null），前端据此开映射面板
                     .mappingInfo(MappingInfoDTO.builder().build())
                     .hostIP(s.getHostIP())
+                    .imageInfo(s.getImage())
                     .restartCount(s.getRestartCount())
                     .fixedName(s.getName())
                     .build());

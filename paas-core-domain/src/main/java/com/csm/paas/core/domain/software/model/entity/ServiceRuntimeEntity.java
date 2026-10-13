@@ -27,6 +27,8 @@ public class ServiceRuntimeEntity {
     private Integer replicas;
     private Integer readyReplicas;
     private Integer restartCount;
+    /** 工作负载的容器镜像（厂商 `imageInfo`，前端"镜像"列直接显示）。 */
+    private String image;
     private String hostIP;
     private List<Integer> nodePorts;
     private String createdAt;
