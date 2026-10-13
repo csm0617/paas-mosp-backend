@@ -24,7 +24,8 @@ const token = process.env.GAOP_TOKEN || '';
   const page = await browser.newPage();
   await page.setViewport({ width: 1600, height: 1000 });
   if (token) {
-    await page.setCookie({ name: 'gateway-token', value: token, domain: '127.0.0.1', path: '/' });
+    // IP 主机名必须用 url 而不是 domain（puppeteer 对 IP 的 domain 匹配不生效）
+    await page.setCookie({ name: 'gateway-token', value: token, url: 'http://127.0.0.1/', path: '/' });
   }
 
   const api = [];
@@ -37,7 +38,8 @@ const token = process.env.GAOP_TOKEN || '';
   page.on('pageerror', (e) => consoleMsgs.push(`pageerror: ${String(e).slice(0, 300)}`));
 
   try {
-    await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
+    // 不能用 networkidle2：SockJS 会不断重试，网络永远不 idle
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
   } catch (e) {
     console.log('goto 警告（继续）:', String(e).split('\n')[0]);
   }
@@ -58,6 +60,7 @@ const token = process.env.GAOP_TOKEN || '';
   fs.writeFileSync(`${outPrefix}.html`, await page.content(), 'utf8');
   fs.writeFileSync(`${outPrefix}.api.json`, JSON.stringify(api, null, 2), 'utf8');
   fs.writeFileSync(`${outPrefix}.console.txt`, consoleMsgs.join('\n'), 'utf8');
+  await page.screenshot({ path: `${outPrefix}.png` });
 
   console.log('--- 页面 ---');
   console.log('  url        :', info.url);

@@ -154,7 +154,23 @@
         "path": "data.token"
       }
     ],
-    "knownDeviations": []
+    "knownDeviations": [
+      {
+        "path": "data.password",
+        "reason": "厂商**原样返回 BCrypt 口令摘要**（UserController.java:147 不置空；实测 runtime-samples/v1_user.json）；重写版返回 null。这是**刻意偏离**：不把口令哈希下发到浏览器。该键不在已声明的读取路径里。",
+        "disposition": "记录在案（安全向偏离；不接受\"为逐字节兼容而回吐哈希\"）"
+      },
+      {
+        "path": "data.roles / data.subRoles / data.settingList",
+        "reason": "厂商非 null（roles 是 Role 对象数组、subRoles 是 []、settingList 是设置项数组），重写版为 null。三键均不在已声明读取路径里；`settingList` 在整个前端产物出现 0 次。",
+        "disposition": "未定论——若证明前端读其中任一键，按 ADR-0006 升级为 L1/L2 缺陷"
+      },
+      {
+        "path": "data.style",
+        "reason": "厂商返回 \"508\"（StyleConfig 标题），重写版为 null。产物里 `style` 的 599 次出现全是 DOM `element.style.*`，未见读取该响应字段。",
+        "disposition": "未定论"
+      }
+    ]
   },
   "GET /v1/user/info": {
     "itemContainer": "data.list",

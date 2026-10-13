@@ -15,7 +15,8 @@ public class UserPO {
     private Long createdAt;
     private String lastLoginRole;
     private String nickname;
-    private String uuid;
+    /** 对应 `g_user.uuid`（int 列）；厂商模型里是 Integer。 */
+    private Integer uuid;
     private String desc;
     private String avatar;
 }

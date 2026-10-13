@@ -69,4 +69,18 @@ K1 端点总数 **63**（`UserController` 25 + `RoleController` 28 + `SubRoleCon
 
 ## Answer
 
-（未完成，随子切片推进回填）
+**3a（用户读路径）已完成并过门槛**（2026-10-14），证据 [docs/findings/26-e2e-user-page.md](../../docs/findings/26-e2e-user-page.md)：
+
+- 契约：`GET /v1/user/info` 与厂商**在线响应逐字节相等**；L1+L2 已入 `read-paths.json`（12 条读路径 + 1 条已知偏离）；
+- e2e：厂商原样前端 → `/gaop/usermanage/account` 渲染 10 列表头 + 1 行真实数据；A/B 与厂商**完全一致**；
+- 回归：`mvn test` 32 → 35 条用例全绿（离线，不需集群）；
+- 分层：domain/infra/trigger 各就位，无越层包。
+
+**本轮附带完成的横切项**：厂商错误契约（400/401/500/-1 + 404 不套信封，见 `24-error-contract.md`）与 i18n 消息包；
+`PageUtils` 照抄厂商 `SqlUtils`；更正 03 号证据的"无唯一约束"结论（见 `23-…`）。
+
+**下一片**：3c 子角色（`GET /v1/sub_role/switchRole` 是 `/usermanage/account` 的**前置**，必须补），随后 3b 战位页。
+
+**端点计数口径更正**：本工单开工时按 03 号证据记 **63** 条（把 `AuthController` 7 条归给 K3）；
+22 号档案按"controller 归属"记 **70** 条。**两个口径都不错，但对外引用时必须说明口径**——
+本切片仍只做"前端有调用者"的 49 条里的 K1 部分。

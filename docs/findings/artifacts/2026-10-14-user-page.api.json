@@ -1,0 +1,117 @@
+[
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "/api/gaop/ws/info?t=1791925091961"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "/api/gaop/v1/user"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "/api/gaop/v1/pub/quickStart"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "/api/gaop/settings"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "/api/gaop/v1/mode/current"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "/api/gaop/v1/lang/current"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "/api/gaop/v1/licence/info"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "/api/gaop/v1/image/projectList?page=1&size=999"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "/api/gaop/v1/user"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "/api/gaop/settings"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "/api/gaop/v1/user"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "/api/gaop/v1/pub/quickStart"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "/api/gaop/v1/user"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "/api/gaop/v1/role/software"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "/api/gaop/v1/pub/quickStart"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "/api/gaop/v1/mode/current"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "/api/gaop/settings"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "/api/gaop/v1/user"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "/api/gaop/v1/pub/quickStart"
+  },
+  {
+    "status": 404,
+    "method": "GET",
+    "url": "/api/gaop/v1/sub_role/switchRole?page=1&size=9999"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "/api/gaop/v1/user/info?page=1&size=10&keyword="
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "/api/gaop/v1/role/software"
+  },
+  {
+    "status": 200,
+    "method": "GET",
+    "url": "/api/gaop/v1/user"
+  }
+]

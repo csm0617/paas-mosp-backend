@@ -92,6 +92,13 @@ Label: `wayfinder:map`
 - （交接）[阶段交接文档](docs/HANDOFF-2026-10-14.md)：门槛三条均达成的证据、已实现清单、偏离与未定论、待决策项（07/08）、复现与注意事项。
 - （查清）页面「镜像」列的 `undefined/undefined` 是**前端怪癖**（`image.split("/")` 取 parts[1]/[2]，要求三段镜像名），厂商自己的数据同样如此；我方镜像串与厂商逐字一致。
 
+- （**切片 3 开工**）[工单 11](.scratch/backend-rewrite/issues/11-slice3-user-role.md)：K1 共 **70** 端点（含 `AuthController` 7 条，03 号口径把它归 K3），**前端有调用者 49**；本切片只做有调用者的部分，分 3a 用户 / 3b 战位 / 3c 子角色，每片按「读路径→写路径→批量」推进。
+- （**切片 3a 完成**）[用户管理页 e2e 成功](docs/findings/26-e2e-user-page.md)：厂商原样前端 + 我们的后端 → `/gaop/usermanage/account` 渲染出 10 列表头 + 1 行真实数据；**`GET /v1/user/info` 与厂商在线响应逐字节相等**；A/B 对照标题/表头/数据行/导航全一致。新增 `GET /v1/user/info`（domain `UserQueryServiceImpl` → infra 三个 DAO → trigger 装配器）。
+- （**错误契约**）[400/401/500/-1 与 404 不套信封](docs/findings/24-error-contract.md)：厂商 `msg` 是**本地化文案**（键解析失败回退成键），故引入厂商消息包作契约数据；**Spring 6 的未映射路径会抛 `ErrorResponse`，必须显式还原 Spring 默认 404**，否则 404 会变成 500/-1。
+- （**更正 03 号证据**）[实库唯一约束](docs/findings/23-k1-live-schema-and-unique-constraints.md)：`g_user.username`、`g_role.key`、`g_sub_role.key` **有 DB 唯一索引**（V0.0.1 用小写内联 `unique`，被大写 grep 漏掉）——"只靠应用层判重"的结论作废；并发下的行为与建模都要按"领域规则 + DB 兜底"来。
+- （事实）[K1 实现级证据档案](docs/findings/22-k1-identity-position-evidence.md)（968 行）：70 端点逐条入参/返回、7 张表终态列、33 条不变量（标注 controller/service/DB）、~80 个 i18n key；并指出 `GET /v1/user` 厂商**原样返回 BCrypt 口令哈希**（我们置 null，属**刻意**的安全向偏离，已入 `read-paths.json` 的 L3 账）。
+- （**下一步**）`/usermanage/account` 唯一 404 是 `GET /v1/sub_role/switchRole`——**子角色下拉是这一页的前置**，所以切片 3c 不是可延后的边角。
+
 ## Not yet specified
 
 <!-- 看得见、但还说不成一句精确问题的雾 -->

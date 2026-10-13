@@ -20,7 +20,8 @@ public class LoginUserDTO {
     private Long createdAt;
     private String lastLoginRole;
     private String nickname;
-    private String uuid;
+    /** 厂商 `User.uuid` 是 **Integer**（`g_user.uuid` 是 int 列）；这里曾误写为 String，见 docs/findings/22 §1.8。 */
+    private Integer uuid;
     private String desc;
     private String avatar;
     private String token;

@@ -19,7 +19,8 @@ public class UserEntity {
     private Long createdAt;
     private String lastLoginRole;
     private String nickname;
-    private String uuid;
+    /** 厂商 `User.uuid` 是 Integer（`g_user.uuid` 是 int 列，用于"用户数据额度"）。 */
+    private Integer uuid;
     private String desc;
     private String avatar;
 }
