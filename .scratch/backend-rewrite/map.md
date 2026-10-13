@@ -74,6 +74,9 @@ Label: `wayfinder:map`
 - （里程碑）[前端不再被弹回登录页](docs/findings/17-user-endpoint-returns-userlogined.md)：根因是 `GET /v1/user` 必须是 **20 键的 `UserLogined`**（含 `role`，前端用它判 `canAdmin`）——我此前误记为 14 键（打印截断所致）。修正后真实前端停在 `/gaop/software/workloads` 并渲染完整外壳。
 - （下一轮）该页还要三个端点：`/v1/image/projectList`、`/v1/role/software`（均已有样本）、`/v1/pub/etcd_label/check`（需抓）。
 
+- （进展·重要）[STOMP over SockJS 通道打通](docs/findings/18-stomp-channel.md)：前端 job/工作负载/容器页的数据来自 `/topic/k8s/proxy/{Service,Deployment,Pod}` 推送；已用 domain 端口 + fabric8 watch + `withSockJS()` 实现，**日志证明 STOMP CONNECTED(1)、watch 在跑且已发消息**，前端控制台打印 `socket 连接成功`。
+- （待补）工作负载表仍 0 行，剩三个 404：`/v1/image/projectList`、`/v1/role/software`（有样本）、`/v1/pub/etcd_label/check`（需抓）。
+
 ## Not yet specified
 
 <!-- 看得见、但还说不成一句精确问题的雾 -->
