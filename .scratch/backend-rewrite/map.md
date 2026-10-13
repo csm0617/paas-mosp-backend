@@ -33,6 +33,8 @@ Label: `wayfinder:map`
 
 - （先行验证）[具名端口在 fabric8 7.9.0 模型层可用](docs/findings/named-port-fabric8-7.9.0.md)：`targetPort: http` / `tcpSocket.port: http` 均可反序列化，2 个用例通过；真实集群数据仍待 06。
 
+- （工单 05）[兼容硬边界与验收门槛](docs/adr/0004-frozen-contract-and-acceptance-gates.md)：锁 196 个前端端点 + 39 张表 + `/api/gaop/k8s/**`；厂商 87 个迁移冻结在 V0.8.6，新变更从 V0.9.0 起；验收四条门槛（第 4 条已完成）。
+
 ## Not yet specified
 
 <!-- 看得见、但还说不成一句精确问题的雾 -->
