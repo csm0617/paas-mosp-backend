@@ -23,4 +23,17 @@ public interface IRoleDao {
 
     @Select("SELECT id, role_id, app_id, app_name, url, updated_at, created_at FROM g_role_software WHERE role_id = #{roleId}")
     List<RoleSoftwarePO> selectSoftwareByRoleId(@Param("roleId") String roleId);
+
+    /**
+     * 用户名关联的战位/角色名，按 {@code g_role.type} 过滤、按 {@code g_role.created_at} 倒序。
+     * <p>厂商出处：{@code RoleService.java:181}（三表 left join 的等价写法）。
+     */
+    @Select("""
+            SELECT r.name FROM g_user_role ur
+            JOIN g_user u ON u.id = ur.user_id
+            JOIN g_role r ON r.id = ur.role_id
+            WHERE u.username = #{username} AND r.type = #{type}
+            ORDER BY r.created_at DESC
+            """)
+    List<String> selectRoleNamesByUsernameAndType(@Param("username") String username, @Param("type") int type);
 }

@@ -3,18 +3,23 @@ package com.csm.paas.core.trigger.http;
 import com.csm.paas.core.api.dto.ResponseDTO;
 import com.csm.paas.core.api.dto.LoginUserDTO;
 import com.csm.paas.core.api.dto.UserDTO;
+import com.csm.paas.core.api.dto.UserInfoListResponseDTO;
 import com.csm.paas.core.api.dto.UserLoginItemDTO;
 import com.csm.paas.core.api.dto.UserLoginListDTO;
 import com.csm.paas.core.domain.user.adapter.repository.IUserRepository;
 import com.csm.paas.core.domain.user.model.valobj.SessionVO;
 import com.csm.paas.core.domain.user.service.IAuthService;
+import com.csm.paas.core.domain.user.service.IUserQueryService;
 import com.csm.paas.core.trigger.assembler.LoginAssembler;
 import com.csm.paas.core.trigger.assembler.UserAssembler;
+import com.csm.paas.core.trigger.assembler.UserInfoAssembler;
 import com.csm.paas.core.types.enums.ResponseCode;
 import com.csm.paas.core.types.exception.BusinessException;
+import com.csm.paas.core.types.util.PageUtils;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -32,6 +37,26 @@ public class UserController {
 
     @Resource
     private IAuthService authService;
+
+    @Resource
+    private IUserQueryService userQueryService;
+
+    /**
+     * 厂商 `GET /v1/user/info`：用户管理列表（用户 + 关联战位 + 关联子角色）。
+     * <p>**公开**：实测厂商不带 cookie 也 200（鉴权在网关侧，见 `docs/findings/14-vendor-auth-is-gateway-side.md`）。
+     * <p>分页归一化照抄厂商 `SqlUtils`；关键字先去掉空格（厂商 `UserController.java:576`）。
+     */
+    @GetMapping("/v1/user/info")
+    public ResponseDTO<UserInfoListResponseDTO> userInfoList(
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String keyword) {
+        int normalizedPage = PageUtils.normalizePage(page);
+        int normalizedSize = PageUtils.normalizeSize(size);
+        String normalizedKeyword = keyword == null ? null : keyword.replaceAll(" +", "");
+        return ResponseDTO.ok(UserInfoAssembler.toResponse(
+                userQueryService.queryUserInfoPage(normalizedPage, normalizedSize, normalizedKeyword)));
+    }
 
     /**
      * 厂商 `GET /v1/user/get`：登录页的账号下拉。**公开**——实测厂商不带 cookie 也返回 200

@@ -7,6 +7,11 @@ spring:
     name: paas-core
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:local}
+  messages:
+    # 厂商 i18n 消息包（契约数据，见 paas-core-trigger/src/main/resources/i18n/README.md）：
+    # 错误响应的 msg 是本地化文案，必须与厂商逐字一致
+    basename: i18n/messages
+    encoding: UTF-8
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:gaop}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
