@@ -106,6 +106,25 @@ public interface ISoftwareDao {
     @Select("SELECT role_id FROM g_role_software WHERE app_id = #{softwareId}")
     List<String> selectRoleIdsBySoftwareId(@Param("softwareId") String softwareId);
 
+    // ---------- 放行 / 禁止放行 ----------
+
+    @Select("""
+            SELECT id, `key`, name, app_name, router_key, type, version, created_at, updated_at,
+                   framework, exec_name, location, remote_ip, remote_name, remote_password,
+                   active_create, active_expire, order_top, order_time, `desc`, active_code, screenshot, icon
+            FROM g_software WHERE id = #{id}
+            """)
+    SoftwarePO selectById(@Param("id") String id);
+
+    @Select("SELECT COUNT(*) FROM g_software WHERE id = #{id}")
+    long countById(@Param("id") String id);
+
+    @Insert("INSERT INTO g_white_list (path, created_at) VALUES (#{path}, #{createdAt})")
+    int insertWhiteListPath(@Param("path") String path, @Param("createdAt") long createdAt);
+
+    @org.apache.ibatis.annotations.Delete("DELETE FROM g_white_list WHERE path = #{path}")
+    int deleteWhiteListPath(@Param("path") String path);
+
     /** 厂商 `SoftwareMapper.getWebEnter`：`web_entry = 1` 的服务名。 */
     @Select("""
             SELECT sp.service_name FROM g_service_port sp

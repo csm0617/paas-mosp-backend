@@ -95,4 +95,37 @@ public class SoftwareCommandServiceImpl implements ISoftwareCommandService {
                 .updatedAt(null)
                 .build();
     }
+
+    @Override
+    public boolean releaseSoftware(Integer type, java.util.List<String> softwareIds) {
+        if (softwareIds == null || softwareIds.isEmpty()) {
+            return true;   // 厂商：list 为空直接 true
+        }
+        if (type != null && type == 1) {
+            long now = System.currentTimeMillis();
+            for (String id : softwareIds) {
+                SoftwareEntity s = softwareRepository.queryById(id).orElse(null);
+                if (s == null) {
+                    log.info("软件 id={} 不存在，跳过", id);
+                    continue;
+                }
+                softwareRepository.insertWhiteListPath("/" + s.getKey() + "/**", now);
+                log.info("将软件 {} 加入白名单放行", s.getName());
+            }
+        } else if (type != null && type == 0) {
+            for (String id : softwareIds) {
+                SoftwareEntity s = softwareRepository.queryById(id).orElse(null);
+                if (s == null) {
+                    log.info("软件 id={} 不存在，跳过", id);
+                    continue;
+                }
+                String path = "/" + s.getKey() + "/**";
+                int deleted = softwareRepository.deleteWhiteListPath(path);
+                // 厂商在这里**第一次就 return**（只看第一个存在的软件）
+                return deleted > 0;
+            }
+        }
+        // 厂商随后会 notificationGateway() 通知网关重载；我们尚未接管网关，见接口 javadoc
+        return true;
+    }
 }

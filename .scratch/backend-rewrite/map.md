@@ -168,6 +168,12 @@ Label: `wayfinder:map`
   - 主动收紧：厂商对 `roleListKey` 不判 null 会 NPE；我们按空列表处理。
   - 测试 137 → **144 条**全绿。K2 剩下：软件详情/修改/删除、发布（白名单）、CS 上传、导入导出、`g_software_app` 映射、`/auth` 授权列表。
 
+- （**K2 闭环一半**）[POST /v1/software/release 放行/禁止](docs/findings/39-k2-software-release.md)：四种情形（type=1 放行、type=0 有行/无行、空列表）**全部与厂商一致**——`releaseStatus` 的来源既能读（列表）也能写（放行）。
+  - 照抄一处**不对称**：`type=1` 逐个处理完才返回；**`type=0` 一旦删到就立刻返回 true、删不到立刻 false**（只看第一个存在的软件，后面的 id 不处理）。
+  - **未实现的副作用**：厂商最后会新起线程 `GET http://<gateway>/refresh` 通知网关重载白名单（fire-and-forget，不影响响应）。我们没接管网关 → 记入待办，与 ADR-0005 的切流演练绑在一起。
+  - **本轮刻意没做 `GET /v1/software/{id}`**：读了实现后确认它是**三个域的聚合**（`SoftwareInfo` 21+ 键里 `licence` 要 K3、`uploadStoreRecord` 要上传记录、`status`/`serviceList` 要 K8s 现场态）。在缺 K3 的前提下做它只能返回一堆 null 冒充数据——**留着不做**，先理清 `licence` 与上传记录的最小只读形态。
+  - 测试 144 → **148 条**全绿。
+
 ## Not yet specified
 
 <!-- 看得见、但还说不成一句精确问题的雾 -->

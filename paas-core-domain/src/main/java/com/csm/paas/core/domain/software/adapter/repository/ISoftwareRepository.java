@@ -4,6 +4,7 @@ import com.csm.paas.core.domain.software.model.entity.SoftwareEntity;
 import com.csm.paas.core.domain.software.model.valobj.RelationRoleVO;
 
 import java.util.List;
+import java.util.Optional;
 
 /** 软件目录仓储（实现放 infrastructure/adapter/repository，只调 dao）。 */
 public interface ISoftwareRepository {
@@ -53,4 +54,16 @@ public interface ISoftwareRepository {
      * <p>传空列表时**什么都不做**（厂商在列表为空时直接 return，不清理旧关联）。
      */
     void relateRoles(String softwareId, List<String> roleIds);
+
+    // ---------- 放行 / 禁止放行（厂商 releaseSoftware，SoftwareService.java:2887-2931）----------
+
+    boolean existsById(String softwareId);
+
+    Optional<SoftwareEntity> queryById(String softwareId);
+
+    /** 往白名单插入一条放行路径（`/<key>/**`）。 */
+    void insertWhiteListPath(String path, long createdAt);
+
+    /** 删掉该放行路径，返回删除行数（厂商据此判断"删除成功/失败"）。 */
+    int deleteWhiteListPath(String path);
 }

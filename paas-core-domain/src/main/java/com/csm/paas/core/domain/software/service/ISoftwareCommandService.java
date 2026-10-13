@@ -24,4 +24,22 @@ public interface ISoftwareCommandService {
 
     /** 校验并构造（不落库）新软件实体。 */
     SoftwareEntity prepareNewSoftware(SoftwareFormVO form);
+
+    /**
+     * 放行 / 禁止软件（厂商 `POST /v1/software/release` → `SoftwareService.releaseSoftware`，`:2887-2931`）。
+     *
+     * <p>逐条照抄这两个分支的**不对称**：
+     * <ul>
+     *   <li>`list` 为空 → 直接返回 **true**（什么都不做）；</li>
+     *   <li>`type == 1`（放行）：逐个软件若存在就插一条白名单 `/<key>/**`，**全部处理完**后返回 true；</li>
+     *   <li>`type == 0`（禁止）：逐个软件若存在就删该路径，**一旦删到就立刻 return true**、删不到就立刻 return false
+     *       —— 也就是它**只看第一个存在的软件**；</li>
+     *   <li>其它 `type` 值 → 两个分支都不进，直接 true。</li>
+     * </ul>
+     *
+     * <p><b>未实现</b>：厂商最后会调 `notificationGateway()` —— 起一个线程去
+     * `GET http://&lt;gateway-host&gt;:&lt;port&gt;/refresh` 通知网关重载规则（fire-and-forget，成败不影响响应）。
+     * 网关切流还没做（ADR-0005），该副作用记入待办。
+     */
+    boolean releaseSoftware(Integer type, java.util.List<String> softwareIds);
 }

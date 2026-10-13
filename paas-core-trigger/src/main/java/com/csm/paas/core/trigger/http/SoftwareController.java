@@ -36,6 +36,20 @@ public class SoftwareController {
     @Resource
     private com.csm.paas.core.cases.software.ISoftwareWriteCase softwareWriteCase;
 
+    @Resource
+    private com.csm.paas.core.domain.software.service.ISoftwareCommandService softwareCommandService;
+
+    /**
+     * 厂商 `POST /v1/software/release`：放行 / 禁止放行软件（写/删白名单 `/<key>/**`）。
+     * <p>`type=1` 放行；`type=0` 禁止（**只看第一个存在的软件**，删到即 true、删不到即 false）；
+     * `list` 为空直接 true。规则见 `ISoftwareCommandService.releaseSoftware`。
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/release")
+    public ResponseDTO<Boolean> releaseSoftware(
+            @org.springframework.web.bind.annotation.RequestBody com.csm.paas.core.api.dto.ReleaseSoftwareDTO form) {
+        return ResponseDTO.ok(softwareCommandService.releaseSoftware(form.getType(), form.getList()));
+    }
+
     /**
      * 厂商 `POST /v1/software`：新增软件（**controller 上有 `@Transactional`**）。
      * <p>三道闸照抄 `SoftwareController.java:169-182`：key 是保留字 `api` → 400；key 已存在 → 400；name 已存在 → 400。

@@ -82,6 +82,27 @@ public class SoftwareRepository implements ISoftwareRepository {
         }
     }
 
+    @Override
+    public java.util.Optional<SoftwareEntity> queryById(String softwareId) {
+        SoftwarePO po = softwareDao.selectById(softwareId);
+        return po == null ? java.util.Optional.empty() : java.util.Optional.of(toEntity(po));
+    }
+
+    @Override
+    public boolean existsById(String softwareId) {
+        return softwareDao.countById(softwareId) > 0;
+    }
+
+    @Override
+    public void insertWhiteListPath(String path, long createdAt) {
+        softwareDao.insertWhiteListPath(path, createdAt);
+    }
+
+    @Override
+    public int deleteWhiteListPath(String path) {
+        return softwareDao.deleteWhiteListPath(path);
+    }
+
     private SoftwarePO toPO(SoftwareEntity s) {
         SoftwarePO po = new SoftwarePO();
         po.setId(s.getId());

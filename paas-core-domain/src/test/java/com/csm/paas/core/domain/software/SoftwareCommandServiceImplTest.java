@@ -10,9 +10,14 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -122,5 +127,45 @@ class SoftwareCommandServiceImplTest {
     private static SoftwareFormVO form(String key, String name) {
         return SoftwareFormVO.builder().key(key).name(name).type("WEB")
                 .framework("springboot").build();
+    }
+
+    // ---------- releaseSoftware（放行 / 禁止）----------
+
+    @Test
+    void emptyListIsTrueNoop() {
+        assertTrue(service().releaseSoftware(1, List.of()), "厂商：list 为空直接 true");
+        assertTrue(service().releaseSoftware(0, List.of()));
+    }
+
+    @Test
+    void typeOneInsertsWhiteListPathForEveryExistingSoftware() {
+        when(repository.queryById("s1")).thenReturn(java.util.Optional.of(soft("s1", "appA")));
+        when(repository.queryById("s2")).thenReturn(java.util.Optional.empty());
+
+        assertTrue(service().releaseSoftware(1, List.of("s1", "s2")));
+
+        verify(repository).insertWhiteListPath(eq("/appA/**"), org.mockito.ArgumentMatchers.anyLong());
+        verify(repository, org.mockito.Mockito.never()).insertWhiteListPath(eq("/appB/**"), org.mockito.ArgumentMatchers.anyLong());
+    }
+
+    /** type=0 只看**第一个存在**的软件：删到就 true、删不到就 false，都不继续往后看。 */
+    @Test
+    void typeZeroReturnsOnTheFirstExistingSoftware() {
+        when(repository.queryById("s1")).thenReturn(java.util.Optional.of(soft("s1", "appA")));
+        when(repository.deleteWhiteListPath("/appA/**")).thenReturn(1);
+        assertTrue(service().releaseSoftware(0, List.of("s1")));
+
+        when(repository.deleteWhiteListPath("/appA/**")).thenReturn(0);
+        assertFalse(service().releaseSoftware(0, List.of("s1")));
+    }
+
+    @Test
+    void otherTypeValuesAreNoopTrue() {
+        assertTrue(service().releaseSoftware(9, List.of("s1")));
+        assertTrue(service().releaseSoftware(null, List.of("s1")));
+    }
+
+    private static SoftwareEntity soft(String id, String key) {
+        return SoftwareEntity.builder().id(id).key(key).name("名字").type("WEB").build();
     }
 }
