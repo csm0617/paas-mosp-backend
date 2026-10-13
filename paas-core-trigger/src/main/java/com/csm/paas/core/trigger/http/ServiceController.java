@@ -1,6 +1,7 @@
 package com.csm.paas.core.trigger.http;
 
 import com.csm.paas.core.api.dto.ResponseDTO;
+import com.csm.paas.core.api.dto.MappingInfoDTO;
 import com.csm.paas.core.api.dto.ServiceAuthDTO;
 import com.csm.paas.core.api.dto.ServiceItemDTO;
 import com.csm.paas.core.api.dto.ServiceListResponseDTO;
@@ -45,6 +46,8 @@ public class ServiceController {
             items.add(ServiceItemDTO.builder()
                     .service(s.getServiceSnapshot())
                     .serviceAuth(authDTO)
+                    // 厂商运行态恒为该三键对象（值可为 null），前端据此开映射面板
+                    .mappingInfo(MappingInfoDTO.builder().build())
                     .deployment(s.getDeploymentSnapshot())
                     .hostIP(s.getHostIP())
                     .restartCount(s.getRestartCount())

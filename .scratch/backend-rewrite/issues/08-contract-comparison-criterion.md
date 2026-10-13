@@ -28,6 +28,13 @@ fabric8 7 + Jackson 默认省略 null，并且多出 4 个较新的 K8s 字段�
 
 ⇒ 「逐字节等价」的全部代价花在前端看不见的键上；但 `serviceAuth`/`restartCount` 必须填（`serviceAuth` 为 null 会直接显示"认证失败"）。
 
+## 工具已就绪（两条路都能走，决定权仍在你）
+
+`tools/contract-check.py` 已经实现三层判定：L1 形状 / L2 前端读取路径 / L3 已知偏离；
+读取路径清单在 `docs/findings/read-paths.json`（可随域扩展）。当前 `GET /v1/service`：L1、L2 全过，
+另有 **2 条"允许偏离"**（`restartCount`、`mappingInfo`，理由已逐条写入清单）——**需要你在本工单追认或否决**，
+以及决定 L3 的差异清单是"记录在案"还是"必须补齐"。
+
 ## 验收
 
 答案写进 `## Answer`，并据此更新 ADR-0004 里"响应 JSON 形状"的判定方式。

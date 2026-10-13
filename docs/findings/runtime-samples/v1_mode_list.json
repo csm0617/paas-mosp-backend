@@ -1,0 +1,1 @@
+{"msg":"OK","code":0,"data":{"total":3,"modeList":[{"id":1,"type":1,"mode":"FIGHT","used":0,"createTime":0,"modeName":"ä½œæˆ˜æ¨¡å¼"},{"id":2,"type":2,"mode":"TRAIN","used":1,"createTime":0,"modeName":"è®­ç»ƒæ¨¡å¼"},{"id":3,"type":3,"mode":"MAINTAIN","used":0,"createTime":0,"modeName":"ç»´æŠ¤æ¨¡å¼"}]}}

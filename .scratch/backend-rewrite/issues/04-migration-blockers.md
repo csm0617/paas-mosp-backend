@@ -22,7 +22,9 @@ JDK 21 + Spring Boot 3.3 + fabric8 7 的迁移障碍**逐条定论**，产出 `d
 
 ## Answer
 
-交付：`docs/findings/04-migration-blockers.md`（419 行 / 16 张表）。
+交付：`docs/findings/04-migration-blockers.md`（**753 行**；本工单被重复派发过，早期的 419 行版本已被覆盖，仍可从 git 历史取出）。
+
+**四条被推翻的前提**：① pagehelper 没有 3.x（Boot 3 用 2.1.1）；② 白屏的 Integer 不来自 client-java（已逐字复现真因）；③ `javax.servlet` 的 50 是出现处数、文件数是 26；④ mybatis-dynamic-sql 有 Boot 3 可用版本（2.0.0）。
 
 **最重要的一条纠正**：白屏根因**不是** client-java（18.0.1 与 fabric8 7.9.0 的对应字段都是 `IntOrString`），
 而是厂商自建 `third/k8s/IoK8sApiCoreV1*` DTO 把 `targetPort`/`port` 声明成 `Integer`，

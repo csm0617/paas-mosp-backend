@@ -30,6 +30,21 @@
 
 **同一个请求路径上，fabric8（10 Service/0 StatefulSet/9 Deployment）、MyBatis（真实查询）、Spring MVC（JDK 21）全部跑通。**
 
+## 第四轮：契约比对器落地（2026-10-14 02:50）
+
+新增 `tools/contract-check.py` + `docs/findings/read-paths.json`（前端实际读取路径的机器可读清单），
+判定分三层：**L1 形状**（信封/data/列表项键）→ **L2 前端读取路径**（门槛核心）→ **L3 已知偏离**。
+输出见 `docs/findings/06-contract-check.txt`。
+
+它一上线就抓出原型两个真缺口并已修：`mappingInfo` 恒为 null（厂商是对象，前端用它开映射面板）→ 已补三键对象；
+`mybatis-spring-boot-starter` 3.0.3 → **3.0.5**（采纳工单 04 的实测结论，取 MyBatis 3.5.19）。
+
+当前判定：**L1 全过**、**L2 全过（含 2 条已记录的允许偏离）**、L3 3 条。
+
+两条允许偏离的理由都写在 `read-paths.json` 里，**需你在工单 08 一并追认或否决**：
+- `restartCount`：厂商部分 0 部分 null（走 Prometheus/Pod 富化路径 `ServiceController.java:1846-1872`），前端 `|| 0` 显示等价；
+- `mappingInfo`：重写版恒返回三键对象（更完整，且修掉厂商对 4/9 个服务返回 null 的隐患）。
+
 ## 四处真实差异（原型最值钱的产出）
 
 1. ~~列表驱动源不同~~ **已修复**（见上：改为 workload 驱动，`total` 与厂商一致）。

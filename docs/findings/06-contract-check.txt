@@ -1,0 +1,34 @@
+# 契约比对：GET /v1/service
+厂商样本 : docs/findings/runtime-samples/v1_service.json
+重写版   : /tmp/mine3.json
+
+## L1 形状
+  ✅ 信封键 vendor=['msg', 'code', 'data'] mine=['msg', 'code', 'data']
+  ✅ data 键 vendor=['count', 'runningDeployment', 'services', 'total'] mine=['count', 'runningDeployment', 'services', 'total']
+  ✅ 列表项键 19/19 缺失=[] 多出=[]
+
+## L2 前端读取路径（门槛的核心）
+  ✅ data.services                                        存在且类型一致（list）
+  ✅ data.total                                           值一致
+  ✅ data.count                                           值一致
+  ✅ data.services[].deployment.metadata.name             值一致
+  ✅ data.services[].deployment.metadata.namespace        值一致
+  ⚠️  data.services[].restartCount                         允许的偏离：厂商部分项为 0、部分为 null（走的是 Prometheus/Pod 富化路径 ServiceController.java:1846-1872，本环境数据不全）；前端 `a.restartCount || 0` → 两者显示等价
+  ✅ data.services[].serviceAuth.auth                     两侧都没有该字段（厂商本就没有）
+  ⚠️  data.services[].mappingInfo                          允许的偏离：重写版**恒返回三键对象**（更完整、且修掉厂商对部分服务返回 null 的隐患）；厂商本环境 9 项里 4 项为 null
+  ✅ data.services[].nameFr                               值一致
+  ✅ data.services[].nameUs                               值一致
+  ✅ data.services[].nodePortService                      值一致
+  ✅ data.services[].podInfoList                          值一致
+  ✅ data.services[].belongNodeList                       值一致
+
+## L3 已知偏离（不影响门槛，记录在案）
+  • data.runningDeployment
+      理由：厂商运行态为 0（规则应为 5，原因未定论）；该键在整个前端产物里出现 0 次，不读
+  • data.services[].service.metadata.* 的显式 null 与自造键 proxy
+      理由：client-java 序列化噪声；前端不读
+  • data.services[].service.spec.clusterIPs 等 4 个新字段
+      理由：fabric8/K8s 新字段，厂商模型没有；前端不读
+
+## 结论
+  L1+L2 通过 ✅（另有 2 条**已记录的允许偏离**，见 L2 的 ⚠️ 行）

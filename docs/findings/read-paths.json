@@ -1,0 +1,80 @@
+{
+  "_note": "前端实际读取的字段路径清单（契约门槛的 L2 判定依据）。evidence 指向抽取方法与出处。",
+  "GET /v1/service": {
+    "itemContainer": "data.services",
+    "evidence": "docs/findings/09-frontend-read-paths.md",
+    "readPaths": [
+      {
+        "path": "data.services",
+        "note": "表格 dataSource（p__ServiceManage）",
+        "mode": "container"
+      },
+      {
+        "path": "data.total",
+        "note": "分页"
+      },
+      {
+        "path": "data.count",
+        "note": "分页"
+      },
+      {
+        "path": "data.services[].deployment.metadata.name",
+        "note": "行 key / 选中服务（×11）"
+      },
+      {
+        "path": "data.services[].deployment.metadata.namespace",
+        "note": "命名空间列"
+      },
+      {
+        "path": "data.services[].restartCount",
+        "note": "重启次数列（`|| 0`，null 无差别）",
+        "allowDeviation": true,
+        "deviationReason": "厂商部分项为 0、部分为 null（走的是 Prometheus/Pod 富化路径 ServiceController.java:1846-1872，本环境数据不全）；前端 `a.restartCount || 0` → 两者显示等价"
+      },
+      {
+        "path": "data.services[].serviceAuth.auth",
+        "note": "认证状态列；serviceAuth 为 null 会直接显示'认证失败'"
+      },
+      {
+        "path": "data.services[].mappingInfo",
+        "note": "映射面板",
+        "allowDeviation": true,
+        "deviationReason": "重写版**恒返回三键对象**（更完整、且修掉厂商对部分服务返回 null 的隐患）；厂商本环境 9 项里 4 项为 null"
+      },
+      {
+        "path": "data.services[].nameFr",
+        "note": "多语言名称"
+      },
+      {
+        "path": "data.services[].nameUs",
+        "note": "多语言名称"
+      },
+      {
+        "path": "data.services[].nodePortService",
+        "note": "5328 chunk 使用"
+      },
+      {
+        "path": "data.services[].podInfoList",
+        "note": "主机服务视图"
+      },
+      {
+        "path": "data.services[].belongNodeList",
+        "note": "主机服务视图"
+      }
+    ],
+    "knownDeviations": [
+      {
+        "path": "data.runningDeployment",
+        "reason": "厂商运行态为 0（规则应为 5，原因未定论）；该键在整个前端产物里出现 0 次，不读"
+      },
+      {
+        "path": "data.services[].service.metadata.* 的显式 null 与自造键 proxy",
+        "reason": "client-java 序列化噪声；前端不读"
+      },
+      {
+        "path": "data.services[].service.spec.clusterIPs 等 4 个新字段",
+        "reason": "fabric8/K8s 新字段，厂商模型没有；前端不读"
+      }
+    ]
+  }
+}

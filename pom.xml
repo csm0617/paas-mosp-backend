@@ -34,7 +34,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <!-- 与 Spring Boot 3.3.x 匹配的版本，改动前先看 docs/findings/04-migration-blockers.md -->
         <fabric8.version>7.9.0</fabric8.version>
-        <mybatis-spring-boot.version>3.0.3</mybatis-spring-boot.version>
+        <mybatis-spring-boot.version>3.0.5</mybatis-spring-boot.version>
         <springdoc.version>2.6.0</springdoc.version>
     </properties>
 

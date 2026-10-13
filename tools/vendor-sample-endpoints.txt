@@ -1,0 +1,28 @@
+# 厂商只读端点采样清单（每行一个路径；# 开头为注释）
+# 采集方式见 tools/capture-vendor-samples.py 与 docs/findings/runtime-samples/README.md
+/audit
+/audit/dictionaryList
+/settings
+/v1/user
+/v1/role
+/v1/role/list
+/v1/role/software
+/v1/lang/current
+/v1/lang/detail
+/v1/lang/version
+/v1/licence
+/v1/licence/info
+/v1/mode/current
+/v1/mode/list
+/v1/backup/list
+/v1/backup/backupSetting
+/v1/config_map
+/v1/config_map/relationService
+/v1/database
+/v1/database/users
+/v1/image/repositories
+/v1/image/projectList
+/v1/service
+/v1/service/baseComponent
+/v1/service/labels
+/v1/software

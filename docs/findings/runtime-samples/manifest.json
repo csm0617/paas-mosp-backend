@@ -1,0 +1,188 @@
+{
+  "capturedAt": "2026-10-13T18:47:12Z",
+  "base": "http://127.0.0.1:8001/api/v1/namespaces/gaop-namespace/services/gaop-be:8080/proxy",
+  "endpoints": [
+    {
+      "path": "/audit",
+      "file": "audit.json",
+      "httpStatus": 200,
+      "bytes": 5196,
+      "sha256": "c3af3a589f53ff16"
+    },
+    {
+      "path": "/audit/dictionaryList",
+      "file": "audit_dictionaryList.json",
+      "httpStatus": 200,
+      "bytes": 1929,
+      "sha256": "0fac7907ffea17d6"
+    },
+    {
+      "path": "/settings",
+      "file": "settings.json",
+      "httpStatus": 200,
+      "bytes": 4348,
+      "sha256": "37edc5af16662166"
+    },
+    {
+      "path": "/v1/user",
+      "file": "v1_user.json",
+      "httpStatus": 200,
+      "bytes": 1742,
+      "sha256": "a711cb5c5174dd86"
+    },
+    {
+      "path": "/v1/role",
+      "file": "v1_role.json",
+      "httpStatus": 200,
+      "bytes": 1008,
+      "sha256": "f28808cf030b77af"
+    },
+    {
+      "path": "/v1/role/list",
+      "file": "v1_role_list.json",
+      "httpStatus": 200,
+      "bytes": 1072,
+      "sha256": "202b905205b9ef94"
+    },
+    {
+      "path": "/v1/role/software",
+      "file": "v1_role_software.json",
+      "httpStatus": 200,
+      "bytes": 50,
+      "sha256": "b8e7af8f5e623675"
+    },
+    {
+      "path": "/v1/lang/current",
+      "file": "v1_lang_current.json",
+      "httpStatus": 200,
+      "bytes": 69,
+      "sha256": "b594d62e60b6bd9f"
+    },
+    {
+      "path": "/v1/lang/detail",
+      "file": "v1_lang_detail.json",
+      "httpStatus": 500,
+      "bytes": 5926,
+      "sha256": "31e148b9c6295d82"
+    },
+    {
+      "path": "/v1/lang/version",
+      "file": "v1_lang_version.json",
+      "httpStatus": 200,
+      "bytes": 272,
+      "sha256": "ee2c9411d06e50eb"
+    },
+    {
+      "path": "/v1/licence",
+      "file": "v1_licence.json",
+      "httpStatus": 200,
+      "bytes": 113,
+      "sha256": "2433512f7b36c532"
+    },
+    {
+      "path": "/v1/licence/info",
+      "file": "v1_licence_info.json",
+      "httpStatus": 200,
+      "bytes": 213,
+      "sha256": "ec41d886477d4378"
+    },
+    {
+      "path": "/v1/mode/current",
+      "file": "v1_mode_current.json",
+      "httpStatus": 200,
+      "bytes": 123,
+      "sha256": "a873cb7c5911b45b"
+    },
+    {
+      "path": "/v1/mode/list",
+      "file": "v1_mode_list.json",
+      "httpStatus": 200,
+      "bytes": 341,
+      "sha256": "5e4d6d3ab3c9cbdb"
+    },
+    {
+      "path": "/v1/backup/list",
+      "file": "v1_backup_list.json",
+      "httpStatus": 200,
+      "bytes": 1327,
+      "sha256": "942254f6541ea21c"
+    },
+    {
+      "path": "/v1/backup/backupSetting",
+      "file": "v1_backup_backupSetting.json",
+      "httpStatus": 0,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c14"
+    },
+    {
+      "path": "/v1/config_map",
+      "file": "v1_config_map.json",
+      "httpStatus": 200,
+      "bytes": 165,
+      "sha256": "92935fea397e8945"
+    },
+    {
+      "path": "/v1/config_map/relationService",
+      "file": "v1_config_map_relationService.json",
+      "httpStatus": 500,
+      "bytes": 5926,
+      "sha256": "2441575e48a7a877"
+    },
+    {
+      "path": "/v1/database",
+      "file": "v1_database.json",
+      "httpStatus": 0,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c14"
+    },
+    {
+      "path": "/v1/database/users",
+      "file": "v1_database_users.json",
+      "httpStatus": 500,
+      "bytes": 5942,
+      "sha256": "56992c068c10f700"
+    },
+    {
+      "path": "/v1/image/repositories",
+      "file": "v1_image_repositories.json",
+      "httpStatus": 500,
+      "bytes": 5932,
+      "sha256": "4d2372ba3dddb1dd"
+    },
+    {
+      "path": "/v1/image/projectList",
+      "file": "v1_image_projectList.json",
+      "httpStatus": 200,
+      "bytes": 500,
+      "sha256": "c44ddb9c00b58a1a"
+    },
+    {
+      "path": "/v1/service",
+      "file": "v1_service.json",
+      "httpStatus": 200,
+      "bytes": 67054,
+      "sha256": "df4a758b17f06a54"
+    },
+    {
+      "path": "/v1/service/baseComponent",
+      "file": "v1_service_baseComponent.json",
+      "httpStatus": 200,
+      "bytes": 5705,
+      "sha256": "cf5ae2cf56419818"
+    },
+    {
+      "path": "/v1/service/labels",
+      "file": "v1_service_labels.json",
+      "httpStatus": 200,
+      "bytes": 434,
+      "sha256": "7ceb3b640ac69078"
+    },
+    {
+      "path": "/v1/software",
+      "file": "v1_software.json",
+      "httpStatus": 200,
+      "bytes": 58,
+      "sha256": "3c1fc84a7a0c559d"
+    }
+  ]
+}
