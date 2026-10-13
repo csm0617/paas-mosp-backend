@@ -38,4 +38,19 @@ public interface ISoftwareRepository {
      * <p>返回 `serviceName`（可能为空）；无入口行时返回空列表。
      */
     List<String> queryWebEntryServiceNames(String softwareId);
+
+    // ---------- 写（新增）----------
+
+    boolean existsKey(String key);
+
+    boolean existsName(String name);
+
+    void insert(SoftwareEntity software);
+
+    /**
+     * 建立"软件 ↔ 战位"关联（厂商 `softwareRelateRole`，`SoftwareService.java:587-603`）：
+     * 对每个战位，**已存在的关联跳过**，否则插入并把 `order` 设为"该战位已有软件数 + 1"。
+     * <p>传空列表时**什么都不做**（厂商在列表为空时直接 return，不清理旧关联）。
+     */
+    void relateRoles(String softwareId, List<String> roleIds);
 }

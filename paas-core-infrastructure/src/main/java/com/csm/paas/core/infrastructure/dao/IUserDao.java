@@ -139,18 +139,7 @@ public interface IUserDao {
             """)
     int update(UserPO user);
 
-    /**
-     * 按 key 取战位/角色（id + key），供调用方按入参顺序重排。
-     * <p>**必须用 PO 而不是 Map**：H2 返回的列标签是大写（`ID`/`KEY`），Map 的键会跟着变大写，
-     * 而 MySQL 是小写——用 PO 让 MyBatis 做大小写不敏感的属性映射，两种库都能跑。
-     */
-    @Select("""
-            <script>
-            SELECT id, `key` FROM g_role
-            WHERE `key` IN <foreach item='item' collection='keys' open='(' separator=',' close=')'>#{item}</foreach>
-            </script>
-            """)
-    java.util.List<com.csm.paas.core.infrastructure.dao.po.RolePO> selectIdAndKeyByKeys(@Param("keys") java.util.List<String> keys);
+    // 注：`selectIdAndKeyByKeys` 查的是 g_role，已挪到 IRoleDao（见那里的说明）。
 
     /**
      * 删除用户"某一类型"的战位/角色关联（厂商 `UserRoleMapper.deleteRelateUserToRole`）：

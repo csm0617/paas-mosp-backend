@@ -163,6 +163,25 @@ public class RoleRepository implements IRoleRepository {
     }
 
     @Override
+    public List<String> queryRoleIdsByKeys(List<String> keys) {
+        if (keys == null || keys.isEmpty()) {
+            return List.of();
+        }
+        java.util.Map<String, String> idByKey = new java.util.HashMap<>();
+        for (RolePO row : roleDao.selectIdAndKeyByKeys(keys)) {
+            idByKey.put(row.getKey(), row.getId());
+        }
+        java.util.LinkedHashSet<String> ordered = new java.util.LinkedHashSet<>();
+        for (String key : keys) {
+            String id = idByKey.get(key);
+            if (id != null) {
+                ordered.add(id);
+            }
+        }
+        return List.copyOf(ordered);
+    }
+
+    @Override
     public void insert(RoleEntity role) {
         roleDao.insert(toPO(role));
     }

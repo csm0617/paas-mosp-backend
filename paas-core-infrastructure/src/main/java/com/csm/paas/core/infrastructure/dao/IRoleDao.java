@@ -92,6 +92,19 @@ public interface IRoleDao {
             """)
     List<RolePO> selectByUsernameAndType(@Param("username") String username, @Param("type") int type);
 
+    /**
+     * 按 key 取战位（id + key），供调用方按入参顺序重排。
+     * <p>**必须用 PO 而不是 Map**：H2 返回的列标签是大写（`ID`/`KEY`），Map 的键会跟着变大写，
+     * 而 MySQL 是小写——用 PO 让 MyBatis 做大小写不敏感的属性映射，两种库都能跑。
+     */
+    @Select("""
+            <script>
+            SELECT id, `key` FROM g_role
+            WHERE `key` IN <foreach item='item' collection='keys' open='(' separator=',' close=')'>#{item}</foreach>
+            </script>
+            """)
+    List<RolePO> selectIdAndKeyByKeys(@Param("keys") List<String> keys);
+
     @Select("SELECT COUNT(*) FROM g_role")
     long selectCount();
 

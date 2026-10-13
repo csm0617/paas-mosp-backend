@@ -121,7 +121,7 @@ public class UserRepository implements IUserRepository {
         // 厂商是"按入参顺序逐个 select by key，找不到就跳过"，所以这里要**按入参顺序**重排，
         // 而不是直接用数据库返回的顺序（多 key 时会影响关联插入顺序）
         java.util.Map<String, String> idByKey = new java.util.HashMap<>();
-        for (com.csm.paas.core.infrastructure.dao.po.RolePO row : userDao.selectIdAndKeyByKeys(keys)) {
+        for (com.csm.paas.core.infrastructure.dao.po.RolePO row : roleDao.selectIdAndKeyByKeys(keys)) {
             idByKey.put(row.getKey(), row.getId());
         }
         java.util.LinkedHashSet<String> ordered = new java.util.LinkedHashSet<>();

@@ -20,7 +20,25 @@ public final class SoftwareListAssembler {
                 .build();
     }
 
-    private static SoftwareItemDTO toItem(SoftwareMessageEntity m) {
+    /**
+     * 软件实体 → **23 键**的 `Software` DTO（`POST /v1/software` 等端点的响应形状，
+     * 与列表项的 27 键不同——多出来的 4 个附加键只属于列表）。
+     */
+    public static com.csm.paas.core.api.dto.SoftwareDTO toResponse(SoftwareEntity s) {
+        return com.csm.paas.core.api.dto.SoftwareDTO.builder()
+                .id(s.getId()).key(s.getKey()).name(s.getName()).appName(s.getAppName())
+                .routerKey(s.getRouterKey()).type(s.getType()).version(s.getVersion())
+                .createdAt(s.getCreatedAt()).updatedAt(s.getUpdatedAt())
+                .framework(s.getFramework()).execName(s.getExecName()).location(s.getLocation())
+                .remoteIp(s.getRemoteIp()).remoteName(s.getRemoteName()).remotePassword(s.getRemotePassword())
+                .activeCreate(s.getActiveCreate()).activeExpire(s.getActiveExpire())
+                .orderTop(s.getOrderTop()).orderTime(s.getOrderTime())
+                .desc(s.getDesc()).activeCode(s.getActiveCode()).screenshot(s.getScreenshot()).icon(s.getIcon())
+                .build();
+    }
+
+    /** 单条消息 → 契约项（列表用；4 个附加键由 `SoftwareMessage` 提供）。 */
+    public static SoftwareItemDTO toItem(SoftwareMessageEntity m) {
         SoftwareEntity s = m.getSoftware();
         return SoftwareItemDTO.builder()
                 .id(s.getId()).key(s.getKey()).name(s.getName()).appName(s.getAppName())

@@ -33,6 +33,30 @@ public class SoftwareController {
     @Resource
     private ISoftwareQueryService softwareQueryService;
 
+    @Resource
+    private com.csm.paas.core.cases.software.ISoftwareWriteCase softwareWriteCase;
+
+    /**
+     * 厂商 `POST /v1/software`：新增软件（**controller 上有 `@Transactional`**）。
+     * <p>三道闸照抄 `SoftwareController.java:169-182`：key 是保留字 `api` → 400；key 已存在 → 400；name 已存在 → 400。
+     * <p>其余校验（name/key 长度与格式、desc 长度）见 `ISoftwareCommandService`。
+     */
+    @org.springframework.web.bind.annotation.PostMapping
+    public ResponseDTO<com.csm.paas.core.api.dto.SoftwareDTO> addSoftware(
+            @org.springframework.web.bind.annotation.RequestBody com.csm.paas.core.api.dto.SoftwareFormDTO form) {
+        var vo = com.csm.paas.core.domain.software.model.valobj.SoftwareFormVO.builder()
+                .key(form.getKey()).name(form.getName()).nameFr(form.getNameFr()).nameUs(form.getNameUs())
+                .type(form.getType()).routerKey(form.getRouterKey())
+                .desc(form.getDesc()).location(form.getLocation())
+                .remoteIp(form.getRemoteIp()).remoteName(form.getRemoteName()).remotePassword(form.getRemotePassword())
+                .framework(form.getFramework()).execName(form.getExecName()).icon(form.getIcon())
+                .screenShotList(form.getScreenShotList()).roleListKey(form.getRoleListKey())
+                .build();
+        var saved = softwareWriteCase.addSoftware(vo);
+        // 厂商返回的是**Software（23 键）**，不是列表项（27 键）
+        return ResponseDTO.ok(com.csm.paas.core.trigger.assembler.SoftwareListAssembler.toResponse(saved));
+    }
+
     @GetMapping
     public ResponseDTO<SoftwareListDTO> getSoftwareList(
             @RequestParam(required = false) Integer page,

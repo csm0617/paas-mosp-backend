@@ -104,6 +104,7 @@ CREATE TABLE IF NOT EXISTS g_role_software (
     app_id     VARCHAR(36),
     app_name   VARCHAR(128),
     url        VARCHAR(512),
+    `order`    INT,
     updated_at BIGINT,
     created_at BIGINT
 );

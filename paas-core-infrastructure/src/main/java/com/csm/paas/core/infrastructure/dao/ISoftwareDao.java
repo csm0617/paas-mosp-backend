@@ -1,6 +1,7 @@
 package com.csm.paas.core.infrastructure.dao;
 
 import com.csm.paas.core.infrastructure.dao.po.SoftwarePO;
+import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -59,6 +60,39 @@ public interface ISoftwareDao {
     /** 白名单里是否存在该路径（厂商 `softWareReleaseStatus`）。 */
     @Select("SELECT COUNT(*) FROM g_white_list WHERE path = #{path}")
     long countWhiteListPath(@Param("path") String path);
+
+    // ---------- 写（新增）----------
+
+    @Select("SELECT COUNT(*) FROM g_software WHERE `key` = #{key}")
+    long countByKey(@Param("key") String key);
+
+    @Select("SELECT COUNT(*) FROM g_software WHERE name = #{name}")
+    long countByName(@Param("name") String name);
+
+    @Insert("""
+            INSERT INTO g_software (id, `key`, name, app_name, router_key, type, version, created_at, updated_at,
+                                    framework, exec_name, location, remote_ip, remote_name, remote_password,
+                                    order_top, `desc`, screenshot, icon)
+            VALUES (#{id}, #{key}, #{name}, #{appName}, #{routerKey}, #{type}, #{version}, #{createdAt}, #{updatedAt},
+                    #{framework}, #{execName}, #{location}, #{remoteIp}, #{remoteName}, #{remotePassword},
+                    #{orderTop}, #{desc}, #{screenshot}, #{icon})
+            """)
+    int insert(SoftwarePO software);
+
+    /** 该战位已关联的软件数（厂商用它算下一个 `order`）。 */
+    @Select("SELECT COUNT(*) FROM g_role_software WHERE role_id = #{roleId}")
+    long countRelationByRoleId(@Param("roleId") String roleId);
+
+    @Select("SELECT COUNT(*) FROM g_role_software WHERE role_id = #{roleId} AND app_id = #{softwareId}")
+    long countRelation(@Param("roleId") String roleId, @Param("softwareId") String softwareId);
+
+    @Insert("""
+            INSERT INTO g_role_software (role_id, app_id, app_name, `order`, created_at)
+            VALUES (#{roleId}, #{softwareId}, #{appName}, #{order}, #{createdAt})
+            """)
+    int insertRelation(@Param("roleId") String roleId, @Param("softwareId") String softwareId,
+                       @Param("appName") String appName, @Param("order") int order,
+                       @Param("createdAt") long createdAt);
 
     /** 软件关联的战位（厂商 `RoleMapper.getRelationRole`：`select id,name,key from g_role where id in (...)`）。 */
     @Select("""

@@ -161,6 +161,13 @@ Label: `wayfinder:map`
   - 排序列做了**白名单化**（厂商直接把 `order` 映射到动态 SQL 列）；`read-paths.json` 新增 15 条读取路径（证据：`p__software` 的 dataIndex + 字面量计数）。
   - 测试 126 → **137 条**全绿。K2 剩下的：软件详情/新增/发布（白名单）、CS 上传、导入导出、`g_software_app` 映射。
 
+- （**K2 续**）[POST /v1/software 新增软件](docs/findings/38-k2-software-create.md)：**23 键，除 id/key/name/routerKey/时间戳外逐字段相同**；三条错误路径逐字节相同。
+  - **对拉抓出我自己臆造的三个字段**：`appName`（厂商表单没这个字段）、`version`（同）、以及**响应键数 27 vs 23**（POST 返回 `Software`，列表返回 `SoftwareMessage`）。根因是我**从数据库列反推入参**——`g_software` 有 `app_name`/`version` 列，但新增表单根本不接受它们。**教训：入参字段要读厂商的表单类，不能读表结构。**
+  - 同类问题因此新增独立的 `SoftwareDTO`（23 键），不再复用列表项 DTO——与用户/战位的"同名不同形状"是同一类坑。
+  - 照抄：`routerKey` 被重写成 `/<key>/`（表单值不生效）、保留字**只挡 `api`**、key 首字符四条规则、关联已存在则跳过、`order` = 该战位已有软件数+1。
+  - 主动收紧：厂商对 `roleListKey` 不判 null 会 NPE；我们按空列表处理。
+  - 测试 137 → **144 条**全绿。K2 剩下：软件详情/修改/删除、发布（白名单）、CS 上传、导入导出、`g_software_app` 映射、`/auth` 授权列表。
+
 ## Not yet specified
 
 <!-- 看得见、但还说不成一句精确问题的雾 -->

@@ -51,6 +51,65 @@ public class SoftwareRepository implements ISoftwareRepository {
         return softwareDao.selectWebEntryServiceNames(softwareId);
     }
 
+    @Override
+    public boolean existsKey(String key) {
+        return softwareDao.countByKey(key) > 0;
+    }
+
+    @Override
+    public boolean existsName(String name) {
+        return softwareDao.countByName(name) > 0;
+    }
+
+    @Override
+    public void insert(SoftwareEntity software) {
+        softwareDao.insert(toPO(software));
+    }
+
+    @Override
+    @org.springframework.transaction.annotation.Transactional
+    public void relateRoles(String softwareId, java.util.List<String> roleIds) {
+        if (roleIds == null || roleIds.isEmpty()) {
+            return;   // 厂商在空列表时直接 return（不清理旧关联）
+        }
+        long now = System.currentTimeMillis();
+        for (String roleId : new java.util.LinkedHashSet<>(roleIds)) {
+            if (softwareDao.countRelation(roleId, softwareId) > 0) {
+                continue;   // 已存在的关联跳过
+            }
+            int order = (int) softwareDao.countRelationByRoleId(roleId) + 1;
+            softwareDao.insertRelation(roleId, softwareId, softwareId, order, now);
+        }
+    }
+
+    private SoftwarePO toPO(SoftwareEntity s) {
+        SoftwarePO po = new SoftwarePO();
+        po.setId(s.getId());
+        po.setKey(s.getKey());
+        po.setName(s.getName());
+        po.setAppName(s.getAppName());
+        po.setRouterKey(s.getRouterKey());
+        po.setType(s.getType());
+        po.setVersion(s.getVersion());
+        po.setCreatedAt(s.getCreatedAt());
+        po.setUpdatedAt(s.getUpdatedAt());
+        po.setFramework(s.getFramework());
+        po.setExecName(s.getExecName());
+        po.setLocation(s.getLocation());
+        po.setRemoteIp(s.getRemoteIp());
+        po.setRemoteName(s.getRemoteName());
+        po.setRemotePassword(s.getRemotePassword());
+        po.setActiveCreate(s.getActiveCreate());
+        po.setActiveExpire(s.getActiveExpire());
+        po.setOrderTop(s.getOrderTop());
+        po.setOrderTime(s.getOrderTime());
+        po.setDesc(s.getDesc());
+        po.setActiveCode(s.getActiveCode());
+        po.setScreenshot(s.getScreenshot());
+        po.setIcon(s.getIcon());
+        return po;
+    }
+
     private static String str(Object v) {
         return v == null ? null : String.valueOf(v);
     }

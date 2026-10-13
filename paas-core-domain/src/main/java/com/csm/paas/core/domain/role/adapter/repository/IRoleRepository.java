@@ -85,6 +85,9 @@ public interface IRoleRepository {
     /** name 是否存在（厂商 `existRoleName`，`GET /v1/role/exist_role_name`）。 */
     boolean existsByName(String name);
 
+    /** 按 key 批量取战位 id，**按入参顺序**返回、不存在的 key 跳过（厂商逐个 select by key 的等价写法）。 */
+    List<String> queryRoleIdsByKeys(List<String> keys);
+
     void insert(RoleEntity role);
 
     /** 更新战位行（厂商 `editRole` 的 `updateByPrimaryKeySelective`）。 */
