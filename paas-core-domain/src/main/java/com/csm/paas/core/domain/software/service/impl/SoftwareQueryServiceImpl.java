@@ -1,0 +1,122 @@
+package com.csm.paas.core.domain.software.service.impl;
+
+import com.csm.paas.core.domain.software.adapter.port.IWebEntryStatusPort;
+import com.csm.paas.core.domain.software.adapter.repository.ISoftwareRepository;
+import com.csm.paas.core.domain.software.model.entity.SoftwareEntity;
+import com.csm.paas.core.domain.software.model.entity.SoftwareListEntity;
+import com.csm.paas.core.domain.software.model.entity.SoftwareMessageEntity;
+import com.csm.paas.core.domain.software.model.valobj.RelationRoleVO;
+import com.csm.paas.core.domain.software.service.ISoftwareQueryService;
+import com.csm.paas.core.types.util.PageUtils;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * 软件列表（厂商 `SoftwareService.getSoftwareList`，`SoftwareService.java:483-547`）。
+ *
+ * <p>每个软件行要额外算四样东西（这是它被称为"聚合端点"而不是"只读列表"的原因）：
+ * <ol>
+ *   <li>`releaseStatus`：白名单里有 `/<key>/**` → 1，否则 0；</li>
+ *   <li>`roleList`：`g_role_software.app_id = 软件id` 反查战位（`{id,name,key}`）；**无关联时保持 null**（不是 []）；</li>
+ *   <li>`web`：见 {@link #webStatus}；</li>
+ *   <li>`url`：`CS` 类型（忽略大小写）拼 `gaop://cs?...`，否则用 `router_key`。
+ *       拼串里含**远端账号/口令**（`remote_name`/`remote_password`），且 `host` 取自请求头 `x-forwarded-host`。</li>
+ * </ol>
+ */
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class SoftwareQueryServiceImpl implements ISoftwareQueryService {
+
+    private final ISoftwareRepository softwareRepository;
+    private final IWebEntryStatusPort webEntryStatusPort;
+
+    @Override
+    public SoftwareListEntity querySoftwareList(int page, int size, String name, String type,
+                                                String order, String sort, String host) {
+        String likeName = (name == null || name.isEmpty()) ? null : "%" + name + "%";
+        boolean asc = "asc".equals(sort);
+        String orderField = (order == null || order.isEmpty()) ? "key" : order;
+
+        List<SoftwareEntity> rows = softwareRepository.queryPage(
+                likeName, type, orderField, asc, PageUtils.offset(page, size), size);
+        long total = softwareRepository.count(likeName, type);
+
+        List<SoftwareMessageEntity> list = new ArrayList<>();
+        if (!rows.isEmpty()) {
+            Map<String, Integer> webStatus = queryWebStatusForAll(rows);
+            for (SoftwareEntity s : rows) {
+                list.add(toMessage(s, host, webStatus));
+            }
+        }
+        log.debug("查询软件列表 page={} size={} name={} type={} 命中 {} 行", page, size, name, type, list.size());
+        return SoftwareListEntity.builder().softwareList(list).total(total).build();
+    }
+
+    /** 先把本页所有软件用到的 service name 收集起来一次查完（厂商也是先取一次 Deployment 列表）。 */
+    private Map<String, Integer> queryWebStatusForAll(List<SoftwareEntity> rows) {
+        List<String> serviceNames = new ArrayList<>();
+        for (SoftwareEntity s : rows) {
+            List<String> entries = softwareRepository.queryWebEntryServiceNames(s.getId());
+            if (!entries.isEmpty() && entries.get(0) != null) {
+                serviceNames.add(entries.get(0));
+            }
+        }
+        if (serviceNames.isEmpty()) {
+            return Map.of();
+        }
+        return webEntryStatusPort.queryWebStatus(serviceNames);
+    }
+
+    private SoftwareMessageEntity toMessage(SoftwareEntity s, String host, Map<String, Integer> webStatus) {
+        List<String> webEntries = softwareRepository.queryWebEntryServiceNames(s.getId());
+        int web = webStatus(webEntries, webStatus);
+
+        List<RelationRoleVO> roleList = null;
+        List<String> roleIds = softwareRepository.queryRoleIdsBySoftwareId(s.getId());
+        if (!CollectionUtils.isEmpty(roleIds)) {
+            roleList = softwareRepository.queryRelationRoles(roleIds);
+        }
+
+        return SoftwareMessageEntity.builder()
+                .software(s)
+                .releaseStatus(softwareRepository.existsWhiteListPath("/" + s.getKey() + "/**") ? 1 : 0)
+                .roleList(roleList)
+                .web(web)
+                .url(buildUrl(s, host))
+                .build();
+    }
+
+    /**
+     * 厂商 `SoftwareService.java:515-527`：无 web 入口行 → 0；有行但 Deployment 找不到 → 2；
+     * 找到则用 {@link #deploymentStatusToWeb} 的结果。
+     */
+    private int webStatus(List<String> webEntries, Map<String, Integer> webStatus) {
+        if (webEntries.isEmpty()) {
+            return 0;
+        }
+        Integer status = webStatus.get(webEntries.get(0));
+        return status == null ? 2 : status;
+    }
+
+    private String buildUrl(SoftwareEntity s, String host) {
+        if (!"CS".equalsIgnoreCase(s.getType())) {
+            return s.getRouterKey();
+        }
+        return "gaop://cs?name=" + nvl(s.getName()) + "&id=" + nvl(s.getId()) + "&key=" + nvl(s.getKey())
+                + "&version=" + nvl(s.getVersion()) + "&execName=" + nvl(s.getExecName())
+                + "&remoteIp=" + nvl(s.getRemoteIp()) + "&remoteName=" + nvl(s.getRemoteName())
+                + "&remotePassword=" + nvl(s.getRemotePassword()) + "&host=" + nvl(host);
+    }
+
+    /** 厂商是字符串拼接（`+`），Java 里 null 会变成字面量 "null"。照抄这个行为。 */
+    private static String nvl(String v) {
+        return v;
+    }
+}

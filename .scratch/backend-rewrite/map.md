@@ -155,6 +155,12 @@ Label: `wayfinder:map`
   - **K2 `/v1/software` 的真实规模（重要）**：它不是"只读列表"，而是**带 K8s 富化的聚合端点**——每个软件行要额外算 `releaseStatus`/`web`（0/2/按 Deployment）/`url`（CS 类型拼 `gaop://cs?...`）/`roleList`，加上 22 列与两级排序（**`order_top` 恒降序在前**）。**因此放弃"先做一个只返回 id/name 的简化版"**：那会让前端拿到缺字段的数据，宁可晚一轮做完整。
   - **下一轮开工清单**：22 列 + 4 个附加键；`releaseStatus`/`web` 的推导需**各建探针软件行**（本环境 `g_software` 为 **0 行**，现有样本只锁住空分支）；探针两侧用不同 key/name。
 
+- （**K2 开口**）[GET /v1/software](docs/findings/37-k2-software-list.md)：**整体 JSON 相等**，且覆盖了每个分支——3 行探针软件（抓完即删）撑开了 `url`（CS/WEB）、`releaseStatus`（0/1）、`web`（**0/2/1 三种都实测到了**）、`roleList`（null/非空）、两级排序（`order_top DESC` 恒在前）。
+  - K8s 依赖走端口隔离：`IWebEntryStatusPort` ← `WebEntryStatusPort`（复用切片 1 的 `ServiceRuntimeGateway`）；本页所有 `service_name` **一次**查完 Deployment（厂商也是先取一次全量）。
+  - 照抄厂商的可疑逻辑：`setServiceStatusBySoftware` 内层先设 3 又**无条件**设 1（那个 3 永远被覆盖）；厂商 `status==null` 会 NPE，我们按"状态缺失"给出 2（记录为收紧）。
+  - 排序列做了**白名单化**（厂商直接把 `order` 映射到动态 SQL 列）；`read-paths.json` 新增 15 条读取路径（证据：`p__software` 的 dataIndex + 字面量计数）。
+  - 测试 126 → **137 条**全绿。K2 剩下的：软件详情/新增/发布（白名单）、CS 上传、导入导出、`g_software_app` 映射。
+
 ## Not yet specified
 
 <!-- 看得见、但还说不成一句精确问题的雾 -->

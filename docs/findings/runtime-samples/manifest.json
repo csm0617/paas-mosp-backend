@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-10-13T20:43:21Z",
+  "capturedAt": "2026-10-13T22:58:37Z",
   "base": "http://127.0.0.1:8001/api/v1/namespaces/gaop-namespace/services/gaop-be:8080/proxy",
   "endpoints": [
     {
@@ -274,6 +274,13 @@
       "httpStatus": 200,
       "bytes": 34,
       "sha256": "21f1ca574fc3d400"
+    },
+    {
+      "path": "/v1/software?page=1&size=20&name=probeapp",
+      "file": "v1_software_probe.json",
+      "httpStatus": 200,
+      "bytes": 2272,
+      "sha256": "ab4723bac77c3bce"
     }
   ]
 }

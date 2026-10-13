@@ -450,5 +450,80 @@
         "disposition": "记录在案"
       }
     ]
+  },
+  "GET /v1/software": {
+    "itemContainer": "data.softwareList",
+    "evidence": "p__software.3edb99c9.async.js 逐条检索（dataIndex + 字面量计数）；样本 runtime-samples/v1_software_probe.json",
+    "readPaths": [
+      {
+        "path": "data.softwareList",
+        "mode": "container",
+        "note": "软件表格 dataSource"
+      },
+      {
+        "path": "data.total",
+        "note": "分页"
+      },
+      {
+        "path": "data.softwareList[].id",
+        "note": "行 key / 操作目标"
+      },
+      {
+        "path": "data.softwareList[].key",
+        "note": "dataIndex=key；唯一标识"
+      },
+      {
+        "path": "data.softwareList[].name",
+        "note": "dataIndex=name"
+      },
+      {
+        "path": "data.softwareList[].desc",
+        "note": "dataIndex=desc"
+      },
+      {
+        "path": "data.softwareList[].updatedAt",
+        "note": "dataIndex=updatedAt"
+      },
+      {
+        "path": "data.softwareList[].version",
+        "note": "版本（6 次出现）"
+      },
+      {
+        "path": "data.softwareList[].framework",
+        "note": "框架（20 次出现）"
+      },
+      {
+        "path": "data.softwareList[].orderTop",
+        "note": "dataIndex=orderTop"
+      },
+      {
+        "path": "data.softwareList[].icon",
+        "note": "图标（32 次出现）"
+      },
+      {
+        "path": "data.softwareList[].releaseStatus",
+        "note": "发布态（2 次出现）"
+      },
+      {
+        "path": "data.softwareList[].web",
+        "note": "web 入口状态（11 次出现）"
+      },
+      {
+        "path": "data.softwareList[].url",
+        "note": "入口地址（37 次出现）"
+      },
+      {
+        "path": "data.softwareList[].roleList",
+        "mode": "container",
+        "note": "dataIndex=roleList"
+      }
+    ],
+    "knownDeviations": [
+      {
+        "path": "data.softwareList[].appName / screenshot / activeCode / remoteIp / remoteName / remotePassword / location / execName",
+        "reason": "该页 chunk 出现 0 次（未读）；仍按厂商形状返回。注意 CS 类型软件的 url 里**含 remoteName/remotePassword**，那是厂商把远端口令拼进 URL 的设计",
+        "disposition": "记录在案"
+      }
+    ]
   }
 }

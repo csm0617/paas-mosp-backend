@@ -107,3 +107,53 @@ CREATE TABLE IF NOT EXISTS g_role_software (
     updated_at BIGINT,
     created_at BIGINT
 );
+
+-- K2（软件目录）契约测试用
+CREATE TABLE IF NOT EXISTS g_software (
+    id              VARCHAR(36) PRIMARY KEY,
+    `key`           VARCHAR(36) NOT NULL,
+    name            VARCHAR(128) NOT NULL,
+    app_name        VARCHAR(128),
+    router_key      VARCHAR(128),
+    type            VARCHAR(128),
+    `desc`          CLOB,
+    version         VARCHAR(255),
+    created_at      BIGINT,
+    updated_at      BIGINT,
+    framework       VARCHAR(100) NOT NULL DEFAULT '',
+    exec_name       VARCHAR(200),
+    active_code     CLOB,
+    screenshot      CLOB,
+    icon            CLOB,
+    location        VARCHAR(30),
+    remote_ip       VARCHAR(50),
+    remote_name     VARCHAR(50),
+    remote_password VARCHAR(50),
+    active_create   BIGINT,
+    active_expire   BIGINT,
+    order_top       INT DEFAULT 0,
+    order_time      BIGINT DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS g_white_list (
+    id         BIGINT PRIMARY KEY AUTO_INCREMENT,
+    path       VARCHAR(255),
+    created_at BIGINT
+);
+
+CREATE TABLE IF NOT EXISTS g_service_port (
+    id           BIGINT PRIMARY KEY AUTO_INCREMENT,
+    software_id  VARCHAR(36),
+    service_name VARCHAR(128),
+    port         INT,
+    path_name    VARCHAR(256),
+    web_entry    TINYINT,
+    allow        TINYINT NOT NULL DEFAULT 1,
+    updated_at   BIGINT
+);
+
+CREATE TABLE IF NOT EXISTS g_software_app (
+    id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+    software_id VARCHAR(36),
+    app_name    VARCHAR(128)
+);
