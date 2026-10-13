@@ -56,6 +56,16 @@ public class RoleQueryServiceImpl implements IRoleQueryService {
         return RoleListEntity.builder().list(roles).total(roleRepository.count()).build();
     }
 
+    @Override
+    public java.util.Optional<RoleEntity> queryByKey(String key) {
+        return roleRepository.queryByKey(key);
+    }
+
+    @Override
+    public List<RoleSoftwareEntity> querySoftwareByRoleId(String roleId) {
+        return roleRepository.querySoftwareByRoleId(roleId);
+    }
+
     private RoleSoftwareEntity hardcodedPortal(String key) {
         if (ADMIN_KEY.equals(key)) {
             return pseudoPortal(ADMIN_KEY, ADMIN_PORTAL_NAME);

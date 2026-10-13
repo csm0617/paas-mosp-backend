@@ -77,6 +77,9 @@ Label: `wayfinder:map`
 - （进展·重要）[STOMP over SockJS 通道打通](docs/findings/18-stomp-channel.md)：前端 job/工作负载/容器页的数据来自 `/topic/k8s/proxy/{Service,Deployment,Pod}` 推送；已用 domain 端口 + fabric8 watch + `withSockJS()` 实现，**日志证明 STOMP CONNECTED(1)、watch 在跑且已发消息**，前端控制台打印 `socket 连接成功`。
 - （待补）工作负载表仍 0 行，剩三个 404：`/v1/image/projectList`、`/v1/role/software`（有样本）、`/v1/pub/etcd_label/check`（需抓）。
 
+- （A/B 对照·重要）[我们的后端与厂商渲染等价](docs/findings/19-three-endpoints-and-ab-comparison.md)：同一份前端分别指向两个后端，`/software/workloads` 的渲染结果**完全一样**（都无内容区、都弹引导、STOMP 都连上、API 都 200）。"内容区为空"**不是我们的实现造成的**；原因未定论（疑似本地 harness 不支持 WS 升级）。
+- （已补）`/v1/role/software`、`/v1/pub/etcd_label/check`、`/v1/image/projectList`（Harbor 域，如实返回空）。
+
 ## Not yet specified
 
 <!-- 看得见、但还说不成一句精确问题的雾 -->

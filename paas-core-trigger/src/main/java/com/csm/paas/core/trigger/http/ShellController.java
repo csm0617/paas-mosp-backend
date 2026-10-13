@@ -63,6 +63,15 @@ public class ShellController {
         return ResponseDTO.ok(settingQueryService.queryBooleanValue("system.init.quick_start"));
     }
 
+    /**
+     * 厂商 `GET /v1/pub/etcd_label/check`：节点 etcd 标签巡检，返回 `List&lt;NodeHostInfo&gt;`。
+     * <p>厂商在本环境返回空数组；本实现同样返回空数组（etcd 标签巡检属集群运维域，未接管）。
+     */
+    @GetMapping("/v1/pub/etcd_label/check")
+    public ResponseDTO<List<Object>> etcdLabelCheck() {
+        return ResponseDTO.ok(List.of());
+    }
+
     /** 厂商 GET /v1/lang/current：当前语言与语言包版本。 */
     @GetMapping("/v1/lang/current")
     public ResponseDTO<CurrentLanguageDTO> currentLanguage() {
