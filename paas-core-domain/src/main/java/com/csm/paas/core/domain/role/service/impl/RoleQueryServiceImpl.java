@@ -20,7 +20,8 @@ import java.util.List;
  *       （`appId` = 战位 key，`appName` = "运维管理员门户" / "开发管理员门户"，`id` = 0）——即使 g_role_software 为空；</li>
  *   <li>战位名会再过一层 i18n（{@code i18nUtil.getAutoNameMessageByCurrent("role", key, name)}）。原型未实现 i18n 覆盖层，先用库里的 name。</li>
  * </ol>
- * 数据来源是 MySQL，**返回的是库里正确的 UTF-8 中文**；厂商侧同字段是双重编码的乱码（见 docs/findings/11-vendor-charset-defect.md）。
+ * <p>中文乱码（若有）来自**播种期的双重编码入库**，不是厂商缺陷：厂商与本服务读同一份库、返回同样的字节，
+ * 详见 docs/findings/11-own-seed-double-encoding.md。
  */
 @Slf4j
 @Service

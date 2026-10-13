@@ -19,7 +19,7 @@ Label: `wayfinder:map`
   - `/Users/csm/Desktop/Project/msop/recovered/gaop-be/`（反编译后端源码）
   - `/Users/csm/Desktop/Project/msop/recovered-web/`（前端复刻产物、`api-catalogue.json`、`regenerated/openapi-gaop-be.json`）
   - `/Users/csm/Desktop/Project/msop/docs/`（产品生命周期文档、GLOSSARY、findings）
-- **验收工具**：`recovered-web/api-catalogue.json`（196 个前端 service 函数）与厂商 `/v3/api-docs`（500 paths / 542 operations）。
+- **验收工具**：前端 service 层 **259** 个函数（`recovered-web/api-catalogue.json` 只记了 196 个）与厂商 `/v3/api-docs`（500 paths / 542 operations）。
 
 ## Decisions so far
 
@@ -33,7 +33,7 @@ Label: `wayfinder:map`
 
 - （先行验证）[具名端口在 fabric8 7.9.0 模型层可用](docs/findings/named-port-fabric8-7.9.0.md)：`targetPort: http` / `tcpSocket.port: http` 均可反序列化，2 个用例通过；真实集群数据仍待 06。
 
-- （工单 05）[兼容硬边界与验收门槛](docs/adr/0004-frozen-contract-and-acceptance-gates.md)：锁 196 个前端端点 + 39 张表 + `/api/gaop/k8s/**`；厂商 87 个迁移冻结在 V0.8.6，新变更从 V0.9.0 起；验收四条门槛（第 4 条已完成）。
+- （工单 05）[兼容硬边界与验收门槛](docs/adr/0004-frozen-contract-and-acceptance-gates.md)：锁 259 个前端函数命中的端点 + 39 张表 + `/api/gaop/k8s/**`；厂商 87 个迁移冻结在 V0.8.6，新变更从 V0.9.0 起；验收四条门槛（第 4 条已完成）。
 
 - （运行时取证）[厂商运行时契约样本](docs/findings/runtime-samples/README.md)：11 个端点实测（信封 `{msg,code,data}`、`/v1/service` 67 KB、K8s 代理数字为双精度）；并确认**实集群已修好两个白屏触发条件**，不能再当复现现场。
 
@@ -43,7 +43,7 @@ Label: `wayfinder:map`
 - （工单 04）[迁移障碍逐条定论](docs/findings/04-migration-blockers.md)：**纠正了白屏根因**（不是 client-java，是厂商自建 `IoK8sApiCoreV1*` DTO 的 Integer + Gson→Jackson 往返 + 吞异常）。
 - （新开）[契约判定标准](.scratch/backend-rewrite/issues/08-contract-comparison-criterion.md)：语义等价 vs 逐字节等价，待你拍板。
 
-- （工单 02）[契约基线](docs/findings/02-contract-baseline.md)：605 端点全量对账；**口径更正——前端 service 层是 258 个函数不是 196**；542/542 api-docs 都被源码覆盖；259 个端点无前端调用者。
+- （工单 02）[契约基线](docs/findings/02-contract-baseline.md)：605 端点全量对账；**口径更正——前端 service 层是 259 个函数不是 196**；542/542 api-docs 都被源码覆盖；**263** 个运行态端点无前端调用者（后端有但无人调用共 321）。
 - （事实）[前端实际读取的字段](docs/findings/09-frontend-read-paths.md)：19 个键里 **7 个前端从不读**（含 `runningDeployment`/`fixedName`/`imageInfo`）；`serviceAuth` 为 null 会让页面显示"认证失败"，必须填。
 
 - （新开）[认证最小闭环](.scratch/backend-rewrite/issues/10-auth-minimum-loop.md)：门槛前置（登录 + `gateway-token` cookie），阻塞于 07（要先定"自带还是继续用 gateway-auth"）。
@@ -53,7 +53,7 @@ Label: `wayfinder:map`
 
 - （门槛自动化）[离线测试门槛](docs/findings/10-offline-test-gate.md)：4 个测试类 7 条用例、`mvn test` 全绿且不需要集群；L1/L2 由回放厂商样本锁定，允许偏离按 `deviationKind` 受控。
 
-- （事实）[厂商编码缺陷](docs/findings/11-vendor-charset-defect.md)：DB 与 api-docs 的中文都正常，只有经 DB 的字符串在响应里被双重编码（高度可能＝connector 5.1.48 缺 `useUnicode=true`）；重写版返回正确中文，属有意修正。
+- （事实·已纠正）[中文乱码的真正来源](docs/findings/11-own-seed-double-encoding.md)：库里就是双重编码的（hex 实证），厂商与我方字节一致——是我方播种时没带 `--default-character-set=utf8mb4`；**先前的"厂商缺陷"结论已作废**。
 
 ## Not yet specified
 
@@ -64,7 +64,7 @@ Label: `wayfinder:map`
 - 门槛过后的产品化演进边界：哪些字段/表可以重命名、何时拆服务（现在只确定"允许"，没确定"怎么"）
 - 灰度替换路径（新旧后端并存、Ingress/网关切流、回退）
 - arm64 镜像与离线 Maven 私仓（不影响兼容性，但上生产必须）
-- 前端 196 个函数中无人调用的端点是否保留（`/v1/app`、`service_entry` 等）
+- 前端 259 个函数里无人调用的端点是否保留（`/v1/app`、`service_entry` 等）
 - 单节点 4.9GB 内存下的重写后端资源画像与限堆参数
 
 ## Out of scope

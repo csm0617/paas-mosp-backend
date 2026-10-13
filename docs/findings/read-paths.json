@@ -109,8 +109,8 @@
     ],
     "knownDeviations": [
       {
-        "path": "data.list[].name / softwareList[].appName 的中文",
-        "reason": "厂商从 DB 取出的中文被双重编码成乱码（DB 里是正确的 UTF-8，api-docs 的中文正常 → 编码缺陷在 gaop-be 内）；重写版返回正确中文，属**有意修正**。"
+        "path": "data.list[].name / softwareList[].appName 的文本",
+        "reason": "厂商与重写版**字节一致**——库里的中文是播种期双重编码入库的（hex 实证 C3A8C2BF…），不是契约差异。修数据即可（见 docs/findings/11-own-seed-double-encoding.md）。"
       },
       {
         "path": "data.list[].userList / subRoleList",

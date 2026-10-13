@@ -25,7 +25,7 @@ Blocked by: —
 
 ## Answer
 
-已交付 `docs/findings/02-contract-baseline.{json,md}`（605 条端点 / 386 行）。关键：**前端 service 层是 258 个函数，不是 196**（catalogue 漏了 62 个）；542/542 api-docs operation 都能在源码找到 handler；259 个运行态端点无前端调用者；57 个 handler 是 `@ConditionalOnExpression("false")` 死代码。
+已交付 `docs/findings/02-contract-baseline.{json,md}`（605 条端点 / 386 行）。关键（数字经第二遍独立复核修正）：**前端 service 层是 259 个函数，不是 196**（catalogue 漏了 63 个）；542/542 api-docs operation 都能在源码找到 handler；**263** 个运行态端点无前端调用者（后端有但无人调用共 321）；57 个 handler 是 `@ConditionalOnExpression("false")` 死代码。复核清单见文件附录 C。
 
 ## 进展（历史）
 
