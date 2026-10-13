@@ -10,9 +10,18 @@ Blocked by: 07
 - 该 cookie 的校验方是 **gaop-gateway-auth**（`/auth`），它决定请求能否进到业务后端
 - 会话状态在 Redis（`login-list:<user>:<roleKey>` / `gateway-token:<token>`，见 ADR 边界外的既有结论）
 
-必须先回答的边界问题（可由 07 一并定）：
-1. 重写后端是否**自带** cookie 签发与校验，还是继续依赖 gaop-gateway-auth（那就是"只替换 gaop-be"的多组件边界）？
-2. 若自带，Redis 里的键名/结构必须与厂商一致吗（否则 gaop-gateway-auth 认不出来）？
+## 研究已完成：契约全清楚（`docs/findings/12-auth-contract.md`）
+
+token = `UUID`（不透明串），Redis 键 `gateway-token:<uuid>`，值 `<username>:<战位key>`，
+`RPUSH login-list:<username>:<战位key>`，cookie `gateway-token=<uuid>; Path=/`，
+ttl 取 `g_setting.system.permission.expired_time`（本集群 1440 分钟 → 实测 TTL 86400s），
+两侧 `geneKey` 字节级一致，Redis 同为 `gaop-redis:6379` 且未配置 database。
+
+**由此可推导（待你确认或否决）**：既然 ADR-0001 的目的地是**只替换 gaop-be**，gateway-auth 原样保留，
+那"自带校验"就不是选项——我们**必须**签发与它兼容的会话。ticket 里原来的问题 1 因此变成
+"确认沿用 gateway-auth 作为校验方"，问题 2 的答案是"必须一致"。
+
+若你希望改成自带校验（连带替换 gateway-auth），那要另开 ADR，因为那会改目的地。
 
 ## 验收
 

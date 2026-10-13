@@ -55,6 +55,8 @@ Label: `wayfinder:map`
 
 - （事实·已纠正）[中文乱码的真正来源](docs/findings/11-own-seed-double-encoding.md)：库里就是双重编码的（hex 实证），厂商与我方字节一致——是我方播种时没带 `--default-character-set=utf8mb4`；**先前的"厂商缺陷"结论已作废**。
 
+- （事实）[认证最小闭环契约](docs/findings/12-auth-contract.md)：UUID token + `gateway-token:<uuid>`=`user:role` + `login-list:<user>:<role>` + cookie；两侧 `geneKey` 一致、同一 Redis；实测 TTL 86400s。工单 10 的实现已无障碍（"自带 vs 网关"由 ADR-0001 推导，待用户确认）。
+
 ## Not yet specified
 
 <!-- 看得见、但还说不成一句精确问题的雾 -->

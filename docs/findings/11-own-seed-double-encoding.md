@@ -12,6 +12,9 @@
 3. **`mysql` CLI 看起来正常是个陷阱**：当时的 CLI 会话是 `character_set_client=latin1`，
    utf8mb4 列 → latin1 客户端 的转换恰好把双重编码**还原**成正确的中文，所以肉眼看到的是好的。
 
+**补充证据（2026-10-14 03:0x）**：`g_setting` 的 `desc` 列同样是乱码（`ç™»å½•ä¿å˜æ—¶é•¿`），
+即同一次播种里所有中文列都被双重编码，不只 `g_role.name`。
+
 ## 真正的成因
 
 早期播种时用 `kubectl exec mysql -- mysql -u… < seed.sql`（**没有 `--default-character-set=utf8mb4`**），
