@@ -1,11 +1,14 @@
 package com.csm.paas.core.trigger.http;
 
 import com.csm.paas.core.api.dto.ResponseDTO;
+import com.csm.paas.core.api.dto.LoginUserDTO;
 import com.csm.paas.core.api.dto.UserDTO;
 import com.csm.paas.core.api.dto.UserLoginItemDTO;
 import com.csm.paas.core.api.dto.UserLoginListDTO;
 import com.csm.paas.core.domain.user.adapter.repository.IUserRepository;
 import com.csm.paas.core.domain.user.model.valobj.SessionVO;
+import com.csm.paas.core.domain.user.service.IAuthService;
+import com.csm.paas.core.trigger.assembler.LoginAssembler;
 import com.csm.paas.core.trigger.assembler.UserAssembler;
 import com.csm.paas.core.types.enums.ResponseCode;
 import com.csm.paas.core.types.exception.BusinessException;
@@ -27,6 +30,9 @@ public class UserController {
     @Resource
     private IUserRepository userRepository;
 
+    @Resource
+    private IAuthService authService;
+
     /**
      * 厂商 `GET /v1/user/get`：登录页的账号下拉。**公开**——实测厂商不带 cookie 也返回 200
      * （鉴权在网关侧，见 docs/findings/14-vendor-auth-is-gateway-side.md）。
@@ -45,11 +51,17 @@ public class UserController {
                 .build());
     }
 
+    /**
+     * 厂商 `GET /v1/user`：**当前登录态**，形状与登录响应相同（`UserLogined`，20 键，含 `role`）。
+     * <p>前端 `getInitialState` 直接把它当 `currentUser`，并用 `currentUser.role.key` 判 `canAdmin`
+     * （`function $T`，`umi.d08aa716.js`）——缺 `role` 会被路由守卫弹回登录页。
+     */
     @GetMapping("/v1/user")
-    public ResponseDTO<UserDTO> currentUser(HttpServletRequest request) {
-        SessionVO session = authSupport.requireSession(request);
-        return userRepository.queryByUsername(session.getUsername())
-                .map(user -> ResponseDTO.ok(UserAssembler.toResponse(user)))
+    public ResponseDTO<LoginUserDTO> currentUser(HttpServletRequest request) {
+        authSupport.requireSession(request);
+        String token = authSupport.readToken(request);
+        return authService.currentLogin(token)
+                .map(result -> ResponseDTO.ok(LoginAssembler.toResponse(result)))
                 .orElseThrow(() -> new BusinessException(ResponseCode.UNAUTHENTICATED, "用户不存在"));
     }
 }

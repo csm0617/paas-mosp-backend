@@ -120,8 +120,12 @@
   },
   "GET /v1/user": {
     "itemContainer": null,
-    "evidence": "docs/findings/09-frontend-read-paths.md（layouts__index 与 p__operate__home__index 调 GET /v1/user）",
+    "evidence": "docs/findings/17-user-endpoint-returns-userlogined.md（`umG`→GET /v1/user→currentUser，canAdmin 需要 role.key）",
     "readPaths": [
+      {
+        "path": "data.role.key",
+        "note": "前端 canAdmin/canDev 判定（function $T）"
+      },
       {
         "path": "data.id"
       },
@@ -136,6 +140,9 @@
       },
       {
         "path": "data.avatar"
+      },
+      {
+        "path": "data.token"
       }
     ],
     "knownDeviations": []

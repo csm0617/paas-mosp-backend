@@ -55,4 +55,10 @@ public class LicenceQueryServiceImpl implements ILicenceQueryService {
     public String machineCode() {
         return licenceRepository.machineCode();
     }
+
+    @Override
+    public boolean checkAndActiveGis() {
+        // 厂商在本环境返回 false（无 GIS 授权）；GIS 在线激活属 gaop-auth 域，未实现
+        return false;
+    }
 }

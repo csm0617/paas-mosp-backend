@@ -13,4 +13,11 @@ public interface IAuthService {
     void logout(String token);
 
     Optional<SessionVO> currentSession(String token);
+
+    /**
+     * 当前登录态（用户 + 当前战位 + token）。
+     * <p>厂商 `GET /v1/user` 返回的就是 `UserLogined`——与登录同一形状（20 键，含 `role`），
+     * 前端 `getInitialState` 拿它当 `currentUser`，并用 `currentUser.role.key` 判 `canAdmin`。
+     */
+    Optional<LoginResultEntity> currentLogin(String token);
 }

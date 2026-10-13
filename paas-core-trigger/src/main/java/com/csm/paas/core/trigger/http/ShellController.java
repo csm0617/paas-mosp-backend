@@ -54,6 +54,15 @@ public class ShellController {
         return ResponseDTO.ok(modeQueryService.queryAll().stream().map(this::toModeDTO).toList());
     }
 
+    /**
+     * 厂商 `GET /v1/pub/quickStart`：快速开始弹窗是否不再弹出。
+     * 语义照厂商 `PublicController.getQuickStartStatus()`：读 `g_setting['system.init.quick_start']`，非 "true" 即 false。
+     */
+    @GetMapping("/v1/pub/quickStart")
+    public ResponseDTO<Boolean> quickStart() {
+        return ResponseDTO.ok(settingQueryService.queryBooleanValue("system.init.quick_start"));
+    }
+
     /** 厂商 GET /v1/lang/current：当前语言与语言包版本。 */
     @GetMapping("/v1/lang/current")
     public ResponseDTO<CurrentLanguageDTO> currentLanguage() {

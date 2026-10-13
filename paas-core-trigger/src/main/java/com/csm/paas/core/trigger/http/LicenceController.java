@@ -28,6 +28,12 @@ public class LicenceController {
                 .build());
     }
 
+    /** 厂商 GET /v1/licence/checkAndActiveGis：GIS 授权检查（本环境为 false）。 */
+    @GetMapping("/v1/licence/checkAndActiveGis")
+    public ResponseDTO<Boolean> checkAndActiveGis() {
+        return ResponseDTO.ok(licenceQueryService.checkAndActiveGis());
+    }
+
     /** 厂商 GET /v1/licence/info：授权状态（未激活时给试用期）。 */
     @GetMapping("/v1/licence/info")
     public ResponseDTO<LicenceInfoDTO> info() {

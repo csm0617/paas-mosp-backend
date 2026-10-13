@@ -74,6 +74,35 @@ public class AuthServiceImpl implements IAuthService {
     }
 
     @Override
+    public Optional<LoginResultEntity> currentLogin(String token) {
+        return currentSession(token).flatMap(session -> {
+            UserEntity user = userRepository.queryByUsername(session.getUsername()).orElse(null);
+            RoleEntity role = roleRepository.queryByKey(session.getRoleKey()).orElse(null);
+            if (user == null) {
+                return Optional.empty();
+            }
+            boolean isAdmin = "admin".equals(role == null ? null : role.getKey());
+            boolean isDev = "dev".equals(role == null ? null : role.getKey());
+            if (role != null) {
+                role.setAdmin(isAdmin);
+                role.setDev(isDev);
+                role.setAdminOrDev(isAdmin || isDev);
+            }
+            return Optional.of(LoginResultEntity.builder()
+                    .user(UserEntity.builder()
+                            .id(user.getId()).username(user.getUsername()).password(null).status(user.getStatus())
+                            .email(user.getEmail()).birth(user.getBirth()).phone(user.getPhone())
+                            .updatedAt(user.getUpdatedAt()).createdAt(user.getCreatedAt())
+                            .lastLoginRole(session.getRoleKey()).nickname(user.getNickname())
+                            .uuid(user.getUuid()).desc(user.getDesc()).avatar(user.getAvatar())
+                            .build())
+                    .role(role)
+                    .token(token)
+                    .build());
+        });
+    }
+
+    @Override
     public Optional<SessionVO> currentSession(String token) {
         if (token == null) {
             return Optional.empty();

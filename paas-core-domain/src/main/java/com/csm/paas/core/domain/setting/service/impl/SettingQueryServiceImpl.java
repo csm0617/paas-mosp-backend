@@ -22,4 +22,9 @@ public class SettingQueryServiceImpl implements ISettingQueryService {
         log.info("查询系统设置 共 {} 条", all.size());
         return all;
     }
+
+    @Override
+    public boolean queryBooleanValue(String key) {
+        return settingRepository.queryValue(key).map("true"::equals).orElse(false);
+    }
 }

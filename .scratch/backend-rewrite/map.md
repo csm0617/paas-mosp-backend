@@ -71,6 +71,9 @@ Label: `wayfinder:map`
 - （进展·重要）[真实前端已把我们的后端当后端用](docs/findings/16-frontend-drives-our-backend.md)：外壳全部端点 200（`/v1/user`、`/v1/user/get`、`/v1/role`、`/settings`、`/v1/lang/current`、`/v1/licence/info`、`/v1/mode/current`）。
 - （待解）`/software/workloads` 仍被路由守卫弹回登录页；可疑 404：`/v1/licence/checkAndActiveGis`、`/v1/pub/quickStart`（**未定论**，先补这两个再复测）。
 
+- （里程碑）[前端不再被弹回登录页](docs/findings/17-user-endpoint-returns-userlogined.md)：根因是 `GET /v1/user` 必须是 **20 键的 `UserLogined`**（含 `role`，前端用它判 `canAdmin`）——我此前误记为 14 键（打印截断所致）。修正后真实前端停在 `/gaop/software/workloads` 并渲染完整外壳。
+- （下一轮）该页还要三个端点：`/v1/image/projectList`、`/v1/role/software`（均已有样本）、`/v1/pub/etcd_label/check`（需抓）。
+
 ## Not yet specified
 
 <!-- 看得见、但还说不成一句精确问题的雾 -->

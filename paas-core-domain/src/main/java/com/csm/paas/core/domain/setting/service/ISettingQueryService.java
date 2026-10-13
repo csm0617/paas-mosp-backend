@@ -8,4 +8,7 @@ import java.util.List;
 public interface ISettingQueryService {
 
     List<SettingEntity> queryAll();
+
+    /** 取布尔设置；缺失或非 "true" 一律 false（厂商 `getQuickStartStatus()` 同款）。 */
+    boolean queryBooleanValue(String key);
 }
