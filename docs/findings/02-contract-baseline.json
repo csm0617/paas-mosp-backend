@@ -35,8 +35,8 @@
     "path": "recovered-web/decompiled/umi.d08aa716.js（webpack module 22239）",
     "desc": "前端 service 层全量：255 个构造请求的函数（209 字面量 + 46 拼接）",
     "counts": {
-     "functions": 255,
-     "concatUrl": 46
+     "functions": 258,
+     "concatUrl": 49
     }
    },
    {
@@ -61,17 +61,20 @@
   "apiDocsPaths": 500,
   "controllerHandlers": 605,
   "controllerFiles": 51,
-  "frontendServiceFunctions": 255,
+  "frontendServiceFunctions": 258,
   "frontendServiceFunctionsInCatalogue": 196,
-  "frontendServiceFunctionsMissingFromCatalogue": 59,
+  "frontendServiceFunctionsMissingFromCatalogue": 62,
   "frontendUrlLiterals": 229,
+  "frontendLiteralsWithDirectCallSiteOutsideMainBundle": 40,
+  "frontendLiteralsAbsentFromMainBundle": 35,
   "endpointRecords": 605,
   "endpointRecordsInApiDocs": 542,
-  "endpointRecordsCalledByFrontend": 253,
-  "apiDocsOpsCalledByFrontend": 280,
-  "apiDocsOpsCalledByServiceLayer": 253,
-  "frontendOnly": 36,
-  "backendUncalled": 318,
+  "endpointRecordsCalledByFrontend": 278,
+  "apiDocsOpsCalledByFrontend": 283,
+  "apiDocsOpsCalledByServiceLayer": 254,
+  "apiDocsOpsCalledOnlyByDirectLiteral": 29,
+  "frontendOnly": 38,
+  "backendUncalled": 317,
   "nearMissPaths": 21,
   "nonBusinessRoutes": 8,
   "crossServiceRoutes": 3
@@ -16793,7 +16796,7 @@
     {
      "fn": "_e",
      "exportKey": "Wt3",
-     "url": "/v3/software/backup/status?taskId=",
+     "url": "/v3/software/backup/status?taskId={taskId}",
      "method": "GET",
      "baseURLOverride": null,
      "pageChunks": [
@@ -20968,7 +20971,24 @@
     },
     "controllerReturn": "Response<SubRole>"
    },
-   "frontendCallers": [],
+   "frontendCallers": [
+    {
+     "fn": "Bi",
+     "exportKey": "RT0",
+     "url": "/v1/sub_role/{e}",
+     "method": "GET",
+     "baseURLOverride": null,
+     "pageChunks": [
+      {
+       "chunk": "p__user__subRoleManage.8a7129a5.async.js",
+       "source": "src/pages/user/subRoleManage"
+      }
+     ],
+     "sharedChunks": [],
+     "recordedInApiCatalogue": false,
+     "evidence": "recovered-web/decompiled/umi.d08aa716.js (webpack module 22239, function Bi)"
+    }
+   ],
    "frontendDirectCallSites": [],
    "runtime": {
     "inApiDocs": true,
@@ -38496,13 +38516,13 @@
  "frontendEvidence": {
   "serviceLayer": {
    "source": "recovered-web/decompiled/umi.d08aa716.js（webpack module 22239）",
-   "functions": 255,
-   "concatUrl": 46
+   "functions": 258,
+   "concatUrl": 49
   },
   "catalogueGap": {
    "recorded": 196,
-   "actual": 255,
-   "missing": 59,
+   "actual": 258,
+   "missing": 62,
    "explanation": "api-catalogue.json 只含字面量 URL 的函数；46 个用 .concat/`+` 拼路径参数的函数（如 fn l = GET /v1/software/{id}）未收录，因此\"196/196 命中\"是在该受限集合内成立，不代表前端只调用 196 个端点。",
    "missingFns": [
     {
@@ -38638,7 +38658,7 @@
     {
      "fn": "_e",
      "method": "GET",
-     "url": "/v3/software/backup/status?taskId="
+     "url": "/v3/software/backup/status?taskId={taskId}"
     },
     {
      "fn": "Ce",
@@ -38721,6 +38741,11 @@
      "url": "/v1/pub/file/storage"
     },
     {
+     "fn": "kn",
+     "method": "GET",
+     "url": "/v1/pub/file/list"
+    },
+    {
      "fn": "Yn",
      "method": "GET",
      "url": "/v1/config_map/{name}/exist"
@@ -38756,6 +38781,16 @@
      "url": "/v1/role/{roleId}/app/{appId}"
     },
     {
+     "fn": "Ai",
+     "method": "DELETE",
+     "url": "/v1/pub/file/{fileId}"
+    },
+    {
+     "fn": "Ii",
+     "method": "DELETE",
+     "url": "/v1/pub/file/delete"
+    },
+    {
      "fn": "Di",
      "method": "DELETE",
      "url": "/v1/config_map/{name}/config/{configName}"
@@ -38768,7 +38803,7 @@
     {
      "fn": "Bi",
      "method": "GET",
-     "url": "/v1/sub_role/"
+     "url": "/v1/sub_role/{e}"
     },
     {
      "fn": "Hi",
@@ -39141,234 +39176,278 @@
    }
   ],
   "directCallLiteralsOutsideServiceLayer": {
-   "/v1/software/import": [
-    "1675.fc6af69f.async.js",
-    "p__software.3edb99c9.async.js"
-   ],
-   "/v1/config_map/importListen": [
-    "1675.fc6af69f.async.js",
-    "p__software.3edb99c9.async.js"
-   ],
-   "/v1/config_map/import": [
-    "1675.fc6af69f.async.js",
-    "p__software.3edb99c9.async.js"
-   ],
-   "/v1/pub/import": [
-    "1675.fc6af69f.async.js",
-    "3597.cd5ffad5.async.js",
-    "4769.c0ef8504.async.js",
-    "7561.a42b469c.async.js",
-    "layouts__index.37d36734.async.js",
-    "p__ServiceConfig.c6dd5f3a.async.js",
-    "p__software.3edb99c9.async.js"
-   ],
-   "/v1/pub/file/upload/": [
-    "1675.fc6af69f.async.js",
-    "p__software.3edb99c9.async.js"
-   ],
-   "/v1/image/upload?storage=": [
-    "1675.fc6af69f.async.js",
-    "3597.cd5ffad5.async.js",
-    "4769.c0ef8504.async.js",
-    "7561.a42b469c.async.js",
-    "layouts__index.37d36734.async.js",
-    "p__ServiceConfig.c6dd5f3a.async.js",
-    "p__software.3edb99c9.async.js"
-   ],
-   "/v1/image/clean": [
-    "1675.fc6af69f.async.js",
-    "p__software.3edb99c9.async.js"
-   ],
-   "/api/gaop": [
-    "1675.fc6af69f.async.js",
-    "3597.cd5ffad5.async.js",
-    "3900.97fc5443.async.js",
-    "4769.c0ef8504.async.js",
-    "5328.f3271109.async.js",
-    "7561.a42b469c.async.js",
-    "layouts__index.37d36734.async.js",
-    "p__ContinuousIntegration.58e14171.async.js",
-    "p__MonitorStatus__components__SystemService.4c018160.async.js",
-    "p__MySQLSetting__components__DatabaseInfo.63bc2496.async.js",
-    "p__ServiceConfig.c6dd5f3a.async.js",
-    "p__ServicePod.95dae6d4.async.js",
-    "p__SystemOverview.9a060da2.async.js",
-    "p__SystemServiceManage__components__SystemServiceDetail.823a5797.async.js",
-    "p__log.5f5fc494.async.js",
-    "p__software.3edb99c9.async.js"
-   ],
-   "/v1/image/download?name=": [
-    "3597.cd5ffad5.async.js",
-    "p__software.3edb99c9.async.js"
-   ],
-   "/v1/user/import": [
-    "3597.cd5ffad5.async.js",
-    "4769.c0ef8504.async.js",
-    "7561.a42b469c.async.js",
-    "layouts__index.37d36734.async.js",
-    "p__ServiceConfig.c6dd5f3a.async.js",
-    "p__software.3edb99c9.async.js"
-   ],
-   "/v1/role/import": [
-    "3597.cd5ffad5.async.js",
-    "4769.c0ef8504.async.js",
-    "7561.a42b469c.async.js",
-    "layouts__index.37d36734.async.js",
-    "p__ServiceConfig.c6dd5f3a.async.js",
-    "p__software.3edb99c9.async.js"
-   ],
-   "/v1/sub_role/import": [
-    "3597.cd5ffad5.async.js",
-    "4769.c0ef8504.async.js",
-    "7561.a42b469c.async.js",
-    "layouts__index.37d36734.async.js",
-    "p__ServiceConfig.c6dd5f3a.async.js",
-    "p__software.3edb99c9.async.js"
-   ],
-   "/v1/user/update_avatar/": [
-    "3597.cd5ffad5.async.js",
-    "4769.c0ef8504.async.js",
-    "7561.a42b469c.async.js",
-    "layouts__index.37d36734.async.js",
-    "p__ServiceConfig.c6dd5f3a.async.js",
-    "p__software.3edb99c9.async.js"
-   ],
-   "/v1/software/": [
-    "3597.cd5ffad5.async.js",
-    "4769.c0ef8504.async.js",
-    "7561.a42b469c.async.js",
-    "layouts__index.37d36734.async.js",
-    "p__ServiceConfig.c6dd5f3a.async.js",
-    "p__software.3edb99c9.async.js"
-   ],
-   "/v1/backup/singleDownload": [
-    "3597.cd5ffad5.async.js",
-    "4769.c0ef8504.async.js",
-    "7561.a42b469c.async.js",
-    "layouts__index.37d36734.async.js",
-    "p__ServiceConfig.c6dd5f3a.async.js",
-    "p__software.3edb99c9.async.js"
-   ],
-   "/v1/backup/baseData": [
-    "3597.cd5ffad5.async.js",
-    "4769.c0ef8504.async.js",
-    "7561.a42b469c.async.js",
-    "layouts__index.37d36734.async.js",
-    "p__ServiceConfig.c6dd5f3a.async.js",
-    "p__software.3edb99c9.async.js"
-   ],
-   "/v1/pub/cicd_v2": [
-    "3597.cd5ffad5.async.js",
-    "4769.c0ef8504.async.js",
-    "7561.a42b469c.async.js",
-    "layouts__index.37d36734.async.js",
-    "p__ServiceConfig.c6dd5f3a.async.js",
-    "p__software.3edb99c9.async.js"
-   ],
-   "/v1/database": [
-    "3597.cd5ffad5.async.js",
-    "4769.c0ef8504.async.js",
-    "7561.a42b469c.async.js",
-    "layouts__index.37d36734.async.js",
-    "p__ServiceConfig.c6dd5f3a.async.js",
-    "p__software.3edb99c9.async.js"
-   ],
-   "/v1/image/repositories": [
-    "3597.cd5ffad5.async.js",
-    "4769.c0ef8504.async.js",
-    "7561.a42b469c.async.js",
-    "layouts__index.37d36734.async.js",
-    "p__ServiceConfig.c6dd5f3a.async.js",
-    "p__software.3edb99c9.async.js"
-   ],
-   "/v1/database/allService": [
-    "3597.cd5ffad5.async.js",
-    "4769.c0ef8504.async.js",
-    "7561.a42b469c.async.js",
-    "layouts__index.37d36734.async.js",
-    "p__ServiceConfig.c6dd5f3a.async.js",
-    "p__software.3edb99c9.async.js"
-   ],
-   "/v1/lang/import": [
-    "3597.cd5ffad5.async.js",
-    "4769.c0ef8504.async.js",
-    "7561.a42b469c.async.js",
-    "layouts__index.37d36734.async.js",
-    "p__ServiceConfig.c6dd5f3a.async.js",
-    "p__software.3edb99c9.async.js"
-   ],
-   "/v1/backup/backupLogs": [
-    "3597.cd5ffad5.async.js",
-    "4769.c0ef8504.async.js",
-    "7561.a42b469c.async.js",
-    "layouts__index.37d36734.async.js",
-    "p__ServiceConfig.c6dd5f3a.async.js",
-    "p__software.3edb99c9.async.js"
-   ],
-   "/v1/backup/recoveryLogs": [
-    "3597.cd5ffad5.async.js",
-    "4769.c0ef8504.async.js",
-    "7561.a42b469c.async.js",
-    "layouts__index.37d36734.async.js",
-    "p__ServiceConfig.c6dd5f3a.async.js",
-    "p__software.3edb99c9.async.js"
-   ],
-   "/api/v1/namespaces/": [
-    "3900.97fc5443.async.js"
-   ],
-   "/api/v1/persistentvolumes": [
-    "3900.97fc5443.async.js"
-   ],
-   "/api/v1/pods": [
-    "3900.97fc5443.async.js"
-   ],
-   "/v1/database/": [
-    "p__MySQLSetting__components__DatabaseInfo.63bc2496.async.js"
-   ],
-   "/v1/database/update": [
-    "p__MySQLSetting__components__DatabaseInfo.63bc2496.async.js"
-   ],
-   "/v1/database/export/": [
-    "p__MySQLSetting__components__DatabaseInfo.63bc2496.async.js"
-   ],
-   "/v1/database/download?fileName=": [
-    "p__MySQLSetting__components__SqlLog.45ea9e25.async.js"
-   ],
-   "/v1/config_map/backup": [
-    "p__ServiceConfig.c6dd5f3a.async.js"
-   ],
-   "/v1/pub/file/download/": [
-    "p__file.67d684e0.async.js"
-   ],
-   "/v1/role/backup": [
-    "p__role.61a39591.async.js"
-   ],
-   "/v1/role/import/template": [
-    "p__role.61a39591.async.js"
-   ],
-   "/v1/software/image_base64": [
-    "p__software.3edb99c9.async.js"
-   ],
-   "/api/gaop/v3/software/backup/download?taskId=": [
-    "p__software.3edb99c9.async.js"
-   ],
-   "/v1/sub_role/export": [
-    "p__user__subRoleManage.8a7129a5.async.js"
-   ],
-   "/v1/sub_role/import/template": [
-    "p__user__subRoleManage.8a7129a5.async.js"
-   ],
-   "/v1/user/backup": [
-    "p__user__user-setting.8925a570.async.js"
-   ],
-   "/v1/user/import/template": [
-    "p__user__user-setting.8925a570.async.js"
+   "definition": "在主包之外（p__*/layouts__*/数字 async chunk）至少出现一次的 URL 字面量 → 该 URL 的直连调用点",
+   "count": 40,
+   "items": {
+    "/v1/software/import": [
+     "1675.fc6af69f.async.js",
+     "p__software.3edb99c9.async.js"
+    ],
+    "/v1/config_map/importListen": [
+     "1675.fc6af69f.async.js",
+     "p__software.3edb99c9.async.js"
+    ],
+    "/v1/config_map/import": [
+     "1675.fc6af69f.async.js",
+     "p__software.3edb99c9.async.js"
+    ],
+    "/v1/pub/import": [
+     "1675.fc6af69f.async.js",
+     "3597.cd5ffad5.async.js",
+     "4769.c0ef8504.async.js",
+     "7561.a42b469c.async.js",
+     "layouts__index.37d36734.async.js",
+     "p__ServiceConfig.c6dd5f3a.async.js",
+     "p__software.3edb99c9.async.js"
+    ],
+    "/v1/pub/file/upload/": [
+     "1675.fc6af69f.async.js",
+     "p__software.3edb99c9.async.js"
+    ],
+    "/v1/image/upload?storage=": [
+     "1675.fc6af69f.async.js",
+     "3597.cd5ffad5.async.js",
+     "4769.c0ef8504.async.js",
+     "7561.a42b469c.async.js",
+     "layouts__index.37d36734.async.js",
+     "p__ServiceConfig.c6dd5f3a.async.js",
+     "p__software.3edb99c9.async.js"
+    ],
+    "/v1/image/clean": [
+     "1675.fc6af69f.async.js",
+     "p__software.3edb99c9.async.js"
+    ],
+    "/api/gaop": [
+     "1675.fc6af69f.async.js",
+     "3597.cd5ffad5.async.js",
+     "3900.97fc5443.async.js",
+     "4769.c0ef8504.async.js",
+     "5328.f3271109.async.js",
+     "7561.a42b469c.async.js",
+     "layouts__index.37d36734.async.js",
+     "p__ContinuousIntegration.58e14171.async.js",
+     "p__MonitorStatus__components__SystemService.4c018160.async.js",
+     "p__MySQLSetting__components__DatabaseInfo.63bc2496.async.js",
+     "p__ServiceConfig.c6dd5f3a.async.js",
+     "p__ServicePod.95dae6d4.async.js",
+     "p__SystemOverview.9a060da2.async.js",
+     "p__SystemServiceManage__components__SystemServiceDetail.823a5797.async.js",
+     "p__log.5f5fc494.async.js",
+     "p__software.3edb99c9.async.js"
+    ],
+    "/v1/image/download?name=": [
+     "3597.cd5ffad5.async.js",
+     "p__software.3edb99c9.async.js"
+    ],
+    "/v1/user/import": [
+     "3597.cd5ffad5.async.js",
+     "4769.c0ef8504.async.js",
+     "7561.a42b469c.async.js",
+     "layouts__index.37d36734.async.js",
+     "p__ServiceConfig.c6dd5f3a.async.js",
+     "p__software.3edb99c9.async.js"
+    ],
+    "/v1/role/import": [
+     "3597.cd5ffad5.async.js",
+     "4769.c0ef8504.async.js",
+     "7561.a42b469c.async.js",
+     "layouts__index.37d36734.async.js",
+     "p__ServiceConfig.c6dd5f3a.async.js",
+     "p__software.3edb99c9.async.js"
+    ],
+    "/v1/sub_role/import": [
+     "3597.cd5ffad5.async.js",
+     "4769.c0ef8504.async.js",
+     "7561.a42b469c.async.js",
+     "layouts__index.37d36734.async.js",
+     "p__ServiceConfig.c6dd5f3a.async.js",
+     "p__software.3edb99c9.async.js"
+    ],
+    "/v1/user/update_avatar/": [
+     "3597.cd5ffad5.async.js",
+     "4769.c0ef8504.async.js",
+     "7561.a42b469c.async.js",
+     "layouts__index.37d36734.async.js",
+     "p__ServiceConfig.c6dd5f3a.async.js",
+     "p__software.3edb99c9.async.js"
+    ],
+    "/v1/software/": [
+     "3597.cd5ffad5.async.js",
+     "4769.c0ef8504.async.js",
+     "7561.a42b469c.async.js",
+     "layouts__index.37d36734.async.js",
+     "p__ServiceConfig.c6dd5f3a.async.js",
+     "p__software.3edb99c9.async.js"
+    ],
+    "/v1/backup/singleDownload": [
+     "3597.cd5ffad5.async.js",
+     "4769.c0ef8504.async.js",
+     "7561.a42b469c.async.js",
+     "layouts__index.37d36734.async.js",
+     "p__ServiceConfig.c6dd5f3a.async.js",
+     "p__software.3edb99c9.async.js"
+    ],
+    "/v1/backup/baseData": [
+     "3597.cd5ffad5.async.js",
+     "4769.c0ef8504.async.js",
+     "7561.a42b469c.async.js",
+     "layouts__index.37d36734.async.js",
+     "p__ServiceConfig.c6dd5f3a.async.js",
+     "p__software.3edb99c9.async.js"
+    ],
+    "/v1/pub/cicd_v2": [
+     "3597.cd5ffad5.async.js",
+     "4769.c0ef8504.async.js",
+     "7561.a42b469c.async.js",
+     "layouts__index.37d36734.async.js",
+     "p__ServiceConfig.c6dd5f3a.async.js",
+     "p__software.3edb99c9.async.js"
+    ],
+    "/v1/database": [
+     "3597.cd5ffad5.async.js",
+     "4769.c0ef8504.async.js",
+     "7561.a42b469c.async.js",
+     "layouts__index.37d36734.async.js",
+     "p__ServiceConfig.c6dd5f3a.async.js",
+     "p__software.3edb99c9.async.js"
+    ],
+    "/v1/image/repositories": [
+     "3597.cd5ffad5.async.js",
+     "4769.c0ef8504.async.js",
+     "7561.a42b469c.async.js",
+     "layouts__index.37d36734.async.js",
+     "p__ServiceConfig.c6dd5f3a.async.js",
+     "p__software.3edb99c9.async.js"
+    ],
+    "/v1/database/allService": [
+     "3597.cd5ffad5.async.js",
+     "4769.c0ef8504.async.js",
+     "7561.a42b469c.async.js",
+     "layouts__index.37d36734.async.js",
+     "p__ServiceConfig.c6dd5f3a.async.js",
+     "p__software.3edb99c9.async.js"
+    ],
+    "/v1/lang/import": [
+     "3597.cd5ffad5.async.js",
+     "4769.c0ef8504.async.js",
+     "7561.a42b469c.async.js",
+     "layouts__index.37d36734.async.js",
+     "p__ServiceConfig.c6dd5f3a.async.js",
+     "p__software.3edb99c9.async.js"
+    ],
+    "/v1/backup/backupLogs": [
+     "3597.cd5ffad5.async.js",
+     "4769.c0ef8504.async.js",
+     "7561.a42b469c.async.js",
+     "layouts__index.37d36734.async.js",
+     "p__ServiceConfig.c6dd5f3a.async.js",
+     "p__software.3edb99c9.async.js"
+    ],
+    "/v1/backup/recoveryLogs": [
+     "3597.cd5ffad5.async.js",
+     "4769.c0ef8504.async.js",
+     "7561.a42b469c.async.js",
+     "layouts__index.37d36734.async.js",
+     "p__ServiceConfig.c6dd5f3a.async.js",
+     "p__software.3edb99c9.async.js"
+    ],
+    "/api/v1/namespaces/": [
+     "3900.97fc5443.async.js"
+    ],
+    "/api/v1/persistentvolumes": [
+     "3900.97fc5443.async.js"
+    ],
+    "/api/v1/pods": [
+     "3900.97fc5443.async.js"
+    ],
+    "/v1/database/": [
+     "p__MySQLSetting__components__DatabaseInfo.63bc2496.async.js"
+    ],
+    "/v1/database/update": [
+     "p__MySQLSetting__components__DatabaseInfo.63bc2496.async.js"
+    ],
+    "/v1/database/export/": [
+     "p__MySQLSetting__components__DatabaseInfo.63bc2496.async.js"
+    ],
+    "/v1/database/download?fileName=": [
+     "p__MySQLSetting__components__SqlLog.45ea9e25.async.js"
+    ],
+    "/v1/config_map/backup": [
+     "p__ServiceConfig.c6dd5f3a.async.js"
+    ],
+    "/v1/pub/file/download/": [
+     "p__file.67d684e0.async.js"
+    ],
+    "/v1/role/backup": [
+     "p__role.61a39591.async.js"
+    ],
+    "/v1/role/import/template": [
+     "p__role.61a39591.async.js"
+    ],
+    "/v1/software/image_base64": [
+     "p__software.3edb99c9.async.js"
+    ],
+    "/api/gaop/v3/software/backup/download?taskId=": [
+     "p__software.3edb99c9.async.js"
+    ],
+    "/v1/sub_role/export": [
+     "p__user__subRoleManage.8a7129a5.async.js"
+    ],
+    "/v1/sub_role/import/template": [
+     "p__user__subRoleManage.8a7129a5.async.js"
+    ],
+    "/v1/user/backup": [
+     "p__user__user-setting.8925a570.async.js"
+    ],
+    "/v1/user/import/template": [
+     "p__user__user-setting.8925a570.async.js"
+    ]
+   }
+  },
+  "literalsAbsentFromMainBundle": {
+   "count": 35,
+   "items": [
+    "/api/gaop/v3/software/backup/download?taskId=",
+    "/api/v1/namespaces/",
+    "/api/v1/persistentvolumes",
+    "/api/v1/pods",
+    "/v1/backup/backupLogs",
+    "/v1/backup/baseData",
+    "/v1/backup/recoveryLogs",
+    "/v1/backup/singleDownload",
+    "/v1/config_map/backup",
+    "/v1/config_map/import",
+    "/v1/config_map/importListen",
+    "/v1/database/allService",
+    "/v1/database/download?fileName=",
+    "/v1/database/export/",
+    "/v1/database/update",
+    "/v1/image/clean",
+    "/v1/image/download?name=",
+    "/v1/image/upload?storage=",
+    "/v1/lang/import",
+    "/v1/pub/cicd_v2",
+    "/v1/pub/file/download/",
+    "/v1/pub/file/upload/",
+    "/v1/pub/import",
+    "/v1/role/backup",
+    "/v1/role/import",
+    "/v1/role/import/template",
+    "/v1/software/image_base64",
+    "/v1/software/import",
+    "/v1/sub_role/export",
+    "/v1/sub_role/import",
+    "/v1/sub_role/import/template",
+    "/v1/user/backup",
+    "/v1/user/import",
+    "/v1/user/import/template",
+    "/v1/user/update_avatar/"
    ]
   }
  },
  "discrepancies": {
   "frontendOnly": {
-   "count": 36,
+   "count": 38,
    "items": [
     {
      "kind": "service-function",
@@ -39376,7 +39455,7 @@
      "exportKey": "KE2",
      "method": "GET",
      "url": "/v1/pub/file/storage",
-     "baseURLOverride": null,
+     "baseURLOverride": "r.$8",
      "recordedInApiCatalogue": false,
      "category": "cross-service",
      "reason": "由 gaop-fdfs 提供（PublicMinioController）",
@@ -39385,16 +39464,42 @@
     },
     {
      "kind": "service-function",
-     "fn": "Bi",
-     "exportKey": "RT0",
+     "fn": "kn",
+     "exportKey": "fD6",
      "method": "GET",
-     "url": "/v1/sub_role/",
-     "baseURLOverride": null,
+     "url": "/v1/pub/file/list",
+     "baseURLOverride": "r.$8",
      "recordedInApiCatalogue": false,
-     "category": "prefix-of-endpoint",
-     "reason": "是 /v1/sub_role/delete 的前缀/拼接基串",
-     "verdict": "resolved",
-     "evidence": "recovered-web/decompiled/umi.d08aa716.js (module 22239, function Bi)"
+     "category": "cross-service",
+     "reason": "由 gaop-fdfs 提供（PublicMinioController）",
+     "verdict": "cross-service",
+     "evidence": "recovered-web/decompiled/umi.d08aa716.js (module 22239, function kn)"
+    },
+    {
+     "kind": "service-function",
+     "fn": "Ai",
+     "exportKey": "_de",
+     "method": "DELETE",
+     "url": "/v1/pub/file/{fileId}",
+     "baseURLOverride": "r.$8",
+     "recordedInApiCatalogue": false,
+     "category": "cross-service",
+     "reason": "由 gaop-fdfs 提供（PublicMinioController）",
+     "verdict": "cross-service",
+     "evidence": "recovered-web/decompiled/umi.d08aa716.js (module 22239, function Ai)"
+    },
+    {
+     "kind": "service-function",
+     "fn": "Ii",
+     "exportKey": "dkw",
+     "method": "DELETE",
+     "url": "/v1/pub/file/delete",
+     "baseURLOverride": "r.$8",
+     "recordedInApiCatalogue": false,
+     "category": "cross-service",
+     "reason": "由 gaop-fdfs 提供（PublicMinioController）",
+     "verdict": "cross-service",
+     "evidence": "recovered-web/decompiled/umi.d08aa716.js (module 22239, function Ii)"
     },
     {
      "kind": "url-literal",
@@ -39732,9 +39837,9 @@
      "usedIn": [
       "recovered-web/decompiled/umi.d08aa716.js:27658"
      ],
-     "category": "unknown",
-     "reason": "在 gaop-be api-docs 与 controller 源码中均无匹配",
-     "verdict": "未定论",
+     "category": "cross-system-external",
+     "reason": "第三方系统绝对地址（http://<hostname>/...，不走 /api/gaop）",
+     "verdict": "not-this-backend",
      "evidence": "recovered-web/decompiled/umi.d08aa716.js:27658"
     },
     {
@@ -39744,9 +39849,9 @@
      "usedIn": [
       "recovered-web/decompiled/umi.d08aa716.js:27658"
      ],
-     "category": "unknown",
-     "reason": "在 gaop-be api-docs 与 controller 源码中均无匹配",
-     "verdict": "未定论",
+     "category": "cross-system-external",
+     "reason": "第三方系统绝对地址（http://<hostname>/...，不走 /api/gaop）",
+     "verdict": "not-this-backend",
      "evidence": "recovered-web/decompiled/umi.d08aa716.js:27658"
     },
     {
@@ -39756,9 +39861,9 @@
      "usedIn": [
       "recovered-web/decompiled/umi.d08aa716.js:27658"
      ],
-     "category": "unknown",
-     "reason": "在 gaop-be api-docs 与 controller 源码中均无匹配",
-     "verdict": "未定论",
+     "category": "cross-system-external",
+     "reason": "第三方系统绝对地址（http://<hostname>/...，不走 /api/gaop）",
+     "verdict": "not-this-backend",
      "evidence": "recovered-web/decompiled/umi.d08aa716.js:27658"
     },
     {
@@ -39768,9 +39873,9 @@
      "usedIn": [
       "recovered-web/decompiled/umi.d08aa716.js:27658"
      ],
-     "category": "unknown",
-     "reason": "在 gaop-be api-docs 与 controller 源码中均无匹配",
-     "verdict": "未定论",
+     "category": "cross-system-external",
+     "reason": "第三方系统绝对地址（http://<hostname>/...，不走 /api/gaop）",
+     "verdict": "not-this-backend",
      "evidence": "recovered-web/decompiled/umi.d08aa716.js:27658"
     },
     {
@@ -39836,7 +39941,7 @@
    ]
   },
   "backendUncalled": {
-   "count": 318,
+   "count": 317,
    "items": [
     {
      "bucket": "api-docs-live-uncalled",
@@ -41395,18 +41500,6 @@
       "同步"
      ],
      "evidence": "recovered-web/regenerated/openapi-gaop-be.json#/paths/~1v1~1sync~1client",
-     "reason": "api-docs 运行态存在；255 个前端 service 函数与所有 chunk URL 字面量中均无调用点",
-     "verdict": "后端有、前端无调用者"
-    },
-    {
-     "bucket": "api-docs-live-uncalled",
-     "method": "GET",
-     "path": "/v1/sub_role/{id}",
-     "operationId": "subRoleDetail",
-     "tags": [
-      "席位子角色"
-     ],
-     "evidence": "recovered-web/regenerated/openapi-gaop-be.json#/paths/~1v1~1sub_role~1{id}",
      "reason": "api-docs 运行态存在；255 个前端 service 函数与所有 chunk URL 字面量中均无调用点",
      "verdict": "后端有、前端无调用者"
     },

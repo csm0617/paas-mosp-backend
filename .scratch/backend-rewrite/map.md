@@ -43,6 +43,9 @@ Label: `wayfinder:map`
 - （工单 04）[迁移障碍逐条定论](docs/findings/04-migration-blockers.md)：**纠正了白屏根因**（不是 client-java，是厂商自建 `IoK8sApiCoreV1*` DTO 的 Integer + Gson→Jackson 往返 + 吞异常）。
 - （新开）[契约判定标准](.scratch/backend-rewrite/issues/08-contract-comparison-criterion.md)：语义等价 vs 逐字节等价，待你拍板。
 
+- （工单 02）[契约基线](docs/findings/02-contract-baseline.md)：605 端点全量对账；**口径更正——前端 service 层是 258 个函数不是 196**；542/542 api-docs 都被源码覆盖；259 个端点无前端调用者。
+- （事实）[前端实际读取的字段](docs/findings/09-frontend-read-paths.md)：19 个键里 **7 个前端从不读**（含 `runningDeployment`/`fixedName`/`imageInfo`）；`serviceAuth` 为 null 会让页面显示"认证失败"，必须填。
+
 ## Not yet specified
 
 <!-- 看得见、但还说不成一句精确问题的雾 -->

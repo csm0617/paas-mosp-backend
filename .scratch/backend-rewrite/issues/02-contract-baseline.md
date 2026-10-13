@@ -1,5 +1,5 @@
 Type: research
-Status: claimed
+Status: resolved
 Blocked by: —
 
 > 路径基准：本仓为 `/Users/csm/Desktop/PaaS/paas-core/`；厂商证据在 `/Users/csm/Desktop/Project/msop/`（`recovered/`、`recovered-web/`、`docs/`），下文相对路径均以该目录为基准。
@@ -23,7 +23,11 @@ Blocked by: —
 - JSON 里每个端点都能追到来源（文件+行号，或 api-docs path）。
 - 差异清单给出计数，逐条给判定理由。
 
-## 进展（尚未完成）
+## Answer
+
+已交付 `docs/findings/02-contract-baseline.{json,md}`（605 条端点 / 386 行）。关键：**前端 service 层是 258 个函数，不是 196**（catalogue 漏了 62 个）；542/542 api-docs operation 都能在源码找到 handler；259 个运行态端点无前端调用者；57 个 handler 是 `@ConditionalOnExpression("false")` 死代码。
+
+## 进展（历史）
 
 - `docs/findings/02-contract-baseline.json` 已落（1.0 MB）。
 - `docs/findings/02-contract-baseline.md` **尚未产出** —— 本工单未完成，仍需：三方差异三桶计数 + K8s 代理路径单列。

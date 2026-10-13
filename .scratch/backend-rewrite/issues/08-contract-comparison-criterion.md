@@ -17,6 +17,17 @@ fabric8 7 + Jackson 默认省略 null，并且多出 4 个较新的 K8s 字段�
 2. **逐字节等价**：必须复刻 client-java 的 null 噪声与 `proxy` 键。代价高、脆（K8s 加字段就会漂移），但门槛最硬。
 3. **弱判定**：只要求页面能渲染、不报错。最省事，但等于放弃"契约"这条门槛。
 
+## 决策所需的证据（已备齐，2026-10-14）
+
+`docs/findings/09-frontend-read-paths.md`（静态检索全部前端 chunk）：
+
+- 19 个单项键里 **7 个前端从不读**：`runningDeployment`、`fixedName`、`imageInfo`、`volumeTypeList`、`cpuOrder`、`memoryOrder`、`gpuOrder`（全产物 0 次出现）
+  → 厂商 `runningDeployment=0` 与我方 `5` **对前端不可见**；
+- 前端确实读：`services`、`total`、`count`、`deployment.metadata.name/.namespace/.spec.template.*`、`restartCount`、`serviceAuth.auth`、`mappingInfo`、`nodePortService`、`podInfoList`、`belongNodeList`、`nameFr/nameUs`；
+- 列表项里的 `service.spec.*` 前端**不读**（`spec.ports` 只出现在**写**路径）；读 `spec.ports` 的是 **K8s 代理**那条链。
+
+⇒ 「逐字节等价」的全部代价花在前端看不见的键上；但 `serviceAuth`/`restartCount` 必须填（`serviceAuth` 为 null 会直接显示"认证失败"）。
+
 ## 验收
 
 答案写进 `## Answer`，并据此更新 ADR-0004 里"响应 JSON 形状"的判定方式。
