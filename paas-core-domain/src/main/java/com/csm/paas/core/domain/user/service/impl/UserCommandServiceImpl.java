@@ -184,4 +184,59 @@ public class UserCommandServiceImpl implements IUserCommandService {
     private static String strip(String value) {
         return value == null ? null : value.replaceAll(" +", "");
     }
+
+    @Override
+    public UserEntity prepareUpdatedUser(String userId, UserFormVO form) {
+        UserEntity existing = userRepository.queryById(userId)
+                .orElseThrow(() -> new WrongArgumentException("user.not.found"));
+
+        // ---- 口令：空则保持，否则校验长度并重新哈希 ----
+        String password = existing.getPassword();
+        if (StringUtils.hasText(form.getPassword())) {
+            String raw = form.getPassword();
+            if (raw.length() > PASSWORD_MAX || raw.length() < PASSWORD_MIN) {
+                throw new WrongArgumentException("user.change.password.invalid");
+            }
+            password = BCrypt.hashpw(raw, BCrypt.gensalt());
+        }
+
+        // ---- 用户名：空则保持，否则查重 + 长度 ----
+        String username = existing.getUsername();
+        if (StringUtils.hasText(form.getUsername())) {
+            if (!existing.getUsername().equals(form.getUsername())
+                    && userRepository.queryByUsername(form.getUsername()).isPresent()) {
+                throw new WrongArgumentException("user.change.username.exist");
+            }
+            if (form.getUsername().length() > USERNAME_MAX || form.getUsername().length() < USERNAME_MIN) {
+                throw new WrongArgumentException("user.change.username.invalid");
+            }
+            username = form.getUsername();
+        }
+
+        if (form.getEmail() != null && form.getEmail().length() > EMAIL_MAX) {
+            throw new WrongArgumentException("user.mail.invalid");
+        }
+        if (form.getDesc() != null && form.getDesc().length() > DESC_MAX) {
+            throw new WrongArgumentException("user.change.desc.invalid");
+        }
+
+        return UserEntity.builder()
+                .id(existing.getId())
+                .username(username)
+                .nickname(form.getNickname() != null ? form.getNickname() : existing.getNickname())
+                .password(password)
+                .status(form.getStatus() != null ? form.getStatus() : existing.getStatus())
+                // 厂商：修改时 desc 为空白置 **空串**（新增时置 null）——两处不同，照抄
+                .desc(StringUtils.hasText(form.getDesc()) ? form.getDesc() : "")
+                // 厂商：email/birth/phone **强制写回原值**（:716-718），所以这三个字段改不动
+                .email(existing.getEmail())
+                .birth(existing.getBirth())
+                .phone(existing.getPhone())
+                .avatar(StringUtils.hasText(form.getAvatar()) ? form.getAvatar() : existing.getAvatar())
+                .uuid(existing.getUuid())
+                .lastLoginRole(existing.getLastLoginRole())
+                .createdAt(existing.getCreatedAt())
+                .updatedAt(System.currentTimeMillis())
+                .build();
+    }
 }

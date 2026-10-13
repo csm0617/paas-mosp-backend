@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 @Mapper
 public interface IUserDao {
@@ -98,6 +99,19 @@ public interface IUserDao {
                     #{updatedAt}, #{createdAt}, #{avatar}, #{lastLoginRole}, #{nickname}, #{uuid})
             """)
     int insert(UserPO user);
+
+    /**
+     * 更新用户。列集合对齐厂商 `updateByPrimaryKeySelective` 实际会写到的字段
+     * （`uuid`/`api_token`/`tenx_username`/`last_login_role` 在厂商那边是 null，不会被写）。
+     */
+    @Update("""
+            UPDATE g_user SET username = #{username}, password = #{password}, status = #{status},
+                              nickname = #{nickname}, `desc` = #{desc}, avatar = #{avatar},
+                              email = #{email}, birth = #{birth}, phone = #{phone},
+                              created_at = #{createdAt}, updated_at = #{updatedAt}
+            WHERE id = #{id}
+            """)
+    int update(UserPO user);
 
     /**
      * 按 key 取战位/角色（id + key），供调用方按入参顺序重排。

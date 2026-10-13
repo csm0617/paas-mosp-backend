@@ -99,6 +99,11 @@ public class UserRepository implements IUserRepository {
     }
 
     @Override
+    public void update(UserEntity user) {
+        userDao.update(toPO(user));
+    }
+
+    @Override
     public List<String> queryRoleIdsByKeys(List<String> keys) {
         if (keys == null || keys.isEmpty()) {
             return List.of();

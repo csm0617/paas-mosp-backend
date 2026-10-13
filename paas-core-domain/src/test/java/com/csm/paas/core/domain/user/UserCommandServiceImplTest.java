@@ -230,4 +230,123 @@ class UserCommandServiceImplTest {
     private static UserEntity userWithUuid(String id, String username, Integer uuid) {
         return UserEntity.builder().id(id).username(username).status(1).uuid(uuid).build();
     }
+
+    // ---------- prepareUpdatedUser（修改用户）----------
+
+    @Test
+    void updateRejectsMissingUser() {
+        when(userRepository.queryById("nope")).thenReturn(java.util.Optional.empty());
+        assertEquals("user.not.found", keyUpdate(() -> service().prepareUpdatedUser("nope", form(null, null))));
+    }
+
+    @Test
+    void blankPasswordKeepsExistingHash() {
+        when(userRepository.queryById("u1")).thenReturn(java.util.Optional.of(existing("u1", "bob")));
+
+        UserEntity updated = service().prepareUpdatedUser("u1", form(null, null));
+
+        assertEquals(EXISTING_HASH, updated.getPassword(), "口令为空 → 保持原哈希（不重新哈希）");
+    }
+
+    @Test
+    void newPasswordIsValidatedAndHashed() {
+        when(userRepository.queryById("u1")).thenReturn(java.util.Optional.of(existing("u1", "bob")));
+        assertEquals("user.change.password.invalid",
+                keyUpdate(() -> service().prepareUpdatedUser("u1", form(null, "12345"))));
+
+        UserEntity updated = service().prepareUpdatedUser("u1", form(null, "newpass123"));
+        assertTrue(BCrypt.checkpw("newpass123", updated.getPassword()), "新口令必须重新哈希");
+    }
+
+    @Test
+    void blankUsernameKeepsExisting() {
+        when(userRepository.queryById("u1")).thenReturn(java.util.Optional.of(existing("u1", "bob")));
+
+        assertEquals("bob", service().prepareUpdatedUser("u1", form(null, null)).getUsername());
+    }
+
+    @Test
+    void usernameTakenByAnotherIsRejectedButSelfIsFine() {
+        when(userRepository.queryById("u1")).thenReturn(java.util.Optional.of(existing("u1", "bob")));
+        when(userRepository.queryByUsername("bob")).thenReturn(java.util.Optional.of(existing("u1", "bob")));
+        // 改成自己现在的名字：不算重复
+        assertEquals("bob", service().prepareUpdatedUser("u1", form("bob", null)).getUsername());
+
+        when(userRepository.queryByUsername("carol")).thenReturn(java.util.Optional.of(existing("u2", "carol")));
+        assertEquals("user.change.username.exist",
+                keyUpdate(() -> service().prepareUpdatedUser("u1", form("carol", null))));
+    }
+
+    @Test
+    void newUsernameLengthIsValidated() {
+        when(userRepository.queryById("u1")).thenReturn(java.util.Optional.of(existing("u1", "bob")));
+        when(userRepository.queryByUsername("a")).thenReturn(java.util.Optional.empty());
+
+        assertEquals("user.change.username.invalid",
+                keyUpdate(() -> service().prepareUpdatedUser("u1", form("a", null))));
+    }
+
+    @Test
+    void emailAndDescLimitsUseTheUpdateSpecificKeys() {
+        when(userRepository.queryById("u1")).thenReturn(java.util.Optional.of(existing("u1", "bob")));
+        UserFormVO longEmail = form(null, null);
+        longEmail.setEmail("x".repeat(37));
+        assertEquals("user.mail.invalid", keyUpdate(() -> service().prepareUpdatedUser("u1", longEmail)));
+
+        UserFormVO longDesc = form(null, null);
+        longDesc.setDesc("x".repeat(256));
+        assertEquals("user.change.desc.invalid", keyUpdate(() -> service().prepareUpdatedUser("u1", longDesc)));
+    }
+
+    /** 新增时空白 desc 置 null；**修改时置空串** —— 两处不同，这条最容易"顺手统一"掉。 */
+    @Test
+    void blankDescBecomesEmptyStringOnUpdate() {
+        when(userRepository.queryById("u1")).thenReturn(java.util.Optional.of(existing("u1", "bob")));
+
+        assertEquals("", service().prepareUpdatedUser("u1", form(null, null)).getDesc());
+    }
+
+    /** 厂商会把 email/birth/phone 强制写回原值（UserService.java:716-718）⇒ 表单传了也改不动。 */
+    @Test
+    void emailBirthPhoneAreForcedBackToExistingValues() {
+        UserEntity existing = existing("u1", "bob");
+        existing.setEmail("old@x.com");
+        existing.setPhone("13900000000");
+        when(userRepository.queryById("u1")).thenReturn(java.util.Optional.of(existing));
+
+        UserFormVO form = form(null, null);
+        form.setEmail("new@x.com");
+        form.setPhone("13800000000");
+        form.setBirth(java.util.Date.from(java.time.Instant.parse("2000-01-01T00:00:00Z")));
+
+        UserEntity updated = service().prepareUpdatedUser("u1", form);
+
+        assertEquals("old@x.com", updated.getEmail(), "email 改不动（厂商强制写回）");
+        assertEquals("13900000000", updated.getPhone(), "phone 改不动");
+        assertEquals(existing.getBirth(), updated.getBirth(), "birth 改不动");
+    }
+
+    @Test
+    void blankAvatarKeepsExistingAndCreatedAtIsPreserved() {
+        UserEntity existing = existing("u1", "bob");
+        existing.setAvatar("OLD-AVATAR");
+        existing.setCreatedAt(123L);
+        when(userRepository.queryById("u1")).thenReturn(java.util.Optional.of(existing));
+
+        UserEntity updated = service().prepareUpdatedUser("u1", form(null, null));
+        assertEquals("OLD-AVATAR", updated.getAvatar());
+        assertEquals(123L, updated.getCreatedAt(), "createdAt 必须保留原值");
+        assertTrue(updated.getUpdatedAt() > 0L, "updatedAt 必须刷新");
+    }
+
+    private String keyUpdate(java.util.concurrent.Callable<UserEntity> action) {
+        return assertThrows(WrongArgumentException.class, action::call).getI18nKey();
+    }
+
+    private static final String EXISTING_HASH = "$2a$10$existingHashValue";
+
+    private static UserEntity existing(String id, String username) {
+        return UserEntity.builder().id(id).username(username).password(EXISTING_HASH)
+                .status(1).nickname("昵称").createdAt(1L).updatedAt(1L).build();
+    }
 }

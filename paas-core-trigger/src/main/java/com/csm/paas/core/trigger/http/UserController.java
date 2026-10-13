@@ -14,6 +14,7 @@ import com.csm.paas.core.domain.user.model.valobj.UserCallerVO;
 import com.csm.paas.core.domain.user.model.valobj.UserFormVO;
 import com.csm.paas.core.domain.user.service.IAuthService;
 import com.csm.paas.core.cases.user.IUserAddCase;
+import com.csm.paas.core.cases.user.IUserUpdateCase;
 import com.csm.paas.core.domain.user.model.entity.UserEntity;
 import com.csm.paas.core.domain.user.service.IUserCommandService;
 import com.csm.paas.core.domain.user.service.IUserQueryService;
@@ -32,6 +33,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -60,6 +62,9 @@ public class UserController {
 
     @Resource
     private IUserAddCase userAddCase;
+
+    @Resource
+    private IUserUpdateCase userUpdateCase;
 
     /**
      * 厂商 `GET /v1/user/info`：用户管理列表（用户 + 关联战位 + 关联子角色）。
@@ -112,6 +117,39 @@ public class UserController {
         }
         UserEntity created = userAddCase.addUser(toFormVO(form));
         return ResponseDTO.ok(UserAssembler.toResponse(created));
+    }
+
+    /**
+     * 厂商 `PUT /v1/user/{userId}`：修改用户。
+     * <p>权限矩阵照抄厂商 `UserController.updateUser`（`UserController.java:405-428`）：
+     * <ol>
+     *   <li>调用者 username == `admin` → 谁都能改；</li>
+     *   <li>否则调用者有 admin 战位 → **不能改 `admin` 用户**（400 `role.cannot.modify.super.op.admin.storage`），其余可改；</li>
+     *   <li>否则**只能改自己**；改别人 → **HTTP 500** `role.normal.user.cannot.modify.other.user`（SystemException，不是 403）。</li>
+     * </ol>
+     * <p>域规则与"哪些字段能改"（含 **email/birth/phone 被强制写回原值**）见
+     * {@code IUserCommandService.prepareUpdatedUser}。
+     */
+    @PutMapping("/v1/user/{userId}")
+    public ResponseDTO<UserDTO> updateUser(@PathVariable String userId, @RequestBody UserFormDTO form,
+                                          HttpServletRequest request) {
+        UserCallerVO caller = currentCaller(request);
+        if (!"admin".equals(caller.getUsername())) {
+            java.util.Optional<UserEntity> adminUser = userRepository.queryByUsername("admin");
+            if (caller.isAdminRole()) {
+                if (adminUser.isPresent() && userId.equals(adminUser.get().getId())) {
+                    throw new WrongArgumentException("role.cannot.modify.super.op.admin.storage");
+                }
+            } else {
+                String callerId = userRepository.queryByUsername(caller.getUsername())
+                        .map(UserEntity::getId).orElse(null);
+                if (callerId == null || !callerId.equals(userId)) {
+                    throw new SystemException("role.normal.user.cannot.modify.other.user");
+                }
+            }
+        }
+        UserEntity updated = userUpdateCase.updateUser(userId, toFormVO(form));
+        return ResponseDTO.ok(UserAssembler.toResponse(updated));
     }
 
     private static UserFormVO toFormVO(UserFormDTO form) {

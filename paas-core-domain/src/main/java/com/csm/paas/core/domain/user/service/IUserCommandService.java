@@ -36,4 +36,21 @@ public interface IUserCommandService {
      */
     com.csm.paas.core.domain.user.model.entity.UserEntity prepareNewUser(
             com.csm.paas.core.domain.user.model.valobj.UserFormVO form);
+
+    /**
+     * **构造**（不落库）修改后的用户实体：跑完厂商 `update` 里的全部校验与"哪些字段能改"的规则
+     * （`UserService.java:599-726`）。
+     *
+     * <p>三条必须照抄的怪行为：
+     * <ol>
+     *   <li>**`email`/`birth`/`phone` 被强制写回原值**（`:716-718`）⇒ 这三个字段**改不动**，表单传了也没用；</li>
+     *   <li>用户名/口令/昵称/`status` 为空（null）时**保持原值**（厂商用 `updateByPrimaryKeySelective`）；</li>
+     *   <li>`desc` 为空白时置 **空串 `""`** —— 注意**新增**时厂商置的是 `null`（`:476-478`），两处不同。</li>
+     * </ol>
+     * 校验：口令长度 6~36（`user.change.password.invalid`）、用户名查重（`user.change.username.exist`）
+     * 与长度 2~36（`user.change.username.invalid`）、email &gt;36（`user.mail.invalid`）、
+     * desc &gt;255（`user.change.desc.invalid`）、目标不存在（`user.not.found`）。
+     */
+    com.csm.paas.core.domain.user.model.entity.UserEntity prepareUpdatedUser(
+            String userId, com.csm.paas.core.domain.user.model.valobj.UserFormVO form);
 }

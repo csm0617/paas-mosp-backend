@@ -58,6 +58,13 @@ public interface IUserRepository {
 
     void insert(UserEntity user);
 
+    /**
+     * 更新用户（厂商 `UserService.update` 末尾的 `updateByPrimaryKeySelective`，`UserService.java:726`）。
+     * <p>只更新厂商会动的那些列：`username/password/status/nickname/desc/avatar/email/birth/phone/created_at/updated_at`
+     * ——`uuid`/`api_token`/`tenx_username`/`last_login_role` 在厂商那边是 null 所以不会被写。
+     */
+    void update(UserEntity user);
+
     /** 按 key 批量取战位/角色 id（厂商在 `add`/`update` 里逐个 select by key，这里合成一条）。 */
     List<String> queryRoleIdsByKeys(List<String> keys);
 
