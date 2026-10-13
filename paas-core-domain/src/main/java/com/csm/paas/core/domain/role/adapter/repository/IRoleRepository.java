@@ -42,4 +42,20 @@ public interface IRoleRepository {
 
     /** 战位关联的子角色 id（厂商 `getSubRoleListByRoleId`：`g_sub_role_role` 连 `g_sub_role`）。 */
     List<String> querySubRoleIdsByRoleId(String roleId);
+
+    // ---------- 删除（厂商 `RoleService.deleteRoleRelation`，RoleService.java:707-730）----------
+    // 厂商的 6 张表删除**顺序固定**，且全部包在一个 @Transactional 里；顺序与事务边界由 Case 层编排，
+    // 这里只提供单表删除动作（不含业务判断）。
+
+    void deleteSubRoleRelationsByRoleId(String roleId);
+
+    void deleteUserAuditByRoleId(String roleId);
+
+    void deleteUserRoleByRoleId(String roleId);
+
+    void deleteUserLoginByRoleId(String roleId);
+
+    void deleteRoleSoftwareByRoleId(String roleId);
+
+    void deleteById(String roleId);
 }

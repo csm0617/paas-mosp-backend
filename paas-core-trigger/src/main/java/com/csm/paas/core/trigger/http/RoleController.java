@@ -5,12 +5,14 @@ import com.csm.paas.core.api.dto.RoleItemDTO;
 import com.csm.paas.core.api.dto.RoleListResponseDTO;
 import com.csm.paas.core.api.dto.RoleSoftwareDTO;
 import com.csm.paas.core.api.dto.RoleSoftwareListDTO;
+import com.csm.paas.core.cases.role.IRoleDeleteCase;
 import com.csm.paas.core.domain.role.service.IRoleQueryService;
 import com.csm.paas.core.trigger.assembler.RoleListAssembler;
 import com.csm.paas.core.types.exception.WrongArgumentException;
 import com.csm.paas.core.types.util.PageUtils;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -39,6 +41,9 @@ public class RoleController {
 
     @Resource
     private IRoleQueryService roleQueryService;
+
+    @Resource
+    private IRoleDeleteCase roleDeleteCase;
 
     @Resource
     private AuthSupport authSupport;
@@ -88,6 +93,17 @@ public class RoleController {
         return roleQueryService.queryDetail(id)
                 .map(role -> ResponseDTO.ok(RoleListAssembler.toItemDTO(role)))
                 .orElseThrow(() -> new WrongArgumentException("role.storage.not.found"));
+    }
+
+    /**
+     * 厂商 `DELETE /v1/role?roleId=a,b,c`：批量删除战位（含 6 表级联，**整体一个事务**）。
+     * <p>厂商返回 `Response.ok(null)` → `{"msg":"OK","code":0,"data":null}`。
+     * <p>内置战位 `admin`/`dev` 与不存在的 id 分别抛 `role.cannot.delete.storage` / `role.missing.storage`（HTTP 400）。
+     */
+    @DeleteMapping
+    public ResponseDTO<Void> deleteRole(@RequestParam String roleId) {
+        roleDeleteCase.deleteRoles(java.util.Arrays.asList(roleId.split(",")));
+        return ResponseDTO.ok(null);
     }
 
     /**

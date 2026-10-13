@@ -109,6 +109,12 @@ Label: `wayfinder:map`
   - （未定论）厂商 `getSubRoleListByRoleId` 用 `HashSet`，多元素时顺序不确定 → 多子角色时无法逐字节对齐。
   - （遗留缺口）`/usermanage/role` 还会调 **`GET /v1/software`**（我们 404）——属 **K2 软件目录**，即战位页的"关联应用"对话框需要 K2。
 
+- （**切片 3 写路径开工**）[删战位的 6 表级联](docs/findings/29-role-delete-cascade.md)：`DELETE /v1/role?roleId=a,b,c` 成功与两条失败路径**均与厂商逐字节相同**（`{"msg":"OK","code":0,"data":null}` / "找不到该席位" / "无法删除该席位"）。
+  - **`paas-core-case` 从空壳变成真正的一层**：厂商的 `@Transactional` 打在含 `forEach` 的整个方法上，所以"删两个、第二个是内置战位"必须**整体回滚**——事务边界下沉到 DAO 就会漏提交。为此引入 `IRoleDeleteCase` 并给 case 模块加 `spring-tx`。
+  - **对真实库验证过级联**（不是只跑 H2）：建探针战位 → 关系表插行 → 用我们的后端删 → 5 张表全为 0；`g_sub_role_role` 的插入因外键失败，**正好证明该外键存在**。探针已清理，库恢复为 2 个战位。
+  - 照抄不修好：厂商保留字有 4 个，但删除路径**只护 `admin`/`dev`**（`cicd`/`root` 实际可删）——已写进单测锁住。
+  - （待回补）厂商删战位还会删 i18n 自动名（本环境 no-op），等切片 5。
+
 ## Not yet specified
 
 <!-- 看得见、但还说不成一句精确问题的雾 -->

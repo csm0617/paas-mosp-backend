@@ -2,6 +2,7 @@ package com.csm.paas.core.infrastructure.dao;
 
 import com.csm.paas.core.infrastructure.dao.po.RolePO;
 import com.csm.paas.core.infrastructure.dao.po.RoleSoftwarePO;
+import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -81,6 +82,26 @@ public interface IRoleDao {
 
     @Select("SELECT COUNT(*) FROM g_role")
     long selectCount();
+
+    // ---------- 删除（厂商 RoleService.deleteRoleRelation 的 6 张表，顺序见 Case 层）----------
+
+    @Delete("DELETE FROM g_sub_role_role WHERE role_id = #{roleId}")
+    int deleteSubRoleRoleByRoleId(@Param("roleId") String roleId);
+
+    @Delete("DELETE FROM g_user_audit WHERE role_id = #{roleId}")
+    int deleteUserAuditByRoleId(@Param("roleId") String roleId);
+
+    @Delete("DELETE FROM g_user_role WHERE role_id = #{roleId}")
+    int deleteUserRoleByRoleId(@Param("roleId") String roleId);
+
+    @Delete("DELETE FROM g_user_login WHERE role_id = #{roleId}")
+    int deleteUserLoginByRoleId(@Param("roleId") String roleId);
+
+    @Delete("DELETE FROM g_role_software WHERE role_id = #{roleId}")
+    int deleteRoleSoftwareByRoleId(@Param("roleId") String roleId);
+
+    @Delete("DELETE FROM g_role WHERE id = #{roleId}")
+    int deleteById(@Param("roleId") String roleId);
 
     @Select("SELECT id, role_id, app_id, app_name, url, updated_at, created_at FROM g_role_software WHERE role_id = #{roleId}")
     List<RoleSoftwarePO> selectSoftwareByRoleId(@Param("roleId") String roleId);

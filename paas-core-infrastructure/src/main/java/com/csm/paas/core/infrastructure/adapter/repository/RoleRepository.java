@@ -98,6 +98,36 @@ public class RoleRepository implements IRoleRepository {
                 .toList();
     }
 
+    @Override
+    public void deleteSubRoleRelationsByRoleId(String roleId) {
+        roleDao.deleteSubRoleRoleByRoleId(roleId);
+    }
+
+    @Override
+    public void deleteUserAuditByRoleId(String roleId) {
+        roleDao.deleteUserAuditByRoleId(roleId);
+    }
+
+    @Override
+    public void deleteUserRoleByRoleId(String roleId) {
+        roleDao.deleteUserRoleByRoleId(roleId);
+    }
+
+    @Override
+    public void deleteUserLoginByRoleId(String roleId) {
+        roleDao.deleteUserLoginByRoleId(roleId);
+    }
+
+    @Override
+    public void deleteRoleSoftwareByRoleId(String roleId) {
+        roleDao.deleteRoleSoftwareByRoleId(roleId);
+    }
+
+    @Override
+    public void deleteById(String roleId) {
+        roleDao.deleteById(roleId);
+    }
+
     private RoleEntity toEntity(RolePO po) {
         return RoleEntity.builder()
                 .id(po.getId())

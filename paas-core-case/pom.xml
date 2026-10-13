@@ -19,4 +19,10 @@
             <groupId>com.csm.paas.core</groupId>
             <artifactId>paas-core-domain</artifactId>
         </dependency>
+        <!-- Case 层是**事务边界**：跨表/跨域编排的原子性由这里的 @Transactional 保证
+             （例：删战位的 6 表级联删除）。版本由 spring-boot-starter-parent 管理。 -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-tx</artifactId>
+        </dependency>
     </dependencies></project>

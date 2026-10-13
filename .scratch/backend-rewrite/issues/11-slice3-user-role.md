@@ -94,6 +94,20 @@ K1 端点总数 **63**（`UserController` 25 + `RoleController` 28 + `SubRoleCon
 **遗留**：`/usermanage/role` 还需要 `GET /v1/software`（K2 软件目录）才能用"关联应用"对话框——**属切片 1 的欠账**，
 不是切片 3 的范围；已记入地图。下一片进入**写路径与不变量**（用户/战位 CRUD + 级联删除）。
 
+## 3b 写路径第一项完成：删战位（2026-10-14）
+
+`DELETE /v1/role?roleId=a,b,c` 已实现并过门槛，证据 [docs/findings/29-role-delete-cascade.md](../../docs/findings/29-role-delete-cascade.md)：
+
+- 成功 + 两条失败路径**与厂商逐字节相同**（实测对拉）；
+- **`paas-core-case` 启用为真正的一层**：事务边界必须覆盖整批（厂商 `@Transactional` 打在含 `forEach` 的方法上），
+  故引入 `IRoleDeleteCase`/`RoleDeleteCaseImpl` + case 模块的 `spring-tx` 依赖；
+- **真实库级联验证通过**（探针战位 + 5 张关系表，删完全为 0），H2 单测另有"整批回滚"用例；
+- 测试 57 → **70 条**全绿。
+
+**下一项**：用户写路径（`POST /v1/user`、`PUT /v1/user/{userId}`、`DELETE /v1/user/{userId}`、`POST /v1/user/{userId}/roles`）
+与战位写路径（`POST /v1/role`、`PUT /v1/role/{id}`）——不变量：用户名唯一（DB 唯一索引 + 应用层双重）、
+`admin` 用户不可删、非超管不可改超管、普通用户不可改他人。
+
 ## 3b 战位页（`/usermanage/role`）开工前的取证结论（2026-10-14，已备齐，直接可写）
 
 数据源 = `GET /v1/role/switchRole?page&size&roleName&type`（`type` 1=战位 2=角色），**样本已抓**：

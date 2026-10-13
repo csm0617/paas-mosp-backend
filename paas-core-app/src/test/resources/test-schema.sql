@@ -81,3 +81,29 @@ CREATE TABLE IF NOT EXISTS g_sub_role_role (
     updated_at  BIGINT,
     created_at  BIGINT
 );
+
+-- 审计表：删战位时要按 role_id 清（厂商级联的第 2 张表）
+CREATE TABLE IF NOT EXISTS g_user_audit (
+    id              BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id         VARCHAR(36),
+    role_id         VARCHAR(36),
+    rolename        VARCHAR(128),
+    username        VARCHAR(36),
+    reason          VARCHAR(255),
+    ip              VARCHAR(64),
+    created_at      BIGINT,
+    request_path    VARCHAR(255),
+    module_name     VARCHAR(64),
+    dictionary_type VARCHAR(64)
+);
+
+-- 战位-软件关联：删战位时要按 role_id 清（厂商级联的第 5 张表）
+CREATE TABLE IF NOT EXISTS g_role_software (
+    id         BIGINT PRIMARY KEY AUTO_INCREMENT,
+    role_id    VARCHAR(36),
+    app_id     VARCHAR(36),
+    app_name   VARCHAR(128),
+    url        VARCHAR(512),
+    updated_at BIGINT,
+    created_at BIGINT
+);
