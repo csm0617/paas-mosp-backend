@@ -37,6 +37,12 @@ Label: `wayfinder:map`
 
 - （运行时取证）[厂商运行时契约样本](docs/findings/runtime-samples/README.md)：11 个端点实测（信封 `{msg,code,data}`、`/v1/service` 67 KB、K8s 代理数字为双精度）；并确认**实集群已修好两个白屏触发条件**，不能再当复现现场。
 
+- （重定阻塞）工单 06 的阻塞由 `01, 04` 改为无：01（骨架）已完成；04 的依赖迁移表只对**全量迁移**必要，只读纵切不需要。契约比对基线改用已抓取的运行时样本（`docs/findings/runtime-samples/`）。04 落地后仍会回补引用。
+
+- （工单 06）[纵向切片跑通](docs/findings/06-prototype-result.md)：真实集群 200/73.7KB，信封与 19 个单项键与厂商一致；发现 4 处差异（workload 驱动、`runningDeployment` 未定论、null 序列化、缺认证）。
+- （工单 04）[迁移障碍逐条定论](docs/findings/04-migration-blockers.md)：**纠正了白屏根因**（不是 client-java，是厂商自建 `IoK8sApiCoreV1*` DTO 的 Integer + Gson→Jackson 往返 + 吞异常）。
+- （新开）[契约判定标准](.scratch/backend-rewrite/issues/08-contract-comparison-criterion.md)：语义等价 vs 逐字节等价，待你拍板。
+
 ## Not yet specified
 
 <!-- 看得见、但还说不成一句精确问题的雾 -->

@@ -1,27 +1,30 @@
-# 事实：fabric8 7.9.0 的模型能正常反序列化具名端口
+# 具名端口的真正根因在厂商自建 DTO（2026-10-14 纠正）
 
-**结论（运行实测，本机）**：fabric8 **7.9.0** 可正常处理
+> **纠正记录**：本文件初版把根因写成"厂商内嵌 `io.kubernetes:client-java:18.0.1` 的模型把 `targetPort`/`port` 声明成 Integer"。
+> **这条是错的，已作废。** 复核（字节码 + 厂商源码）后确认：client-java 18.0.1 与 fabric8 7.9.0 的对应字段**都是 `IntOrString`**；
+> 真正的 `Integer` 在厂商**自建**的 `third/k8s/IoK8sApiCoreV1*` DTO 里。
 
-- `Service.spec.ports[].targetPort: "http"`（字符串目标端口）
-- `Deployment.spec.template.spec.containers[].livenessProbe.tcpSocket.port: "http"`
+## 根因（逐行可查）
 
-两者都不抛异常，且 `IntOrString.getStrVal()` 均为 `"http"`。
+1. 厂商自建 DTO 把字段声明成 Integer：
+   - `recovered/gaop-be/.../third/k8s/IoK8sApiCoreV1ServicePort.java:21` → `private Integer targetPort`
+   - `.../IoK8sApiCoreV1TCPSocketAction.java:15` → `private Integer port`
+   - `.../IoK8sApiCoreV1HTTPGetAction.java:22` → `private Integer port`
+2. 转换走 **Gson→Jackson 往返**：`service/TenxService.java:496` `convertObj` = `JsonConfig.GSON.toJson(obj)` → `JsonConfig.JACKSON.readValue(json, IoK8sApiCoreV1Service.class)`。
+3. `config/JsonConfig.java:38` 只给 `IntOrString` 注册了**序列化器**，没有反序列化器。
+4. `TenxService.serviceResponse`（:506 起）`catch (Exception e) { log.error("转换类型失败", e); ... }` **吞掉异常**并把字段置空
+   → 响应里的 `service` 为空 → 前端无条件读 `spec.ports` → **白屏**（不是 500，与现象一致）。
 
-## 为什么重要
+## 行动含义：换 fabric8 不会自动修好它
 
-厂商后端内嵌 `io.kubernetes:client-java:18.0.1` 的模型把这两个字段声明成 Integer，集群里只要出现具名端口就抛
-`Cannot deserialize Integer from String` → `TenxService.convertObj` 把对象转成 null → `GET /api/gaop/v1/service` 报 NPE
-→ **网络管理页白屏**。换到 fabric8 7.9.0 后，这个根因在模型层消失。
+只要重写时继续沿用 `IoK8sApiCoreV1*` 这套 DTO（它同时就是给前端的 API 契约），故障会原样复现。修法是三件事一起做：
 
-## 证据
+1. 三个字段的类型改成 `String` / `Object` / `IntOrString`；
+2. 去掉 Gson→Jackson 往返（fabric8 原生就是 Jackson）；
+3. 取消 `catch (Exception) → 置空` 的静默降级。
 
-- 用例：`paas-core-infrastructure/src/test/java/com/csm/paas/core/infrastructure/config/NamedPortDeserializationTest.java`
-- 命令：`mvn -B -pl paas-core-infrastructure -am test -Dtest=NamedPortDeserializationTest -Dsurefire.failIfNoSpecifiedTests=false`
-- 结果：`Tests run: 2, Failures: 0, Errors: 0, Skipped: 0`（2026-10-14 02:27，JDK 21.0.7）
-- 类路径实查（7.9.0 jar 内）：`io.fabric8.kubernetes.api.model.Service`、`io.fabric8.kubernetes.api.model.apps.Deployment`、`io.fabric8.kubernetes.client.utils.Serialization`
-- 依赖证据：`docs/findings/01-deps.txt`（fabric8 全 7.9.0，`io.kubernetes` 命中 0）
+## 我方 fabric8 7.9.0 的验证（降级为"预防性回归"）
 
-## 边界（明确未验证）
-
-这只证明**模型层**吃得下具名端口。真实集群返回的完整 Deployment/Service 对象是否还有别的不兼容字段
-（例如厂商关心的 `system/lbgroup` 注解、`netWorkExport` 空桩语义），要等工单 06 用真实数据实测。
+`NamedPortDeserializationTest`（`paas-core-infrastructure/src/test/...`）证明 fabric8 7.9.0 能正常反序列化
+`ServicePort.targetPort: "http"` 与 `TCPSocketAction.port: "http"`，2/2 通过（JDK 21.0.7）。
+这条结论本身成立，但它说明的是"**我们的新栈没有这个坑**"，**不是**"厂商的坑是 client-java 造成的"。

@@ -26,6 +26,10 @@ mybatis:
   configuration:
     map-underscore-to-camel-case: true
 
+gaop:
+  k8s:
+    namespace: ${GAOP_K8S_NAMESPACE:gaop-namespace}
+
 logging:
   level:
     root: INFO

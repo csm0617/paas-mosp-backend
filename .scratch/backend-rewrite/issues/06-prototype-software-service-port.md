@@ -1,6 +1,6 @@
 Type: prototype
-Status: open
-Blocked by: 01, 04
+Status: resolved
+Blocked by: —（原为 01, 04；2026-10-14 重定：01 已完成，04 的依赖表只对全量迁移必要，本切片不需要）
 
 ## Question
 
@@ -28,7 +28,31 @@ Blocked by: 01, 04
 ## 验收
 
 - `curl` 实测输出与厂商响应 diff 一致（贴证据）。
-- 失败模式写进 `## Answer`——它决定后面所有域的实现方式。
+- 失败模式写进 `## Answer
+
+**成立**：JDK 21 + Spring Boot 3.3 + fabric8 7.9.0 + 六边形分层在真实集群数据上跑通——`GET /v1/service` 返回 200 / 73,698 B，
+信封与 `data` 键与厂商逐字一致，单项 19 个键一个不缺一个不多，具名端口正常（fabric8 的 `IntOrString`）。
+
+**四处差异**（详见 `docs/findings/06-prototype-result.md`）：
+1. 列表驱动源：厂商按 Deployment/StatefulSet 遍历（`TenxService.java:2293` 起），我按 Service → 多出 `gaop-mysql`；正式实现改 workload 驱动。
+2. `runningDeployment`：厂商=0、我=5；厂商规则见 `TenxService.java:2349`，按规则应为 5 → 厂商为何是 0 **未定论**。
+3. null 序列化策略不同 → **逐字节等价做不到**，判定标准已开 **工单 08**。
+4. 原型没有认证（厂商需 `gateway-token` cookie），过门槛前必须补。
+
+**可复现**：`mvn -DskipTests package` → `java -jar paas-core-app/...jar` → `curl /v1/service` → `python3 tools/diff-service-list.py`。
+`——它决定后面所有域的实现方式。
 - 本 ticket 的产物是**可丢弃**的验证代码；转正由 07 决定。
 
 ## Answer
+
+**成立**：JDK 21 + Spring Boot 3.3 + fabric8 7.9.0 + 六边形分层在真实集群数据上跑通——`GET /v1/service` 返回 200 / 73,698 B，
+信封与 `data` 键与厂商逐字一致，单项 19 个键一个不缺一个不多，具名端口正常（fabric8 的 `IntOrString`）。
+
+**四处差异**（详见 `docs/findings/06-prototype-result.md`）：
+1. 列表驱动源：厂商按 Deployment/StatefulSet 遍历（`TenxService.java:2293` 起），我按 Service → 多出 `gaop-mysql`；正式实现改 workload 驱动。
+2. `runningDeployment`：厂商=0、我=5；厂商规则见 `TenxService.java:2349`，按规则应为 5 → 厂商为何是 0 **未定论**。
+3. null 序列化策略不同 → **逐字节等价做不到**，判定标准已开 **工单 08**。
+4. 原型没有认证（厂商需 `gateway-token` cookie），过门槛前必须补。
+
+**可复现**：`mvn -DskipTests package` → `java -jar paas-core-app/...jar` → `curl /v1/service` → `python3 tools/diff-service-list.py`。
+

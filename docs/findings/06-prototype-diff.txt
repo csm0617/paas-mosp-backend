@@ -1,0 +1,35 @@
+# 厂商 vs 重写版：GET /v1/service 契约对比
+
+信封键      : vendor=['msg', 'code', 'data'] | mine=['msg', 'code', 'data'] | 一致
+data 键     : vendor=['count', 'runningDeployment', 'services', 'total'] | mine=['count', 'runningDeployment', 'services', 'total'] | 一致
+  runningDeployment : vendor=0 | mine=5 | **差异**
+  total             : vendor=9 | mine=10 | **差异**
+  count             : vendor=9 | mine=10 | **差异**
+
+服务数      : vendor=9 | mine=10
+仅厂商有    : （无）
+仅重写版有  : ['gaop-mysql']
+
+单项键数    : vendor=19 | mine=19
+  重写版缺失: （无）
+  重写版多出: （无）
+
+## 同名服务的 spec.ports 对比（前 6 个）
+
+| 服务 | 厂商 | 重写版 | 判定 |
+| --- | --- | --- | --- |
+| gaop-auth | {"name": "'http'(str)", "port": "19526(int)", "targetPort": "19526(int)", "protocol": "'TCP'(str)"} | {"name": "'http'(str)", "port": "19526(int)", "targetPort": "19526(int)", "protocol": "'TCP'(str)"} | **差异** |
+| gaop-be | {"name": "'http'(str)", "port": "8080(int)", "targetPort": "8080(int)", "protocol": "'TCP'(str)"} | {"name": "'http'(str)", "port": "8080(int)", "targetPort": "8080(int)", "protocol": "'TCP'(str)"} | **差异** |
+| gaop-diagnostic | {"name": "'http'(str)", "port": "55555(int)", "targetPort": "55555(int)", "protocol": "'TCP'(str)"} | {"name": "'http'(str)", "port": "55555(int)", "targetPort": "55555(int)", "protocol": "'TCP'(str)"} | **差异** |
+| gaop-fdfs | {"name": "'http'(str)", "port": "9527(int)", "targetPort": "9527(int)", "protocol": "'TCP'(str)"} | {"name": "'http'(str)", "port": "9527(int)", "targetPort": "9527(int)", "protocol": "'TCP'(str)"} | **差异** |
+| gaop-gateway-auth | {"name": "'http'(str)", "port": "5000(int)", "targetPort": "5000(int)", "protocol": "'TCP'(str)"} | {"name": "'http'(str)", "port": "5000(int)", "targetPort": "5000(int)", "protocol": "'TCP'(str)"} | **差异** |
+| gaop-image-uploader | {"name": "'http'(str)", "port": "18080(int)", "targetPort": "18080(int)", "protocol": "'TCP'(str)"} | {"name": "'http'(str)", "port": "18080(int)", "targetPort": "18080(int)", "protocol": "'TCP'(str)"} | **差异** |
+
+## K8s Service 对象的键集合差异（第一个同名服务）
+
+服务 gaop-auth
+  顶层键 : vendor=['apiVersion', 'kind', 'metadata', 'proxy', 'spec', 'status'] | mine=['apiVersion', 'kind', 'metadata', 'spec', 'status']
+  metadata 缺失 : ['deletionGracePeriodSeconds', 'deletionTimestamp', 'finalizers', 'generateName', 'generation', 'ownerReferences', 'selfLink']
+  metadata 多出 : []
+  spec 缺失     : ['externalIPs', 'externalName', 'externalTrafficPolicy', 'healthCheckNodePort', 'loadBalancerIP', 'loadBalancerSourceRanges', 'publishNotReadyAddresses', 'sessionAffinityConfig']
+  spec 多出     : ['clusterIPs', 'internalTrafficPolicy', 'ipFamilies', 'ipFamilyPolicy']
