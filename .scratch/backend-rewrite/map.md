@@ -65,6 +65,9 @@ Label: `wayfinder:map`
 - （事实·重要）[厂商鉴权在网关侧](docs/findings/14-vendor-auth-is-gateway-side.md)：`/v1/role`、`/v1/service`、`/settings`、`/v1/user/get` **无 cookie 也是 200**，只有 `/v1/user` 是应用级 401。**第 8 轮我加的 requireSession 属于过度收紧，本轮已撤回。**
 - （进展）外壳端点 `/settings`、`/v1/mode/current`、`/v1/lang/current`、`/v1/user/get` 已实现且与厂商样本一致；登录页已能拉到账号/语言数据，**卡在 `/v1/licence/info` 404**（页面停在"正在获取授权信息"，未定论）。
 
+- （进展）[授权端点 + 登录页打通](docs/findings/15-licence-and-login-page.md)：`/v1/licence`、`/v1/licence/info`（试用期与厂商同值）、`/ws/info` 已实现；**登录页的账号/门户下拉已由我们的后端供数**，前端自发起 `/v1/role?username=admin`。仅剩"自动填口令"这一步的工具问题。
+- （未实现·低优先）`/v1/licence/checkAndActiveGis`、SockJS 真实传输端点。
+
 ## Not yet specified
 
 <!-- 看得见、但还说不成一句精确问题的雾 -->

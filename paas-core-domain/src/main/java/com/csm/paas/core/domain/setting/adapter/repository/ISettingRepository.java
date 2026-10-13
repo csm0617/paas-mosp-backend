@@ -3,6 +3,7 @@ package com.csm.paas.core.domain.setting.adapter.repository;
 import com.csm.paas.core.domain.setting.model.entity.SettingEntity;
 
 import java.util.List;
+import java.util.Optional;
 
 /** 系统设置仓储（g_setting）。 */
 public interface ISettingRepository {
@@ -11,4 +12,9 @@ public interface ISettingRepository {
     int queryIntValue(String key, int defaultValue);
 
     List<SettingEntity> queryAll();
+
+    Optional<String> queryValue(String key);
+
+    /** 不存在则插入（厂商会在首次调用时落库试用期）。 */
+    void saveValueIfAbsent(String key, String val, String desc);
 }

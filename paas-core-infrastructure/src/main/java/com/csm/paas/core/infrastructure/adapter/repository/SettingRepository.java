@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 @Repository
@@ -38,5 +39,17 @@ public class SettingRepository implements ISettingRepository {
                         .updatedAt(po.getUpdatedAt()).createdAt(po.getCreatedAt())
                         .build())
                 .toList();
+    }
+
+    @Override
+    public Optional<String> queryValue(String key) {
+        return Optional.ofNullable(settingDao.selectValByKey(key));
+    }
+
+    @Override
+    public void saveValueIfAbsent(String key, String val, String desc) {
+        if (settingDao.countByKey(key) == 0) {
+            settingDao.insertSetting(key, val, desc, System.currentTimeMillis());
+        }
     }
 }

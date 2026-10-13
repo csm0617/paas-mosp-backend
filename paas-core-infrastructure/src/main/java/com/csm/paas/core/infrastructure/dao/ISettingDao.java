@@ -17,4 +17,12 @@ public interface ISettingDao {
     /** 主键是 `key`（varchar）→ InnoDB 自然按主键序返回，与厂商一致。 */
     @Select("SELECT `key`, val, `desc`, updated_at, created_at FROM g_setting")
     List<SettingPO> selectAll();
+
+    @Select("SELECT COUNT(*) FROM g_setting WHERE `key` = #{key}")
+    int countByKey(@Param("key") String key);
+
+    @org.apache.ibatis.annotations.Insert("INSERT INTO g_setting(`key`, val, `desc`, updated_at, created_at) "
+            + "VALUES(#{key}, #{val}, #{desc}, #{now}, #{now})")
+    int insertSetting(@Param("key") String key, @Param("val") String val,
+                      @Param("desc") String desc, @Param("now") long now);
 }
