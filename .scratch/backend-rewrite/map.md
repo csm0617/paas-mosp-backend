@@ -186,6 +186,12 @@ Label: `wayfinder:map`
   - **同一个坑第二次踩**：`selectRelationRoles` 用 `Map` 取列，H2 列标签大写 → `[null]`（与 `selectIdAndKeyByKeys` 同源）。已改用 PO；结论：不确定大小写的库取多列一律用 PO。
   - 测试 152 → **155 条**全绿。
 
+- （**K2 收尾：修改**）[PUT /v1/software/{id}](docs/findings/43-k2-software-edit.md)：23 键 + 空白 desc（落 null）+ 表单缺字段被置 null + 存在性错误，全部与厂商一致。
+  - 三处照抄的古怪：`BeanUtils.copyProperties` 连 null 一起拷（缺字段 → null）；desc 空白**在新增落空串、在修改落 null**（同一个 helper 的返回值一个被覆盖一个被丢弃）；**name 重复与 key 重复用的是同一个 i18n 键**。
+  - **我第一版把注释写对、代码写错**（注释说"空白 → null"，代码写的是 `.desc(form.getDesc())` 给空串），是对拉照出来的。教训：注释写对不等于代码写对；凡"读代码得到的结论"必须有一条实测或断言钉住。
+  - 工具层：**同一个坑第三次踩**——python heredoc 里嵌三引号导致解析失败、整段补丁静默不执行，还被前面的 `print("patched")` 掩盖，靠编译错误才发现。改用 edit 工具 + 每步 `grep -c` 验证（当场查出 4 个补丁全没落地）。
+  - 测试 157 → **162 条**全绿。**软件域 CRUD + 发布态闭环**：列表 / 新增 / 详情 / 修改 / 删除 / 放行，六条全部对拉一致。
+
 - （K3 预研结论）`LicenceInfo.expired(code)` = `{end:-1, endIso8601:null, code, expired:true}`，其中 `code = 机器码 + Base64(软件key)`；**"没有激活码"这一支不需要密码学**，可以在做 `GET /v1/software/{id}` 时一并实现（本轮没写，因为详情端点没做就没有调用方，写了是死代码）。
 
 ## Not yet specified
