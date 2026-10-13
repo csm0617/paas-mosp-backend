@@ -53,6 +53,8 @@ Label: `wayfinder:map`
 
 - （门槛自动化）[离线测试门槛](docs/findings/10-offline-test-gate.md)：4 个测试类 7 条用例、`mvn test` 全绿且不需要集群；L1/L2 由回放厂商样本锁定，允许偏离按 `deviationKind` 受控。
 
+- （事实）[厂商编码缺陷](docs/findings/11-vendor-charset-defect.md)：DB 与 api-docs 的中文都正常，只有经 DB 的字符串在响应里被双重编码（高度可能＝connector 5.1.48 缺 `useUnicode=true`）；重写版返回正确中文，属有意修正。
+
 ## Not yet specified
 
 <!-- 看得见、但还说不成一句精确问题的雾 -->

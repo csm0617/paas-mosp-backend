@@ -78,5 +78,44 @@
         "reason": "fabric8/K8s 新字段，厂商模型没有；前端不读"
       }
     ]
+  },
+  "GET /v1/role": {
+    "itemContainer": "data.list",
+    "evidence": "docs/findings/09-frontend-read-paths.md（p__software 读 key×21/type×12/softwareList×4/createdAt×2/updatedAt×2；p__user__login__index 读 key×7）",
+    "readPaths": [
+      {
+        "path": "data.list",
+        "mode": "container"
+      },
+      {
+        "path": "data.total"
+      },
+      {
+        "path": "data.list[].key"
+      },
+      {
+        "path": "data.list[].type"
+      },
+      {
+        "path": "data.list[].createdAt"
+      },
+      {
+        "path": "data.list[].updatedAt"
+      },
+      {
+        "path": "data.list[].softwareList",
+        "mode": "container"
+      }
+    ],
+    "knownDeviations": [
+      {
+        "path": "data.list[].name / softwareList[].appName 的中文",
+        "reason": "厂商从 DB 取出的中文被双重编码成乱码（DB 里是正确的 UTF-8，api-docs 的中文正常 → 编码缺陷在 gaop-be 内）；重写版返回正确中文，属**有意修正**。"
+      },
+      {
+        "path": "data.list[].userList / subRoleList",
+        "reason": "厂商当前数据恒为 null，重写版同为 null；语义来源（在线会话/子战位）未实现，见工单 10/07。"
+      }
+    ]
   }
 }

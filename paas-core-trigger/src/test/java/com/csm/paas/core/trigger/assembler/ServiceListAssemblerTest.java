@@ -4,6 +4,7 @@ import com.csm.paas.core.api.dto.ResponseDTO;
 import com.csm.paas.core.api.dto.ServiceListResponseDTO;
 import com.csm.paas.core.domain.software.model.entity.ServiceListEntity;
 import com.csm.paas.core.domain.software.model.entity.ServiceRuntimeEntity;
+import com.csm.paas.core.trigger.JsonEquivalence;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -89,7 +90,7 @@ class ServiceListAssemblerTest {
                 deviations.add(path);
                 continue;
             } else {
-                assertEquals(vendorValues, mineValues, "读取路径值必须一致: " + path);
+                assertTrue(equivalentAll(vendorValues, mineValues), "读取路径值必须线上等价: " + path + " vendor=" + vendorValues + " mine=" + mineValues);
             }
             checked.add(path);
         }
@@ -118,6 +119,19 @@ class ServiceListAssemblerTest {
     /** 前端的 `a.restartCount || 0` 语义：null 与 0 渲染一致。 */
     private static boolean renderAsZero(JsonNode node) {
         return node.isNull() || (node.isNumber() && node.asInt() == 0);
+    }
+
+    /** 逐元素"线上等价"（数字按值、对象按字段递归）。 */
+    private static boolean equivalentAll(List<JsonNode> a, List<JsonNode> b) {
+        if (a.size() != b.size()) {
+            return false;
+        }
+        for (int i = 0; i < a.size(); i++) {
+            if (!JsonEquivalence.equivalent(a.get(i), b.get(i))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     // ---------- helpers ----------
