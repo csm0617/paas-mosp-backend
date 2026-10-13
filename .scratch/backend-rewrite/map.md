@@ -35,6 +35,9 @@ Label: `wayfinder:map`
 
 - （工单 05）[兼容硬边界与验收门槛](docs/adr/0004-frozen-contract-and-acceptance-gates.md)：锁 259 个前端函数命中的端点 + 39 张表 + `/api/gaop/k8s/**`；厂商 87 个迁移冻结在 V0.8.6，新变更从 V0.9.0 起；验收四条门槛（第 4 条已完成）。
 
+- （**工单 07 落定**）[切片顺序与灰度替换路径](docs/adr/0005-slice-order-and-cutover.md)：顺序 = 软件-服务-端口(✅) → 认证(✅) → **用户/战位(本轮)** → 授权许可 → 国际化 → 审计/字典/设置 → 集群/应用视图 → 文件；原则「**入口先做、防腐层后做**」。并存 = 双 Deployment（服务名 `paas-core`）+ Higress **按路径前缀**切流，回退=改回路由（秒级，不重新部署/不回滚库）；门禁阶段两套后端**共库共 Redis**。域"完成"四条：契约 L1+L2 全绿 + 该域 e2e + 既有用例不退化 + 不留越层包。
+- （**工单 08 落定**）[契约判定：语义等价](docs/adr/0006-contract-semantic-equivalence.md)：L1/L2 不绿=缺陷；L3 记录在案；追认两条偏离（`restartCount` display-equivalent、`mappingInfo` at-least-as-complete 且反向不允许）；**新增第四条规则——L3 偏离一旦被证明前端可见即升级为缺陷**；`proxy` 键仍未定论，不得标成永久豁免。
+
 - （运行时取证）[厂商运行时契约样本](docs/findings/runtime-samples/README.md)：11 个端点实测（信封 `{msg,code,data}`、`/v1/service` 67 KB、K8s 代理数字为双精度）；并确认**实集群已修好两个白屏触发条件**，不能再当复现现场。
 
 - （重定阻塞）工单 06 的阻塞由 `01, 04` 改为无：01（骨架）已完成；04 的依赖迁移表只对**全量迁移**必要，只读纵切不需要。契约比对基线改用已抓取的运行时样本（`docs/findings/runtime-samples/`）。04 落地后仍会回补引用。

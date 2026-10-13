@@ -1,5 +1,6 @@
 {
   "_note": "前端实际读取的字段路径清单（契约门槛的 L2 判定依据）。evidence 指向抽取方法与出处。",
+  "_criterion": "判定标准见 docs/adr/0006-contract-semantic-equivalence.md：L1 形状 / L2 前端读取路径不绿=缺陷；L3 已知偏离=记录在案；任何偏离一旦被证明前端可见即升级为缺陷。",
   "GET /v1/service": {
     "itemContainer": "data.services",
     "evidence": "docs/findings/09-frontend-read-paths.md",
@@ -67,15 +68,23 @@
     "knownDeviations": [
       {
         "path": "data.runningDeployment",
-        "reason": "厂商运行态为 0（规则应为 5，原因未定论）；该键在整个前端产物里出现 0 次，不读"
+        "reason": "厂商运行态为 0（规则应为 5，原因未定论）；该键在整个前端产物里出现 0 次，不读",
+        "disposition": "记录在案"
       },
       {
-        "path": "data.services[].service.metadata.* 的显式 null 与自造键 proxy",
-        "reason": "client-java 序列化噪声；前端不读"
+        "path": "data.services[].service.metadata.* 的显式 null 噪声",
+        "reason": "client-java 序列化噪声；前端不读",
+        "disposition": "记录在案"
+      },
+      {
+        "path": "data.services[].service 的自造键 proxy",
+        "reason": "厂商自造键，fabric8 模型没有；尚未在产物中检索到读路径",
+        "disposition": "未定论——按 ADR-0006 不得标为永久豁免：若证明前端读它，升级为 L1 缺陷"
       },
       {
         "path": "data.services[].service.spec.clusterIPs 等 4 个新字段",
-        "reason": "fabric8/K8s 新字段，厂商模型没有；前端不读"
+        "reason": "fabric8/K8s 新字段，厂商模型没有；前端不读",
+        "disposition": "记录在案"
       }
     ]
   },

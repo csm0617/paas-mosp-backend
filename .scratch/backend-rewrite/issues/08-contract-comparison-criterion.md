@@ -1,5 +1,5 @@
 Type: grilling
-Status: open
+Status: closed (2026-10-14，采纳选项 1「语义等价」；落 ADR-0006)
 Blocked by: —
 
 ## Question
@@ -43,6 +43,14 @@ fabric8 7 + Jackson 默认省略 null，并且多出 4 个较新的 K8s 字段�
 
 ## 验收
 
-答案写进 `## Answer`，并据此更新 ADR-0004 里"响应 JSON 形状"的判定方式。
+答案写进 `## Answer`，并据此更新 ADR-0004 里"响应 JSON 形状"的判定方式。→ 已落 [ADR-0006](../../docs/adr/0006-contract-semantic-equivalence.md)
 
 ## Answer
+
+**已定（2026-10-14）：选选项 1「语义等价」，细节落 [ADR-0006](../../docs/adr/0006-contract-semantic-equivalence.md)。**
+
+- **L1 形状 / L2 前端读取路径**：不绿 = 缺陷，必须修；键的类型按**值**判等价（数字比数值）。
+- **L3 已知偏离**：**记录在案**（不是"必须补齐"）。
+- **两条 `allowDeviation` 全部追认**：`restartCount`（`display-equivalent`）、`mappingInfo`（`at-least-as-complete`，且**反向不允许**——我们给空而厂商给值即算缺陷）。
+- **新增的第四条规则（把"语义等价"与"弱判定"区分开）**：L3 中任何偏离一旦被证明**前端可见**，立即升级为 L1/L2 缺陷。`proxy` 键是否被前端读取**仍未定论**（产物里未检索到读路径），入账时不得标成永久豁免。
+- `deviationKind` 只允许 `display-equivalent` 与 `at-least-as-complete` 两类；需要第三类必须先说明再加。

@@ -4,7 +4,7 @@
 
 门槛内**硬不可改**（动任何一项都必须先挑战本 ADR）：
 
-1. **端点**：厂商前端 **259** 个 service 函数命中的每一个 `/api/gaop/v1/**` 端点（`recovered-web/api-catalogue.json` 只记了其中 196 个，见 `docs/findings/02-contract-baseline.md` §1.4）——路径、方法、请求参数与响应 JSON 形状。
+1. **端点**：厂商前端 **259** 个 service 函数命中的每一个 `/api/gaop/v1/**` 端点（`recovered-web/api-catalogue.json` 只记了其中 196 个，见 `docs/findings/02-contract-baseline.md` §1.4）——路径、方法、请求参数与响应 JSON 形状。**"响应 JSON 形状"的判定方式由 [ADR-0006](0006-contract-semantic-equivalence.md) 定死（语义等价：L1 形状 + L2 前端读取路径；L3 记录在案）。**
 2. **表结构**：厂商 39 张表的 DDL（列名、类型、约束、索引语义）。
 3. **K8s 代理路径**：`/api/gaop/k8s/**`——前端直接调用，属契约。
 4. **迁移文件**：厂商 87 个 Flyway 迁移**冻结在 `V0.8.6`**，当成历史只读；本仓的新变更从 `V0.9.0` 起重新编号。
