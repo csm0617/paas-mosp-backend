@@ -23,4 +23,9 @@ Blocked by: —
 - JSON 里每个端点都能追到来源（文件+行号，或 api-docs path）。
 - 差异清单给出计数，逐条给判定理由。
 
+## 进展（尚未完成）
+
+- `docs/findings/02-contract-baseline.json` 已落（1.0 MB）。
+- `docs/findings/02-contract-baseline.md` **尚未产出** —— 本工单未完成，仍需：三方差异三桶计数 + K8s 代理路径单列。
+
 ## Answer
