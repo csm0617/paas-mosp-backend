@@ -321,6 +321,10 @@ Label: `wayfinder:map`
 - 当前：46 端点映射、38 测试类 **236 条全绿**、81 提交、63 篇 findings。
 - 下一步优先序：服务切片同模式推进 → K2 跨域（`/auth` 列表可对拉；CS 上传/导入导出需先定边界）→ K3 侧效应 → 把"不可验证项"整理成对外偏离清单。
 
+- （**K2 跨域**）[PUT /v1/software/{softwareId}/service/{serviceName}](docs/findings/72-software-service-port-path.md)：端口映射路径，**七种情形对拉一致**（成功/路径占用/端口不存在/长度/首字符数字/非法字符/空白）。
+  - **两处方法层面的教训**：①**共享状态的顺序对拉会自己骗自己**——第一版依次打两侧，第一种情形的**成功写入**污染了后续所有情形的前置状态，看起来"六条全不一致"；修法是**每种情形前都重置探针行**。②**错误响应不能整体比对**——`data.trace` 里的类名/行号天然不同（我们 `com.csm.paas.core` vs 厂商 `com.glriverside.gaop.be`），正确比法是 `code` + `msg` + 业务字段（并忽略自增 id）。**已写进方法清单。**
+  - 照抄点：四个 path 校验**全在 controller 且在任何 DB 访问之前**；判重错误参数是 **serviceName**、端口不存在是 **port**（易写反）；`path` 先 trim；成功后**重新查一次**再返回。
+  - 测试 248 → **252 条**全绿。
 - （**K2 跨域**）[GET /v1/software/{softwareId}/service/{serviceName}](docs/findings/71-software-service-ports.md)：端口映射列表，**三种情形对拉完全相等**（两条/一条/不存在→空数组）。
   - 照抄点：只有 `software_id` + `service_name` 两个等值条件；**不排序**（厂商没写 orderBy，不"顺手加稳定排序"）；查不到返回**空数组**（不是 400）。
   - **同一 `/v1/software/...` 前缀下"找不到"有四种表现**（详情 400 `software.software.id.not.found` / 删除 400 `software.not.exist.by.id` / 本端点空数组 / 战位下用户空列表）——只能逐个核对，不能按"同模块应该一致"推断。

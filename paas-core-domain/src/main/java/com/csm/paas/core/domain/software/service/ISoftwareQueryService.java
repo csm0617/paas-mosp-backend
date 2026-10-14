@@ -38,4 +38,19 @@ public interface ISoftwareQueryService {
      */
     java.util.List<com.csm.paas.core.domain.software.model.valobj.ServicePortVO> queryServicePorts(
             String softwareId, String serviceName);
+
+    /**
+     * 设置服务端口映射路径（厂商 `PUT /v1/software/{softwareId}/service/{serviceName}`，
+     * `SoftwareController:466-483` + `SoftwareService.updateSoftwareServicePort:2308-2322`）。
+     *
+     * <p>校验顺序照抄（**都在 controller 里先做**）：`path` 空白 → `software.path.must.not.null`；
+     * `trim` 后长度 ∉ [3,45] → `software.path.length.invalid`；首字符是数字 → `software.path.can.not.start.by.num`；
+     * 只允许 `[a-z0-9-]` → `software.path.must.in.char`。
+     * <p>然后：同软件+服务下路径已存在 → `software.path.exist.in.service`（参数是 **serviceName**）；
+     * 该 (软件,服务,端口) 不存在 → `service.port.not.found`（参数是 **port**）；
+     * 否则更新 `path_name` 并返回**重新查出来的那一行**。
+     * <p><b>未实现</b>：厂商随后调 `notificationGateway()`（通知网关重载），见 `findings/39` 同一条待办。
+     */
+    com.csm.paas.core.domain.software.model.valobj.ServicePortVO updateServicePortPath(
+            String softwareId, String serviceName, int port, String path);
 }

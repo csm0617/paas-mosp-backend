@@ -56,6 +56,25 @@ public class SoftwareController {
     }
 
     /**
+     * 厂商 `PUT /v1/software/{softwareId}/service/{serviceName}?port&path`：设置端口映射路径。
+     * <p>四个参数校验 + 两条业务校验（路径已占用 / 端口不存在）见 `ISoftwareQueryService.updateServicePortPath`；
+     * 成功返回**重新查出来的那一行**（8 键 `ServicePort`）。
+     */
+    @org.springframework.web.bind.annotation.PutMapping("/{softwareId}/service/{serviceName}")
+    public ResponseDTO<com.csm.paas.core.api.dto.ServicePortDTO> updateSoftwareServicePort(
+            @org.springframework.web.bind.annotation.PathVariable String softwareId,
+            @org.springframework.web.bind.annotation.PathVariable String serviceName,
+            @org.springframework.web.bind.annotation.RequestParam int port,
+            @org.springframework.web.bind.annotation.RequestParam String path) {
+        var v = softwareQueryService.updateServicePortPath(softwareId, serviceName, port, path);
+        return ResponseDTO.ok(com.csm.paas.core.api.dto.ServicePortDTO.builder()
+                .id(v.getId()).softwareId(v.getSoftwareId()).serviceName(v.getServiceName())
+                .port(v.getPort()).pathName(v.getPathName()).webEntry(v.getWebEntry())
+                .allow(v.getAllow()).updatedAt(v.getUpdatedAt())
+                .build());
+    }
+
+    /**
      * 厂商 `GET /v1/software/{softwareId}/service/{serviceName}`：软件在某服务下的**端口映射列表**。
      * <p>`software_id` + `service_name` 等值查询、**不排序**；查不到返回**空数组**（不是 404/400）。
      */

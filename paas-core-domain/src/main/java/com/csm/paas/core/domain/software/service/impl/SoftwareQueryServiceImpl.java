@@ -80,6 +80,35 @@ public class SoftwareQueryServiceImpl implements ISoftwareQueryService {
     }
 
     @Override
+    public com.csm.paas.core.domain.software.model.valobj.ServicePortVO updateServicePortPath(
+            String softwareId, String serviceName, int port, String path) {
+        // 厂商 controller 先校验 path，再交给 service；这里把 controller 的校验也放进域服务，保持"可被直接调用"的一致语义
+        if (path == null || path.isBlank()) {
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("software.path.must.not.null");
+        }
+        String p = path.trim();
+        if (p.length() > 45 || p.length() < 3) {
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("software.path.length.invalid");
+        }
+        if (Character.isDigit(p.charAt(0))) {
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("software.path.can.not.start.by.num");
+        }
+        if (!p.chars().allMatch(c -> (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-')) {
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("software.path.must.in.char");
+        }
+
+        if (softwareRepository.existsServicePath(softwareId, serviceName, p)) {
+            throw new com.csm.paas.core.types.exception.WrongArgumentException(
+                    "software.path.exist.in.service", serviceName);
+        }
+        var existing = softwareRepository.queryServicePort(softwareId, serviceName, port);
+        if (existing == null) {
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("service.port.not.found", port);
+        }
+        return softwareRepository.updateServicePortPath(existing.getId(), p);
+    }
+
+    @Override
     public SoftwareListEntity querySoftwareList(int page, int size, String name, String type,
                                                 String order, String sort, String host) {
         String likeName = (name == null || name.isEmpty()) ? null : "%" + name + "%";

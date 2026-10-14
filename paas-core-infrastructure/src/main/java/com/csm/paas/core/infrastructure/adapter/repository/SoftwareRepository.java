@@ -174,6 +174,35 @@ public class SoftwareRepository implements ISoftwareRepository {
                 .toList();
     }
 
+    @Override
+    public boolean existsServicePath(String softwareId, String serviceName, String pathName) {
+        return softwareDao.countServicePath(softwareId, serviceName, pathName) > 0;
+    }
+
+    @Override
+    public com.csm.paas.core.domain.software.model.valobj.ServicePortVO queryServicePort(
+            String softwareId, String serviceName, int port) {
+        return toPortVO(softwareDao.selectServicePort(softwareId, serviceName, port));
+    }
+
+    @Override
+    public com.csm.paas.core.domain.software.model.valobj.ServicePortVO updateServicePortPath(long id, String pathName) {
+        softwareDao.updateServicePortPath(id, pathName);
+        return toPortVO(softwareDao.selectServicePortById(id));   // 厂商：更新后再查一次并返回
+    }
+
+    private static com.csm.paas.core.domain.software.model.valobj.ServicePortVO toPortVO(
+            com.csm.paas.core.infrastructure.dao.po.ServicePortPO po) {
+        if (po == null) {
+            return null;
+        }
+        return com.csm.paas.core.domain.software.model.valobj.ServicePortVO.builder()
+                .id(po.getId()).softwareId(po.getSoftwareId()).serviceName(po.getServiceName())
+                .port(po.getPort()).pathName(po.getPathName()).webEntry(po.getWebEntry())
+                .allow(po.getAllow()).updatedAt(po.getUpdatedAt())
+                .build();
+    }
+
     private SoftwarePO toPO(SoftwareEntity s) {
         SoftwarePO po = new SoftwarePO();
         po.setId(s.getId());

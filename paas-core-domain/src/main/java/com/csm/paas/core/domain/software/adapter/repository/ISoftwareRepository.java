@@ -105,4 +105,14 @@ public interface ISoftwareRepository {
     /** 软件在某服务下的端口映射（厂商 `servicePortList`，**不排序**）。 */
     List<com.csm.paas.core.domain.software.model.valobj.ServicePortVO> queryServicePorts(
             String softwareId, String serviceName);
+
+    /** 同一软件+服务下该路径是否已被占用（厂商 `isServicePathExist`）。 */
+    boolean existsServicePath(String softwareId, String serviceName, String pathName);
+
+    /** 按 软件+服务+端口 取；取不到返回 null（厂商据此抛 `service.port.not.found`）。 */
+    com.csm.paas.core.domain.software.model.valobj.ServicePortVO queryServicePort(
+            String softwareId, String serviceName, int port);
+
+    /** 更新该行的 `path_name`，返回**重新查出来的**那一行（厂商返回 `selectByPrimaryKey(...)` 的结果）。 */
+    com.csm.paas.core.domain.software.model.valobj.ServicePortVO updateServicePortPath(long id, String pathName);
 }

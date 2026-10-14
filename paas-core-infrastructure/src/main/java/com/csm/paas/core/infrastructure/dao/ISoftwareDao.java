@@ -104,6 +104,35 @@ public interface ISoftwareDao {
     List<com.csm.paas.core.infrastructure.dao.po.ServicePortPO> selectServicePorts(
             @Param("softwareId") String softwareId, @Param("serviceName") String serviceName);
 
+    /** 同一软件+服务下该路径是否已被占用（厂商 `isServicePathExist:2325-2326`）。 */
+    @Select("""
+            SELECT COUNT(*) FROM g_service_port
+            WHERE software_id = #{softwareId} AND service_name = #{serviceName} AND path_name = #{pathName}
+            """)
+    long countServicePath(@Param("softwareId") String softwareId, @Param("serviceName") String serviceName,
+                          @Param("pathName") String pathName);
+
+    /** 按 软件+服务+端口 取（厂商 updateSoftwareServicePort 的定位条件）。 */
+    @Select("""
+            SELECT id, software_id, service_name, port, path_name, web_entry, allow, updated_at
+            FROM g_service_port
+            WHERE software_id = #{softwareId} AND service_name = #{serviceName} AND port = #{port}
+            LIMIT 1
+            """)
+    com.csm.paas.core.infrastructure.dao.po.ServicePortPO selectServicePort(
+            @Param("softwareId") String softwareId, @Param("serviceName") String serviceName,
+            @Param("port") int port);
+
+    /** 选择性更新 path_name（厂商 `updateByPrimaryKeySelective`，只设了 path_name）。 */
+    @org.apache.ibatis.annotations.Update("UPDATE g_service_port SET path_name = #{pathName} WHERE id = #{id}")
+    int updateServicePortPath(@Param("id") long id, @Param("pathName") String pathName);
+
+    @Select("""
+            SELECT id, software_id, service_name, port, path_name, web_entry, allow, updated_at
+            FROM g_service_port WHERE id = #{id}
+            """)
+    com.csm.paas.core.infrastructure.dao.po.ServicePortPO selectServicePortById(@Param("id") long id);
+
     /** 白名单里是否存在该路径（厂商 `softWareReleaseStatus`）。 */
     @Select("SELECT COUNT(*) FROM g_white_list WHERE path = #{path}")
     long countWhiteListPath(@Param("path") String path);
