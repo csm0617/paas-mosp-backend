@@ -144,6 +144,18 @@ public interface ISoftwareDao {
             """)
     int clearSoftwareAuth(@Param("id") String id, @Param("updatedAt") long updatedAt);
 
+    /**
+     * 写入软件授权（厂商 `authSoftware:3264-3267`：设 `active_create`/`active_code`/`active_expire` 后整行更新；
+     * **不设 `updated_at`**——照抄）。
+     */
+    @org.apache.ibatis.annotations.Update("""
+            UPDATE g_software SET active_create = #{activeCreate}, active_code = #{activeCode},
+                                  active_expire = #{activeExpire}
+            WHERE id = #{id}
+            """)
+    int saveSoftwareAuth(@Param("id") String id, @Param("activeCreate") long activeCreate,
+                         @Param("activeCode") String activeCode, @Param("activeExpire") long activeExpire);
+
     /** 白名单里是否存在该路径（厂商 `softWareReleaseStatus`）。 */
     @Select("SELECT COUNT(*) FROM g_white_list WHERE path = #{path}")
     long countWhiteListPath(@Param("path") String path);

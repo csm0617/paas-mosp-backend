@@ -145,6 +145,29 @@ public class SoftwareQueryServiceImpl implements ISoftwareQueryService {
     }
 
     @Override
+    public java.util.List<com.csm.paas.core.domain.software.model.valobj.SoftwareAuthResultVO> activateSoftware(
+            String authToken) {
+        long start = System.currentTimeMillis();
+        var payload = licenceQueryService.verifySoftwareActivationCode(
+                authToken == null ? null : authToken.replaceAll("\\s*|\\t|\\r|\\n", ""));
+        String machineCodeBase64 = licenceQueryService.machineCodeForSoftware();
+        if (!payload.getMachineCode().equals(machineCodeBase64)) {
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("auth.machine.code.mismatch");
+        }
+        java.util.List<com.csm.paas.core.domain.software.model.valobj.SoftwareAuthResultVO> results = new java.util.ArrayList<>();
+        for (String softwareId : payload.getServiceIdList()) {
+            var software = softwareRepository.queryById(softwareId);
+            if (software.isEmpty()) {
+                continue;   // 厂商：软件不存在就跳过（不报错）
+            }
+            softwareRepository.saveSoftwareAuth(softwareId, start, authToken, payload.getExpiresAt());
+            results.add(com.csm.paas.core.domain.software.model.valobj.SoftwareAuthResultVO.builder()
+                    .softwareKey(software.get().getKey()).result(true).build());
+        }
+        return results;
+    }
+
+    @Override
     public SoftwareListEntity querySoftwareList(int page, int size, String name, String type,
                                                 String order, String sort, String host) {
         String likeName = (name == null || name.isEmpty()) ? null : "%" + name + "%";

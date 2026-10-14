@@ -321,6 +321,11 @@ Label: `wayfinder:map`
 - 当前：46 端点映射、38 测试类 **236 条全绿**、81 提交、63 篇 findings。
 - 下一步优先序：服务切片同模式推进 → K2 跨域（`/auth` 列表可对拉；CS 上传/导入导出需先定边界）→ K3 侧效应 → 把"不可验证项"整理成对外偏离清单。
 
+- （**K2 跨域**）[POST /v1/software/software/active](docs/findings/75-software-activate.md)：**用自造 RSA 密钥对 + 临时 `g_auth` 公钥行**在真实环境验证批量激活，**五种情形一致**。
+  - 手法（沿用 K3）：`openssl genrsa` → 临时插一行 `default_auth`（`create_at` 取最大 ⇒ 厂商 `get(0)` 选中我们）→ 手工签 RS512 JWT → 验完删行并核对原行完好。
+  - 坑：**`g_auth.id` 是自增 int**，第一次用字符串 id 插入静默失败 ⇒ 五条用例全落到"验签失败"；是"`default_auth` 行数没变成 2"这个反常现象暴露的。
+  - **与 `cancelAuth` 三处相反/易错**：`result` 恒 **true**（不是 false）；全部 id 不存在 → **空数组**（不是 400）；缺公钥行 → 400 `auth.invalid.public.key.auth.code`。另：验签失败**只折算一个键** `software.parse.activation.code.failed`（不像 `checkActiveCode` 细分）；`active_create` 用**请求起始时间戳**；写入**不动 `updated_at`**。
+  - 测试 259 → **262 条**全绿。
 - （**K2 跨域**）[POST /v1/software/cancelAuth](docs/findings/74-software-cancel-auth.md)：**五种情形对拉一致**（有激活码/无激活码→400/混合/不存在/先有效后不存在），并核对库内状态。
   - 两处照抄点：**没有激活码是"跳过"**（只有结果列表为空才 400 `auth.no.software.authorization`）；**这条链路没有事务**——"先有效后不存在"实测两侧库里都已被清空（先清空再抛错、不回滚）。
   - **引号家族的第四次坑**：`python3 - <<PY`（未加引号）里的 SQL 含**反引号**被 shell 当命令替换 ⇒ `reset()` 静默失效、输出看起来像"五条全不一致"。规则：含反引号/`$`/三引号的脚本一律用**带引号的 heredoc**或独立脚本文件，并确认它真的执行了。

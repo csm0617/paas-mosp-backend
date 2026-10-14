@@ -118,4 +118,7 @@ public interface ISoftwareRepository {
 
     /** 清空该软件的授权字段（`active_code`/`active_create`/`active_expire` → null，`updated_at` → 传入值）。 */
     void clearSoftwareAuth(String softwareId, long updatedAt);
+
+    /** 写入授权（`active_create`/`active_code`/`active_expire`；**不动 `updated_at`**，照抄厂商）。 */
+    void saveSoftwareAuth(String softwareId, long activeCreate, String activeCode, long activeExpire);
 }

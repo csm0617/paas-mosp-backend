@@ -76,4 +76,17 @@ public interface ISoftwareQueryService {
      */
     java.util.List<com.csm.paas.core.domain.software.model.valobj.SoftwareAuthResultVO> cancelSoftwareAuth(
             java.util.List<String> softwareIdList);
+
+    /**
+     * 批量激活软件（厂商 `POST /v1/software/software/active` → `SoftwareService.authSoftware:3228-3277`）。
+     *
+     * <p>顺序照抄：验签并解析载荷（键名见 `ILicenceQueryService.verifySoftwareActivationCode`）→
+     * **激活码里的机器码必须等于本机软件机器码**，否则 400 `auth.machine.code.mismatch` →
+     * 逐个 id：**软件不存在则跳过**（`continue`），存在则写 `active_create`/`active_code`/`active_expire`
+     * 并产出一项 `{softwareKey, result:true}`。
+     * <p>注意厂商的 `result` **恒为 true**（`i > 0` 只用来打日志），且**没有"结果为空就报错"**——
+     * 全部 id 都不存在时返回**空数组**（与 `cancelAuth` 相反）。
+     */
+    java.util.List<com.csm.paas.core.domain.software.model.valobj.SoftwareAuthResultVO> activateSoftware(
+            String authToken);
 }

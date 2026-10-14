@@ -60,4 +60,22 @@ public interface ILicenceQueryService {
 
     /** 清空授权信息（厂商 `DELETE /v1/licence`，`LicenceController:74-78`）：删激活码后返回 info 形状。 */
     LicenceInfoEntity deactivate();
+
+    /**
+     * 校验**软件激活码**并解析载荷（厂商 `SoftwareService.authSoftware:3232-3257`）。
+     *
+     * <p>与 {@link #checkSoftwareActiveCode} 的区别：那个是"某软件是否被授权"，这个是"批量激活"——
+     * 用 `g_auth['default_auth']` 最新一条的公钥验签（issuer `gaop`），然后取
+     * `machineCode` 与 `serviceIdList` 两个 claim 交给软件域去比对/落库。
+     *
+     * <p>异常契约（逐条照抄，**键名各不相同**）：
+     * <ul>
+     *   <li>没有 `default_auth` 公钥行 → `auth.invalid.public.key.auth.code`；</li>
+     *   <li>验签/解析失败（**任何异常**）→ `software.parse.activation.code.failed`；</li>
+     *   <li>`machineCode` claim 为空 → `auth.missing.machine.id.signature`；</li>
+     *   <li>`serviceIdList` claim 为空 → `auth.missing.software.key.signature`。</li>
+     * </ul>
+     */
+    com.csm.paas.core.domain.licence.model.valobj.SoftwareActivationPayloadVO verifySoftwareActivationCode(
+            String authToken);
 }

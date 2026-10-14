@@ -215,6 +215,37 @@ public class LicenceQueryServiceImpl implements ILicenceQueryService {
         }
     }
 
+    @Override
+    public com.csm.paas.core.domain.licence.model.valobj.SoftwareActivationPayloadVO verifySoftwareActivationCode(
+            String authToken) {
+        String publicKey = licenceRepository.queryDefaultAuthPublicKey().orElse(null);
+        if (publicKey == null) {
+            throw new WrongArgumentException("auth.invalid.public.key.auth.code");
+        }
+        DecodedJWT jwt;
+        try {
+            JWTVerifier verifier = JWT.require(rsa512(publicKey)).withIssuer(ISSUER).build();
+            jwt = verifier.verify(strip(authToken));
+        } catch (Exception e) {
+            // 厂商：**任何**异常都折算成这一个键（不像 checkActiveCode 那样细分）
+            log.error("解析激活码失败，异常为:", e);
+            throw new WrongArgumentException("software.parse.activation.code.failed");
+        }
+        String machineCode = jwt.getClaim("machineCode").asString();
+        if (machineCode == null || machineCode.isEmpty()) {
+            throw new WrongArgumentException("auth.missing.machine.id.signature");
+        }
+        List<String> serviceIdList = jwt.getClaim("serviceIdList").asList(String.class);
+        if (serviceIdList == null || serviceIdList.isEmpty()) {
+            throw new WrongArgumentException("auth.missing.software.key.signature");
+        }
+        return com.csm.paas.core.domain.licence.model.valobj.SoftwareActivationPayloadVO.builder()
+                .machineCode(machineCode)
+                .serviceIdList(serviceIdList)
+                .expiresAt(jwt.getExpiresAt() == null ? null : jwt.getExpiresAt().getTime())
+                .build();
+    }
+
     /** 厂商 `LicenceInfo.expired(code)` = `{end:-1, code, expired:true}`（`endIso8601` 不设 ⇒ null）。 */
     private static LicenceInfoEntity expired(String code) {
         return LicenceInfoEntity.builder().end(-1L).code(code).expired(true).build();

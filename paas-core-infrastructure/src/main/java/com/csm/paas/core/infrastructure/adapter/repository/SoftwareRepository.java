@@ -208,6 +208,11 @@ public class SoftwareRepository implements ISoftwareRepository {
         softwareDao.clearSoftwareAuth(softwareId, updatedAt);
     }
 
+    @Override
+    public void saveSoftwareAuth(String softwareId, long activeCreate, String activeCode, long activeExpire) {
+        softwareDao.saveSoftwareAuth(softwareId, activeCreate, activeCode, activeExpire);
+    }
+
     private SoftwarePO toPO(SoftwareEntity s) {
         SoftwarePO po = new SoftwarePO();
         po.setId(s.getId());
