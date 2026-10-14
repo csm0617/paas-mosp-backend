@@ -231,6 +231,9 @@ Label: `wayfinder:map`
   - 第二道门（终局）：过门后厂商返回 500/-1，trace 指向它自己：`TenxService.responseContainer:604` 的 `getLimits().get("cpu").getNumber()` —— **只判了 limits 非 null、没判键存在**，本环境工作负载没有完整 limits ⇒ NPE。**是厂商缺陷，不是数据缺失。**
   - 结论：这个端点**无法通过任何手段观测到成功响应**。下一轮取舍建议：**先做服务域里可对拉的端点（3），再照代码实现详情并注明"证据来自列表端点 `/v1/service` 的 `ServicesItem` 形状（已对拉），详情端点本身厂商恒 500"（1）**。
   - 用例总数更正
+- （**serviceInfoByNode 勘查**）[findings/62](docs/findings/62-service-info-by-node.md)：`/v1/service` 是 9 条、它是 **0 条** ⇒ **不是同一份数据**（上一轮"同形⇒可复用"只对了形状）。算法已读完（masterNodeName → 按 `(nodeName|keyword|masterNodeName)` 缓存 → `getServicesItems` → order 1..6 排序 → 分页）；**关键未读**：`getServicesItems` 的节点归属规则（"为什么是 0"的答案）。
+  - 定位：**可观测但参考退化**（同 `baseComponent`）。按 `gaop` 的经验，**只有能解释"为什么是 0"，这个 0 才算证据** ⇒ 下一轮先读 `getServicesItems`，能解释 0 再实现。
+  - **服务域工作量判断更新**：能拿到**非空对拉**的存量基本用完（已对拉 5 个）。往后只剩三类：退化参考+能解释的 0 / 独立 namespace 里的写验证 / 按代码实现+标注证据来源。**这个判断要在下一轮先确认，别再逐个端点试。**
 - （**方法感知分诊 + 3 个新可观测读端点**）[findings/61](docs/findings/61-service-triage-method-aware.md)：新发现 `serviceInfoByNode`（**与 `/v1/service` 同形，下一轮首选**）、`otherPlugin`（`{daemonSetList,deploymentList,statefulSetList}`）、`restartInfo`（本环境空）。剩余端点性质已归纳：已对拉 5 / 可观测读待做 3 / 依赖 Harbor 1 / 内容退化 1 / 厂商自身坏 3 / 破坏性写若干 / 非破坏性写（需独立 namespace）。
 - （**服务域分诊**）[10 个端点逐个探测，只有 4 个能拿 200](docs/findings/52-service-endpoint-observability-triage.md)：可对拉=`gaop`/`serviceAuth`（**与我们已对拉的 `/v1/service` 同形**）+ `imageStorage`/`baseComponent`（各有前置）。
   - ⚠️ **本文 §2 的"400（参数类）"已被 [findings/61](docs/findings/61-service-triage-method-aware.md) 修正**：`hostName`/`priority`/`node` 根本不是 GET（是 `PUT`/`POST`/`DELETE`；`node` 是**删节点**、`servicePods` 是**删 Pod**，破坏性写）。**分诊要先看 HTTP 方法再看返回码。**
