@@ -95,6 +95,17 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
     }
 
     @Override
+    public boolean updateServiceCommand(String namespace, String serviceName,
+                                        List<String> command, List<String> args) {
+        if (!serviceRuntimePort.patchDeploymentCommand(namespace, serviceName, command, args)) {
+            // 厂商：读不到 Deployment → WrongArgumentException（**没有** StatefulSet 回退）
+            throw new com.csm.paas.core.types.exception.WrongArgumentException(
+                    "service.service.name.not.found", serviceName);
+        }
+        return true;
+    }
+
+    @Override
     public Map<String, List<Map<String, Object>>> queryOtherPluginWorkloads() {
         return serviceRuntimePort.listOtherPluginWorkloads();
     }

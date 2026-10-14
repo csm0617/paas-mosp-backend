@@ -56,4 +56,8 @@ public interface IServiceRuntimePort {
      * 排除 `gaop-namespace`，并套用厂商那串标签选择器。键为 `daemonSetList`/`deploymentList`/`statefulSetList`。
      */
     java.util.Map<String, java.util.List<java.util.Map<String, Object>>> listOtherPluginWorkloads();
+
+    /** 给 Deployment 的所有容器设置 command/args；**Deployment 不存在返回 false**（厂商据此 400）。 */
+    boolean patchDeploymentCommand(String namespace, String serviceName, java.util.List<String> command,
+                                   java.util.List<String> args);
 }

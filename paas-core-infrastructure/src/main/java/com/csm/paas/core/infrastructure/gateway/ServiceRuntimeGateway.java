@@ -194,6 +194,24 @@ public class ServiceRuntimeGateway {
         return result;
     }
 
+    /**
+     * 给 Deployment 的**所有容器**设置 `command`/`args`（厂商 `updateCommand` 对 `containers.forEach` 做同一件事）。
+     * <p>Deployment 不存在时返回 false（厂商据此抛 400 `service.service.name.not.found`）。
+     */
+    public boolean patchDeploymentCommand(String namespace, String name, List<String> command, List<String> args) {
+        var d = kubernetesClient.apps().deployments().inNamespace(namespace).withName(name).get();
+        if (d == null) {
+            return false;
+        }
+        d.getSpec().getTemplate().getSpec().getContainers()
+                .forEach(c -> { c.setCommand(command); c.setArgs(args); });
+        // 厂商是"序列化整份对象 + application/merge-patch+json"；这里同样发整份 JSON 的 merge patch
+        kubernetesClient.apps().deployments().inNamespace(namespace).withName(name)
+                .patch(io.fabric8.kubernetes.client.dsl.base.PatchContext.of(
+                        io.fabric8.kubernetes.client.dsl.base.PatchType.JSON_MERGE), Serialization.asJson(d));
+        return true;
+    }
+
     public List<StatefulSet> listStatefulSets(String namespace) {
         List<StatefulSet> items = kubernetesClient.apps().statefulSets().inNamespace(namespace).list().getItems();
         log.info("fabric8 读到 namespace:{} 的 StatefulSet {} 个", namespace, items.size());

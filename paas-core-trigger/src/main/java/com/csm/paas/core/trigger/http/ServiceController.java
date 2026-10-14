@@ -131,6 +131,18 @@ public class ServiceController {
         return ResponseDTO.ok(serviceQueryService.queryOtherPluginWorkloads());
     }
 
+    /**
+     * 厂商 `PUT /v1/service/patchCommand/{serviceName}`：改服务启动命令（`{command,args}` 作用到**所有容器**）。
+     * <p>服务不存在 → 400 `service.service.name.not.found`；厂商返回**不带 body** ⇒ 这里也回 `data:null`。
+     */
+    @org.springframework.web.bind.annotation.PutMapping("/v1/service/patchCommand/{serviceName}")
+    public ResponseDTO<Void> updateCommand(
+            @org.springframework.web.bind.annotation.PathVariable String serviceName,
+            @org.springframework.web.bind.annotation.RequestBody com.csm.paas.core.api.dto.UpdateCommandDTO form) {
+        serviceQueryService.updateServiceCommand(namespace, serviceName, form.getCommand(), form.getArgs());
+        return ResponseDTO.ok(null);
+    }
+
     @GetMapping("/v1/service/labels")
     public ResponseDTO<java.util.List<com.csm.paas.core.api.dto.LabelListDTO>> labels() {
         var merged = serviceQueryService.queryNodeLabels();

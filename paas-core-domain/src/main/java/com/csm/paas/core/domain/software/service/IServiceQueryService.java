@@ -85,4 +85,13 @@ public interface IServiceQueryService {
      * 某一类取失败时厂商只记日志并返回**空列表**（不是整体报错）。
      */
     java.util.Map<String, java.util.List<java.util.Map<String, Object>>> queryOtherPluginWorkloads();
+
+    /**
+     * 改服务启动命令（厂商 `PUT /v1/service/patchCommand/{serviceName}`，`ServiceController:992-1010`）。
+     * <p>逐行照抄：读不到 Deployment → 400 `service.service.name.not.found`（**无 StatefulSet 回退**）；
+     * 对**所有容器**设置 `command`/`args`；patch 失败 → `service.modify.start.command`（500）。
+     * <p>厂商返回 `Response.ok()`（**不带 body**）⇒ 响应的 `data` 是 **null**。
+     */
+    boolean updateServiceCommand(String namespace, String serviceName,
+                                 java.util.List<String> command, java.util.List<String> args);
 }

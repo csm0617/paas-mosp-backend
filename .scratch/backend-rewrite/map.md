@@ -321,6 +321,10 @@ Label: `wayfinder:map`
 - 当前：46 端点映射、38 测试类 **236 条全绿**、81 提交、63 篇 findings。
 - 下一步优先序：服务切片同模式推进 → K2 跨域（`/auth` 列表可对拉；CS 上传/导入导出需先定边界）→ K3 侧效应 → 把"不可验证项"整理成对外偏离清单。
 
+- （**服务切片**）[PUT /v1/service/patchCommand/{serviceName}](docs/findings/70-service-patch-command.md)：独立 namespace e2e——`command`/`args` 作用到**所有容器**且真的改上；服务不存在 → 400（与厂商同码同文案模式）。
+  - 照抄点：厂商返回 `Response.ok()` **不带 body** ⇒ 响应 `data:null`（不是 `true`）；**无 StatefulSet 回退**（与 `hostName` 不同）。
+  - fabric8 枚举名易错：`application/merge-patch+json` → **`PatchType.JSON_MERGE`**（不是 `MERGE`）；`strategic-merge-patch+json` → `STRATEGIC_MERGE`。**两种 merge patch 不要混用**（JSON_MERGE 整份合并、STRATEGIC_MERGE 按键合并列表）。
+  - 服务切片 **10/33**；测试 244 → **246 条**全绿。
 - （**服务切片**）[GET /v1/service/otherPlugin](docs/findings/69-service-other-plugin.md)：**三类列表的 `namespace/name` 集合全部与厂商相同**（4/15/1，跨命名空间）——服务切片第二个非空对拉。
   - 实现取舍：fabric8 7 在"跨命名空间列举"上不便直接带选择器（`withFieldSelector` 与 `ListOptionsBuilder` 两版都编译不过）⇒ 改为全量列举 + **内存里严格复刻 k8s 选择器语义**（`!k` 要求键不存在；**`k!=v` 对缺失键也成立** ⇒ "什么标签都没有"的对象会被保留，这正是 vendor 那 15 个 Deployment 的来源）。
   - 风险用**对拉结果集合**兜底（本集群上语义等价已证明）+ 4 条单测钉住语义本身。
