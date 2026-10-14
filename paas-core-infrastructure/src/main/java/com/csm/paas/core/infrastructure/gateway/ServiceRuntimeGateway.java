@@ -484,6 +484,64 @@ public class ServiceRuntimeGateway {
         return true;
     }
 
+    /** 读 Deployment 的 `spec.template.spec.tolerations`（没有则空列表）。 */
+    public List<Map<String, Object>> readDeploymentTolerations(String namespace, String name) {
+        var d = kubernetesClient.apps().deployments().inNamespace(namespace).withName(name).get();
+        if (d == null || d.getSpec() == null || d.getSpec().getTemplate() == null
+                || d.getSpec().getTemplate().getSpec() == null
+                || d.getSpec().getTemplate().getSpec().getTolerations() == null) {
+            return List.of();
+        }
+        return d.getSpec().getTemplate().getSpec().getTolerations().stream()
+                .map(t -> {
+                    Map<String, Object> row = new java.util.HashMap<>();
+                    row.put("key", t.getKey());
+                    row.put("operator", t.getOperator());
+                    row.put("effect", t.getEffect());
+                    return row;
+                })
+                .toList();
+    }
+
+    /**
+     * 整份替换 `spec.template.spec.tolerations` 并 merge-patch（厂商 `allowMasterTolerance:3425-3475`
+     * 两处都是"设值后整份 patch"）。
+     *
+     * @return false = Deployment 不存在
+     */
+    public boolean patchDeploymentTolerations(String namespace, String name, List<Map<String, Object>> tolerations) {
+        var d = kubernetesClient.apps().deployments().inNamespace(namespace).withName(name).get();
+        if (d == null) {
+            return false;
+        }
+        // ⚠️ 这里**不能**用 `Serialization.asJson(整份对象)`：它会把**空集合**（以及 null）省略掉，
+        // 于是"清空 tolerations"的 merge-patch 体里根本没有 tolerations 键 ⇒ 打不动（实测踩过）。
+        // 改成显式构造 merge-patch 体，并把 inclusion 设成 ALWAYS 保证空数组也写出去。
+        List<Map<String, Object>> rows = tolerations.stream()
+                .map(t -> {
+                    Map<String, Object> row = new java.util.HashMap<>();
+                    row.put("key", t.get("key"));
+                    row.put("operator", t.get("operator"));
+                    row.put("effect", t.get("effect"));
+                    return row;
+                })
+                .toList();
+        Map<String, Object> patchBody = Map.of("spec", Map.of("template", Map.of("spec",
+                Map.of("tolerations", rows))));
+        String body;
+        try {
+            body = Serialization.jsonMapper().copy()
+                    .setSerializationInclusion(com.fasterxml.jackson.annotation.JsonInclude.Include.ALWAYS)
+                    .writeValueAsString(patchBody);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            throw new io.fabric8.kubernetes.client.KubernetesClientException(e.getMessage());
+        }
+        kubernetesClient.apps().deployments().inNamespace(namespace).withName(name)
+                .patch(io.fabric8.kubernetes.client.dsl.base.PatchContext.of(
+                        io.fabric8.kubernetes.client.dsl.base.PatchType.JSON_MERGE), body);
+        return true;
+    }
+
     /**
      * 按标签选择器列 pod，返回 `{name, generateName}`（厂商 `getServiceEvent` 是列全部 pod 再按
      * `system/svcName` 过滤，用选择器等价）。

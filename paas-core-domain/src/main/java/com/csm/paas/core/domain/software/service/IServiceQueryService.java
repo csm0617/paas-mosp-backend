@@ -285,4 +285,21 @@ public interface IServiceQueryService {
      * @return 原样 Event 快照列表（字段名即 K8s 事件 schema）
      */
     java.util.List<java.util.Map<String, Object>> queryServiceEvents(String namespace, String serviceName);
+
+    /**
+     * 开启/关闭 master 节点污点容忍（厂商 `POST /v1/service/tolerance?serviceName&type=` →
+     * `ServiceController.allowMasterTolerance:3425-3475`，规格见 `docs/findings/124`）。
+     *
+     * <p>`type == 0`（关闭）：**tolerations 本来就为空时直接返回 true 且不打 patch**；否则整份置空并 patch。
+     * <br>`type == 1`（开启）：整份置成**那一条**固定容忍
+     * `{key: "node-role.kubernetes.io/master", operator: "Exists", effect: "NoSchedule"}` 并 patch。
+     * <br>**其它 type** ⇒ 返回 `false`（HTTP 200 但 `data:false`，不打 patch）。
+     *
+     * <p>错误语义：Deployment 读不到 → 400，键是厂商源码里那个**拼重了的字面量**
+     * `service.not.found.update.taintservice.not.found.update.taint`（消息包解析失败时回退成键本身，
+     * 与厂商的 `i18n()` 一致 ⇒ **响应文案也一致**）；patch 失败 → 400 `service.update.service.failed`（带服务名）。
+     *
+     * <p><b>未照抄</b>：厂商方法开头的 `Thread.sleep(100)`（对响应无可观测影响，见 findings）。
+     */
+    boolean allowMasterTolerance(String namespace, String serviceName, Integer type);
 }

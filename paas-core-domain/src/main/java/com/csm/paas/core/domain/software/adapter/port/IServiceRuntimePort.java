@@ -187,4 +187,17 @@ public interface IServiceRuntimePort {
      */
     java.util.List<java.util.Map<String, Object>> listEvents(String namespace, String involvedObjectName,
                                                             String involvedObjectKind);
+
+    // ---------- tolerance（厂商 POST /v1/service/tolerance）----------
+
+    /** 读 Deployment 的 `spec.template.spec.tolerations`；没有（或对象不存在）返回空列表。 */
+    java.util.List<com.csm.paas.core.domain.software.model.valobj.TolerationVO> readDeploymentTolerations(
+            String namespace, String serviceName);
+
+    /**
+     * 整份替换 `spec.template.spec.tolerations` 并 merge-patch（厂商两处都是"设值后整份 patch"）。
+     * <p>传空列表 ⇒ 清空（厂商 `type=0` 分支）。
+     */
+    void patchDeploymentTolerations(String namespace, String serviceName,
+                                    java.util.List<com.csm.paas.core.domain.software.model.valobj.TolerationVO> tolerations);
 }

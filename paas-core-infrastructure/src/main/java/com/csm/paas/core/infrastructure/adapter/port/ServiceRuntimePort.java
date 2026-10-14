@@ -203,6 +203,44 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
     }
 
     @Override
+    public java.util.List<com.csm.paas.core.domain.software.model.valobj.TolerationVO> readDeploymentTolerations(
+            String namespace, String serviceName) {
+        try {
+            return serviceRuntimeGateway.readDeploymentTolerations(namespace, serviceName).stream()
+                    .map(row -> com.csm.paas.core.domain.software.model.valobj.TolerationVO.builder()
+                            .key((String) row.get("key"))
+                            .operator((String) row.get("operator"))
+                            .effect((String) row.get("effect"))
+                            .build())
+                    .toList();
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    @Override
+    public void patchDeploymentTolerations(String namespace, String serviceName,
+                                           java.util.List<com.csm.paas.core.domain.software.model.valobj.TolerationVO> tolerations) {
+        List<java.util.Map<String, Object>> rows = tolerations.stream()
+                .map(t -> {
+                    java.util.Map<String, Object> row = new java.util.HashMap<>();
+                    row.put("key", t.getKey());
+                    row.put("operator", t.getOperator());
+                    row.put("effect", t.getEffect());
+                    return row;
+                })
+                .toList();
+        try {
+            if (!serviceRuntimeGateway.patchDeploymentTolerations(namespace, serviceName, rows)) {
+                throw new com.csm.paas.core.types.exception.K8sApiException(
+                        "deployment " + serviceName + " not found");
+            }
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    @Override
     public java.util.List<com.csm.paas.core.domain.software.model.valobj.ServicePodRefVO> listPodsByLabel(
             String namespace, String labelKey, String labelValue) {
         try {

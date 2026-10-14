@@ -57,6 +57,48 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
     private static final Integer AUTH_AUTHORIZED = 1;
     private static final Integer AUTH_EXPIRED = 2;
 
+    /** 厂商 `allowMasterTolerance` 里那条固定的 master 容忍。 */
+    private static final String MASTER_TAINT_KEY = "node-role.kubernetes.io/master";
+
+    /**
+     * 开启/关闭 master 污点容忍（厂商 `allowMasterTolerance:3425-3475`，规格见 `docs/findings/124`）。
+     */
+    @Override
+    public boolean allowMasterTolerance(String namespace, String serviceName, Integer type) {
+        // 厂商：读不到 Deployment ⇒ 400，键是源码里**拼重了的字面量**（消息包查不到 ⇒ 回退成键本身，文案一致）
+        if (!serviceRuntimePort.deploymentExists(namespace, serviceName)) {
+            throw new com.csm.paas.core.types.exception.WrongArgumentException(
+                    "service.not.found.update.taintservice.not.found.update.taint", serviceName);
+        }
+        if (type != null && type == 0) {
+            // 厂商：tolerations 本来就为空 ⇒ **直接返回 true，不打 patch**
+            if (serviceRuntimePort.readDeploymentTolerations(namespace, serviceName).isEmpty()) {
+                return true;
+            }
+            patchTolerations(namespace, serviceName, List.of());
+            return true;
+        }
+        if (type != null && type == 1) {
+            patchTolerations(namespace, serviceName, List.of(
+                    com.csm.paas.core.domain.software.model.valobj.TolerationVO.builder()
+                            .key(MASTER_TAINT_KEY).operator("Exists").effect("NoSchedule").build()));
+            return true;
+        }
+        // 其它 type：厂商 `Response.ok(false)` ⇒ HTTP 200 + data:false，且**不打 patch**
+        return false;
+    }
+
+    private void patchTolerations(String namespace, String serviceName,
+                                  List<com.csm.paas.core.domain.software.model.valobj.TolerationVO> tolerations) {
+        try {
+            serviceRuntimePort.patchDeploymentTolerations(namespace, serviceName, tolerations);
+        } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+            log.error("更新服务 {} 的污点容忍时出现异常：{}", serviceName, e.getMessage());
+            throw new com.csm.paas.core.types.exception.WrongArgumentException(
+                    "service.update.service.failed", serviceName);
+        }
+    }
+
     /**
      * 某服务的 Event 列表（厂商 `getServiceEvent:2821-2859`，规格见 `docs/findings/123`）。
      */

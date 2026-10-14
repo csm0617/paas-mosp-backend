@@ -143,6 +143,19 @@ public class ServiceController {
     }
 
     /**
+     * 厂商 `POST /v1/service/tolerance?serviceName&type`：开启/关闭 master 节点污点容忍。
+     *
+     * <p>`type=0` 关闭（本来就为空则不打 patch）、`type=1` 开启（固定那一条容忍）、**其它 type ⇒ `data:false`**。
+     * 规则与那个"拼重了的 i18n 键"见 `IServiceQueryService.allowMasterTolerance`（规格 `findings/124`）。
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/v1/service/tolerance")
+    public ResponseDTO<Boolean> tolerance(
+            @org.springframework.web.bind.annotation.RequestParam String serviceName,
+            @org.springframework.web.bind.annotation.RequestParam Integer type) {
+        return ResponseDTO.ok(serviceQueryService.allowMasterTolerance(namespace, serviceName, type));
+    }
+
+    /**
      * 厂商 `GET /v1/service/event?name=`：某服务的 Event 事件列表。
      *
      * <p>取第一个 pod 的 `generateName` 去末位字符当 ReplicaSet 名，分别查 ReplicaSet 与每个 Pod 的事件，
