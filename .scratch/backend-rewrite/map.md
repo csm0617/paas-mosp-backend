@@ -403,6 +403,8 @@ Label: `wayfinder:map`
 - （**user/list 规格**）[findings/98](docs/findings/98-user-list-spec.md)：与 `/v1/user/info` **同一个查询、不同条目形状**——`UserInfoList`(11 字段) vs `UserRoles`(16 字段)；字段差已逐项列出：去掉 `belongUsers`、加上 `email/birth/phone/avatar/uuid` 与布尔 `admin`。
   - 下一轮要改的点已定位：`UserInfoEntity` 缺 5 个字段（+ `IUserDao` 查询补列）→ 新增 `UserRolesDTO`/`UserRoleListResponseDTO`/装配器（`admin` 由 roles 是否含 `"admin"` 推出）→ 控制器加映射 → **关键字长度校验**（照抄"带 % 算长度 > 38"）。
   - 验证计划：分页/keyword/超长 keyword(400)/第二页 四例对拉。注意 `/v1/user/list` **不返回口令哈希**，无偏离。
+  - **读 `getUserRoles:1780-1803` 后的三处关键修正**（比字段表更易踩）：① **`nickname` 恒 null**（厂商没 `setNickname`，尽管字段声明了）——别顺手从实体填；② **`roles`/`subRoles` 是对象列表**（`List<Role>`/`List<SubRole>`），而 `/v1/user/info` 同名键是**字符串**（已逐字节验证）⇒ 实现前必须先取 `Role`/`SubRole` 的序列化样本；③ **不过滤 root**（`/v1/user/info` 才过滤）⇒ 我们的 `queryUserInfoPage` 不能复用，需新域方法。
+  - 好消息：`selectPageByKeyword` 的 SQL **已取全 14 列** ⇒ **不用改 SQL**，只需给 `UserInfoEntity` 补 5 字段并在 `toInfo` 填上。
 - （**改动后 e2e 复验**）[findings/97](docs/findings/97-e2e-after-token-fix.md)：第 89 轮把 `/v1/user` 的 token 改成 null 后，专门重跑 e2e——**表头/数据行/可见文本与厂商归档页全等**（64/64 行、仅 vendor 有=空）、前端请求**无 4xx/5xx**、脚本退出 0。⇒ 修复没破坏前端。
   - 经验：**改了前端会读的端点就必须重跑 e2e**——契约比对（L1/L2）只看字段对不对，看不出"页面会不会白屏"。
 - （**工具修正**）[contract-check 增加易变字段模式](docs/findings/96-contract-check-volatile.md)：`/v1/user/info` 的 `createdAt`/`updatedAt` 标为 `mode: volatile`——**只比存在与类型**，不再因样本陈旧误报（**不用 `allowDeviation`**：那是"允许的偏离"会永久豁免，而"易变"只是字段性质）。

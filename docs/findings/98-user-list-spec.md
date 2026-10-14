@@ -33,6 +33,21 @@ total = Page.getTotal()
 
 `admin` 的算法：`hasAdminPermission(roles)` → 遍历角色，任一 `key == "admin"` 即 true。
 
+## 2'. 读 `getUserRoles:1780-1803` 后的三处**关键修正**（比字段表更容易踩）
+
+1. **`nickname` 永远为 null**：`getUserRoles` **没有** `setNickname`（尽管 `UserRoles` 声明了该字段）
+   ⇒ `/v1/user/list` 的 `nickname` 恒 null，与 `/v1/user/info`（那里有值）**不同**。
+   照抄实现时**不要**顺手从实体填 nickname——那会造成值差异。
+2. **`roles` / `subRoles` 是"对象列表"不是字符串列表**：分别是
+   `roleService.list(username).getList()`（`List<Role>`）与 `subRoleService.listByUserId(userId).getList()`（`List<SubRole>`）。
+   而 `/v1/user/info` 的 `roles`/`subRoles` 是**字符串**（已逐字节验证）⇒ **两个端点的同名键形状不同**，
+   实现前必须先把 `Role`/`SubRole` 的序列化形状取到样本（否则形状必错）。
+3. **不过滤 root**：`list()` 的查询里没有 `!= root` 的条件（`/v1/user/info` 才过滤 root）。
+   ⇒ 我们的 `queryUserInfoPage` 里那句 `filter(u -> !ROOT_USERNAME.equals(...))` **不能复用**，需要一个新的域方法。
+
+另外一条好消息：`selectPageByKeyword` 的 SQL **已经取了全部 14 列**（含 `email/birth/phone/uuid/avatar`），
+所以**不用改 SQL**——只需给 `UserInfoEntity` 补 5 个字段并让 `toInfo` 填上。
+
 ## 3. 下一轮要改的地方（已经定位到文件）
 
 1. `UserInfoEntity`（domain）**缺 5 个字段**：`email` / `birth` / `phone` / `avatar` / `uuid`
