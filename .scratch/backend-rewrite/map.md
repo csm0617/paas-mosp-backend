@@ -234,7 +234,11 @@ Label: `wayfinder:map`
 - （**服务域分诊**）[10 个端点逐个探测，只有 4 个能拿 200](docs/findings/52-service-endpoint-observability-triage.md)：可对拉=`gaop`/`serviceAuth`（**与我们已对拉的 `/v1/service` 同形**）+ `imageStorage`/`baseComponent`（各有前置）。
   - `hostName`/`priority`/`node` → 400（参数类）；`servicePods` → 400（与 `existService` 同源，见 findings/51）；`baseEvent`/`event` → **500 厂商内部异常**。
   - **本轮零业务代码改动，理由写清了**：`gaop`/`serviceAuth` 差"过滤/排序规则"（不读码会形状对内容错）；`imageStorage` 的值来自 Harbor 而我们**没有 Harbor 客户端**，返回 0/0 属于"用 0 冒充数据"，拒绝；`baseComponent` 要先读全形状与那组 DaemonSet 名。
-  - 下一轮确定顺序：`gaop` → `serviceAuth` → `baseComponent` →（`imageStorage` 等 Harbor 域）。：我此前逐轮报的「162/174」是**数错了**（grep 只匹配到部分模块的汇总行，且 surefire 报告目录混有旧文件）。按模块汇总行精确求和：**33 个测试类、210 条用例全绿**。教训与「手抄不透明值」「只验形状不验值」同源——**计数也是要验证的量**，必须用可复算的命令。
+  - 下一轮确定顺序：`gaop` → `serviceAuth` → `baseComponent` →（`imageStorage` 等 Harbor 域）。
+- （**gaop 端点开工资料齐了**）[算法与常量全量摘录](docs/findings/53-gaop-service-list-algorithm.md)：下一轮**无需再读源码**。
+  - 摘全了：`gaopName` 18 条显示名映射、`PASS_FRAME_SERVER_NAME_SET`(9)/`BASE_SERVER_NAME_SET`(7)、`AppTypeLabelsEnum`、过滤算法（含 `system/appType` 标签优先）、keyword 两段式、伪服务 gis-server/gis-jb（本环境因 existService 恒 false 而**不可达**）。
+  - **顺带发现厂商缺陷**：没有 `appType` 标签时，`type==1` 与 `type==2` **用的是同一套 PASS_FRAME 集合**（`serviceInBaseService`/`BASE_SERVER_NAME_SET` 成了死代码）⇒ 本环境查 `type=2`「基础服务」实际返回**框架服务**。照抄，并加注释与用例钉住。
+  - 下一轮程序：搬常量 → 实现 filter（type=2 照抄缺陷）→ keyword 两段式（兜底 `filterServiceName` 需先补读）→ 复用已对拉的 `ServiceList` 形状 → 对拉 type=1/type=2/带 keyword/keyword>45 四种情形。：我此前逐轮报的「162/174」是**数错了**（grep 只匹配到部分模块的汇总行，且 surefire 报告目录混有旧文件）。按模块汇总行精确求和：**33 个测试类、210 条用例全绿**。教训与「手抄不透明值」「只验形状不验值」同源——**计数也是要验证的量**，必须用可复算的命令。
 
 - （K3 预研结论）`LicenceInfo.expired(code)` = `{end:-1, endIso8601:null, code, expired:true}`，其中 `code = 机器码 + Base64(软件key)`；**"没有激活码"这一支不需要密码学**，可以在做 `GET /v1/software/{id}` 时一并实现（本轮没写，因为详情端点没做就没有调用方，写了是死代码）。
 
