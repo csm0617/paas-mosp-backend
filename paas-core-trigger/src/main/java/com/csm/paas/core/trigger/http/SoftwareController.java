@@ -50,6 +50,32 @@ public class SoftwareController {
     private String namespace;
 
     /**
+     * 厂商 `PUT /v1/software/update_icon?softwareId=`：修改软件图标。
+     *
+     * <p>`icon` 与库里相同 ⇒ 不写库直接返回；`icon` 为 **null** ⇒ **清空**；软件不存在 ⇒ 400 `software.not.found`。
+     * 规则见 `ISoftwareCommandService.updateIcon`（规格 `findings/130`）。
+     */
+    @org.springframework.web.bind.annotation.PutMapping("/update_icon")
+    public ResponseDTO<String> updateIcon(
+            @org.springframework.web.bind.annotation.RequestParam String softwareId,
+            @org.springframework.web.bind.annotation.RequestBody com.csm.paas.core.api.dto.SoftwareIconDTO icon) {
+        return ResponseDTO.ok(softwareCommandService.updateIcon(softwareId, icon == null ? null : icon.getIcon()));
+    }
+
+    /**
+     * 厂商 `PUT /v1/software/update_screenshot?softwareId=`：修改软件截图（body 是**字符串数组**）。
+     *
+     * <p>列表用 `,` 连接成一列；与库里相同 ⇒ 不写库；空列表 ⇒ **清空**。规则见
+     * `ISoftwareCommandService.updateScreenshot`（规格 `findings/130`）。
+     */
+    @org.springframework.web.bind.annotation.PutMapping("/update_screenshot")
+    public ResponseDTO<java.util.List<String>> updateScreenshot(
+            @org.springframework.web.bind.annotation.RequestParam String softwareId,
+            @org.springframework.web.bind.annotation.RequestBody(required = false) java.util.List<String> screenShotList) {
+        return ResponseDTO.ok(softwareCommandService.updateScreenshot(softwareId, screenShotList));
+    }
+
+    /**
      * 厂商 `POST /v1/software/overView`：软件总览（三组计数 `running/stop/pending`）。
      *
      * <p>三组口径不同：`software` 按"该软件关联服务的状态汇总"（关联服务找不到算 STOP，部分运行归 pending）、

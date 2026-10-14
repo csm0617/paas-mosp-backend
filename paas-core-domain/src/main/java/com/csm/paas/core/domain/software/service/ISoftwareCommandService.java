@@ -68,4 +68,30 @@ public interface ISoftwareCommandService {
      * 要 K8s 与 `g_software_app` 映射）。
      */
     SoftwareEntity prepareUpdatedSoftware(String softwareId, SoftwareFormVO form);
+
+    /**
+     * 修改软件图标（厂商 `PUT /v1/software/update_icon?softwareId=` → `SoftwareService.updateIcon:2577-2595`，
+     * 规格见 `docs/findings/130`）。
+     *
+     * <p>三种情形：① `icon` 与库里**完全相同** ⇒ **直接返回、不写库**；
+     * ② `icon` 非空且不同 ⇒ 写入 + 推进 `updated_at`；③ `icon` 为 **null** ⇒ **清空**该列。
+     * 软件不存在 ⇒ 400 `software.not.found`（**不是** `software.not.exist.by.id`）。
+     *
+     * @return 传入的 `icon` 原值（可能是 null）
+     */
+    String updateIcon(String softwareId, String icon);
+
+    /**
+     * 修改软件截图（厂商 `PUT /v1/software/update_screenshot?softwareId=` →
+     * `updateScreenshot:2556-2575`）。
+     *
+     * <p>列表**用 `,` 连接**成一列存；与库里相同 ⇒ 直接返回不写库；列表为空 ⇒ **清空**该列。
+     * 软件不存在 ⇒ 400 `software.not.found`。
+     *
+     * <p><b>一处主动收紧</b>（`deviations.md` B21）：请求体为 null 时厂商会 `isEmpty()` NPE ⇒ 500，
+     * 我们按空列表处理（清空）。
+     *
+     * @return 传入的列表原值
+     */
+    java.util.List<String> updateScreenshot(String softwareId, java.util.List<String> screenShotList);
 }

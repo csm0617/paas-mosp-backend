@@ -148,6 +148,12 @@ public interface ISoftwareRepository {
 
     // ---------- batch-restart（厂商 serviceRestart:3826-3912）----------
 
+    /** 只更新 `icon` 与 `updated_at`（厂商 `updateIcon`）。 */
+    void updateSoftwareIcon(String softwareId, String icon, long updatedAt);
+
+    /** 只更新 `screenshot` 与 `updated_at`（厂商 `updateScreenshot`）。 */
+    void updateSoftwareScreenshot(String softwareId, String screenshot, long updatedAt);
+
     /** 全部软件行（厂商 `getOverViewInfo` 里的 `select(allRows())`）。 */
     List<SoftwareEntity> queryAllSoftware();
 

@@ -135,6 +135,46 @@ public class SoftwareCommandServiceImpl implements ISoftwareCommandService {
                 .orElseThrow(() -> new WrongArgumentException("software.not.exist.by.id"));
     }
 
+    /**
+     * 修改图标（厂商 `updateIcon:2577-2595`，规格见 `docs/findings/130`）。
+     */
+    @Override
+    public String updateIcon(String softwareId, String icon) {
+        SoftwareEntity existing = softwareRepository.queryById(softwareId)
+                .orElseThrow(() -> new WrongArgumentException("software.not.found"));
+        if (icon != null) {
+            // 厂商：与库里完全相同 ⇒ 直接返回、不写库（也不推进 updated_at）
+            if (icon.equals(existing.getIcon())) {
+                return icon;
+            }
+            softwareRepository.updateSoftwareIcon(softwareId, icon, System.currentTimeMillis());
+        } else {
+            softwareRepository.updateSoftwareIcon(softwareId, null, System.currentTimeMillis());
+        }
+        return icon;
+    }
+
+    /**
+     * 修改截图（厂商 `updateScreenshot:2556-2575`，规格见 `docs/findings/130`）。
+     */
+    @Override
+    public java.util.List<String> updateScreenshot(String softwareId, java.util.List<String> screenShotList) {
+        SoftwareEntity existing = softwareRepository.queryById(softwareId)
+                .orElseThrow(() -> new WrongArgumentException("software.not.found"));
+        // 厂商写的是 `!screenShotList.isEmpty()` ⇒ null 时 NPE；我们按空列表处理（B21）
+        java.util.List<String> list = screenShotList == null ? java.util.List.of() : screenShotList;
+        if (!list.isEmpty()) {
+            String screenshot = String.join(",", list);
+            if (screenshot.equals(existing.getScreenshot())) {
+                return list;
+            }
+            softwareRepository.updateSoftwareScreenshot(softwareId, screenshot, System.currentTimeMillis());
+        } else {
+            softwareRepository.updateSoftwareScreenshot(softwareId, null, System.currentTimeMillis());
+        }
+        return list;
+    }
+
     @Override
     public SoftwareEntity prepareUpdatedSoftware(String softwareId, SoftwareFormVO form) {
         SoftwareEntity existing = softwareRepository.queryById(softwareId)

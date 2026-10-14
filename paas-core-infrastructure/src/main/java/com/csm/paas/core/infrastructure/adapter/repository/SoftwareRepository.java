@@ -243,6 +243,16 @@ public class SoftwareRepository implements ISoftwareRepository {
     }
 
     @Override
+    public void updateSoftwareIcon(String softwareId, String icon, long updatedAt) {
+        softwareDao.updateSoftwareIcon(softwareId, icon, updatedAt);
+    }
+
+    @Override
+    public void updateSoftwareScreenshot(String softwareId, String screenshot, long updatedAt) {
+        softwareDao.updateSoftwareScreenshot(softwareId, screenshot, updatedAt);
+    }
+
+    @Override
     public List<SoftwareEntity> queryAllSoftware() {
         return softwareDao.selectAllSoftware().stream().map(this::toEntity).toList();
     }

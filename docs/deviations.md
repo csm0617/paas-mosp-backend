@@ -47,6 +47,7 @@
 | B18 | `GET /v1/service/event`：pod 的 `metadata.generateName` 为 null 时**跳过该 pod** | 厂商直接 `generateName.substring(0, len-1)` ⇒ **NPE ⇒ 500**；裸 Pod（非控制器创建）没有 `generateName` | `findings/123` §4 |
 | B19 | `GET /v1/service/baseEvent`：事件缺 `lastTimestamp` 时**排到最后**（而不是报错） | 厂商 `Comparator.comparing(getLastTimestamp).reversed()` **没有空值保护** ⇒ 比较器抛 **NPE ⇒ 500**。该端点意图是"最新在前"，空值只是没有时间信息 | `findings/125` §4 |
 | B20 | `batch-stop`：`spec.replicas` 为 null 时视为"不是 0"（继续下发 scale） | 厂商 `if (replicas == 0)` 对 `Integer` **拆箱** ⇒ null 时 **NPE ⇒ 500**；API Server 会默认该字段，故实际不可达 | `findings/126` §6 |
+| B21 | `update_screenshot`：请求体为 null 时按**空列表**处理（即清空该列） | 厂商 `if (!screenShotList.isEmpty())` ⇒ null 时 **NPE ⇒ 500**；前端正常传数组 | `findings/130` §3 |
 
 ## C. 参考环境限制导致无法对拉（按代码实现 + 标注证据来源）
 

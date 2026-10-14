@@ -305,6 +305,17 @@ public interface ISoftwareDao {
     @Select("SELECT app_name FROM g_software_app WHERE software_id = #{softwareId}")
     List<String> selectAppNamesBySoftwareId(@Param("softwareId") String softwareId);
 
+    /** 只更新 `icon` + `updated_at`（厂商 `updateIcon:2577-2595` 里 `setIcon` + `setUpdatedAt` + 整行更新）。 */
+    @org.apache.ibatis.annotations.Update("UPDATE g_software SET icon = #{icon}, updated_at = #{updatedAt} WHERE id = #{id}")
+    int updateSoftwareIcon(@Param("id") String id, @Param("icon") String icon, @Param("updatedAt") long updatedAt);
+
+    /** 只更新 `screenshot` + `updated_at`（厂商 `updateScreenshot:2556-2575`）。 */
+    @org.apache.ibatis.annotations.Update("""
+            UPDATE g_software SET screenshot = #{screenshot}, updated_at = #{updatedAt} WHERE id = #{id}
+            """)
+    int updateSoftwareScreenshot(@Param("id") String id, @Param("screenshot") String screenshot,
+                                 @Param("updatedAt") long updatedAt);
+
     /**
      * 只把 `updated_at` 推进到给定值（厂商 `updateSoftwareTimeByService:3776-3788`：
      * 读出实体 → `setUpdatedAt(now)` → `updateByPrimaryKeySelective`，净效果就是这一列）。
