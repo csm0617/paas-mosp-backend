@@ -102,6 +102,21 @@ public class SubRoleRepository implements ISubRoleRepository {
     }
 
     @Override
+    public java.util.List<SubRoleEntity> queryForExport(java.util.List<String> ids) {
+        return subRoleDao.selectForExport(ids).stream().map(this::toEntity).toList();
+    }
+
+    @Override
+    public java.util.List<String> queryUsernamesBySubRoleId(String subRoleId) {
+        return subRoleDao.selectUsernamesBySubRoleId(subRoleId);
+    }
+
+    @Override
+    public java.util.List<String> queryRoleKeysBySubRoleId(String subRoleId) {
+        return subRoleDao.selectRoleKeysBySubRoleId(subRoleId);
+    }
+
+    @Override
     public java.util.Optional<SubRoleEntity> queryById(String id) {
         return java.util.Optional.ofNullable(subRoleDao.selectById(id)).map(this::toEntity);
     }

@@ -8,7 +8,9 @@ import com.csm.paas.core.api.dto.SubRoleIdsDTO;
 import com.csm.paas.core.api.dto.SubRoleItemDTO;
 import com.csm.paas.core.domain.subrole.service.ISubRoleCommandService;
 import com.csm.paas.core.domain.subrole.service.ISubRoleQueryService;
+import com.csm.paas.core.trigger.assembler.SubRoleExcelWriter;
 import com.csm.paas.core.trigger.assembler.SubRoleListAssembler;
+import com.csm.paas.core.trigger.i18n.MessageResolver;
 import com.csm.paas.core.types.util.PageUtils;
 import jakarta.annotation.Resource;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -31,6 +33,53 @@ public class SubRoleController {
 
     @Resource
     private ISubRoleCommandService subRoleCommandService;
+
+    @Resource
+    private MessageResolver messageResolver;
+
+    /**
+     * 厂商 `POST /v1/sub_role/export`：导出子角色（**xls 附件**，body 是子角色 id 数组，可为空）。
+     *
+     * <p>7 列：名称/唯一标识/关联用户(JSON)/关联战位(JSON)/描述/英文名/法文名；前 5 列列宽 2560。
+     * 规则见 `ISubRoleQueryService.queryExportRows`（规格 `findings/154`）。
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/export")
+    public void exportRole(
+            @org.springframework.web.bind.annotation.RequestBody(required = false) java.util.List<String> subroleIdList,
+            jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
+        var rows = subRoleQueryService.queryExportRows(subroleIdList);
+        writeExcel(response, SubRoleExcelWriter.buildExport(messageResolver, rows),
+                "export.file.name.subrole.export", false);
+    }
+
+    /**
+     * 厂商 `GET /v1/sub_role/import/template`：子角色导入模板下载（xls 附件）。
+     *
+     * <p>模板只有表头 + 一行示例；**带 CORS 头**（厂商 `roleImportTemplate` 显式设了
+     * `Access-Control-Allow-Origin: *` 与 `Access-Control-Expose-Headers: Content-Disposition`）。
+     */
+    @GetMapping("/import/template")
+    public void roleImportTemplate(jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
+        writeExcel(response, SubRoleExcelWriter.buildTemplate(messageResolver),
+                "export.file.name.sub.role.import.template", true);
+    }
+
+    /** 厂商：`Content-Type: application/vnd.ms-excel` + `filename*=UTF-8''<urlencoded>`。 */
+    private void writeExcel(jakarta.servlet.http.HttpServletResponse response, byte[] bytes, String filenameKey,
+                            boolean withCors) throws java.io.IOException {
+        response.reset();
+        response.setCharacterEncoding("UTF-8");
+        response.setContentType("application/vnd.ms-excel");
+        response.setHeader("Content-Disposition", "attachment; filename*=UTF-8''"
+                + java.net.URLEncoder.encode(messageResolver.resolve(filenameKey),
+                        java.nio.charset.StandardCharsets.UTF_8));
+        if (withCors) {
+            response.setHeader("Access-Control-Allow-Origin", "*");
+            response.setHeader("Access-Control-Expose-Headers", "Content-Disposition");
+        }
+        response.getOutputStream().write(bytes);
+        response.flushBuffer();
+    }
 
     /**
      * 厂商 `POST /v1/sub_role/userAddRole/{userId}`：给用户重设子角色（body `{subRoleIdList}`）。

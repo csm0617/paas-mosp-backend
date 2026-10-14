@@ -42,6 +42,15 @@ public interface ISubRoleRepository {
      */
     java.util.Optional<SubRoleEntity> queryByKey(String key);
 
+    /** 导出用：按 id 集合取（**空集合 ⇒ 全量**），按 `created_at DESC`。 */
+    List<SubRoleEntity> queryForExport(List<String> ids);
+
+    /** 该子角色关联用户的用户名列表。 */
+    List<String> queryUsernamesBySubRoleId(String subRoleId);
+
+    /** 该子角色关联战位的 key 列表。 */
+    List<String> queryRoleKeysBySubRoleId(String subRoleId);
+
     /** 按主键取子角色（厂商 `SubRoleServiceImpl.detail:341-344`）。 */
     java.util.Optional<SubRoleEntity> queryById(String id);
 

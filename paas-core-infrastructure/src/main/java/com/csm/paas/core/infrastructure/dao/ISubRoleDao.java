@@ -43,6 +43,38 @@ public interface ISubRoleDao {
     @Select("SELECT COUNT(*) FROM g_sub_role")
     long selectCount();
 
+    /**
+     * 导出用：按 id 集合取子角色（**ids 为空 ⇒ 不加 where，即全量**），
+     * 按 `created_at DESC` 排序（厂商 `generateExportExcel:473` 的 `isInWhenPresent` + `orderBy`）。
+     */
+    @Select("""
+            <script>
+            SELECT id, `key`, name, `desc`, updated_at, created_at FROM g_sub_role
+            <if test="ids != null and ids.size() > 0">
+              WHERE id IN
+              <foreach collection="ids" item="it" open="(" separator="," close=")">#{it}</foreach>
+            </if>
+            ORDER BY created_at DESC
+            </script>
+            """)
+    List<SubRolePO> selectForExport(@Param("ids") java.util.List<String> ids);
+
+    /** 该子角色关联用户的**用户名**列表（厂商 `generateExportExcel:486-488`）。 */
+    @Select("""
+            SELECT u.username FROM g_user_sub_role usr
+            JOIN g_user u ON u.id = usr.user_id
+            WHERE usr.sub_role_id = #{subRoleId}
+            """)
+    List<String> selectUsernamesBySubRoleId(@Param("subRoleId") String subRoleId);
+
+    /** 该子角色关联战位的 **key** 列表（厂商 `generateExportExcel:492-494`）。 */
+    @Select("""
+            SELECT r.`key` FROM g_sub_role_role srr
+            JOIN g_role r ON r.id = srr.role_id
+            WHERE srr.sub_role_id = #{subRoleId}
+            """)
+    List<String> selectRoleKeysBySubRoleId(@Param("subRoleId") String subRoleId);
+
     /** 按主键取子角色（厂商 `SubRoleServiceImpl.detail:341-344`）。 */
     @Select("""
             SELECT id, `key`, name, `desc`, updated_at, created_at FROM g_sub_role WHERE id = #{id}

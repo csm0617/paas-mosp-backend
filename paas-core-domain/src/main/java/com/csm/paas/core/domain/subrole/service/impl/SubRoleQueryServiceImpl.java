@@ -66,4 +66,17 @@ public class SubRoleQueryServiceImpl implements ISubRoleQueryService {
                 })
                 .orElse(null);
     }
+    @Override
+    public java.util.List<com.csm.paas.core.domain.subrole.model.valobj.SubRoleExportRowVO> queryExportRows(
+            java.util.List<String> ids) {
+        return subRoleRepository.queryForExport(ids).stream()
+                .map(role -> com.csm.paas.core.domain.subrole.model.valobj.SubRoleExportRowVO.builder()
+                        .name(role.getName()).key(role.getKey()).desc(role.getDesc())
+                        .usernames(subRoleRepository.queryUsernamesBySubRoleId(role.getId()))
+                        .roleKeys(subRoleRepository.queryRoleKeysBySubRoleId(role.getId()))
+                        // i18n 自动名覆盖：本环境无覆盖数据 ⇒ null（单元格留空）
+                        .nameUs(null).nameFr(null)
+                        .build())
+                .toList();
+    }
 }

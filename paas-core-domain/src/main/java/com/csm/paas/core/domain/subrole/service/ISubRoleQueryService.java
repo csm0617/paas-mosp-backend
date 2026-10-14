@@ -23,4 +23,14 @@ public interface ISubRoleQueryService {
      * 查不到 ⇒ 返回 null（HTTP 200 + `data:null`）。
      */
     com.csm.paas.core.domain.subrole.model.entity.SubRoleEntity querySubRoleDetail(String id);
+
+    /**
+     * 导出用行数据（厂商 `generateExportExcel:470-512`，规格见 `docs/findings/154`）。
+     *
+     * <p>`ids` 为空/null ⇒ **全量**（厂商 `isInWhenPresent` 空集合不加 where），按 `created_at DESC`。
+     * 每行的用户/战位列是**用户名列表**与**战位 key 列表**（由调用方序列化成 JSON 数组写进单元格）。
+     * `nameUs`/`nameFr` 走 i18n 自动名覆盖——本环境无覆盖数据 ⇒ **null**（单元格留空）。
+     */
+    java.util.List<com.csm.paas.core.domain.subrole.model.valobj.SubRoleExportRowVO> queryExportRows(
+            java.util.List<String> ids);
 }
