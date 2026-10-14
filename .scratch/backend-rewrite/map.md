@@ -400,6 +400,9 @@ Label: `wayfinder:map`
 - （**node_port 规格**）[findings/85](docs/findings/85-node-port-spec.md)：把 120 行的 `patchServicePorts` 读到"可直接翻译"（两个分支 + 异常映射 + 三处易错点 + 下一轮的实现与验证计划）。
   - 关键：**返回布尔**（`Response.ok(v1Service != null)`），A 分支"推导不出端口"时**返回 null ⇒ `data:false`**（静默失败）；`name` 公式 `<protocol>-<name>-<i>` **小写**；两分支错误消息不同（A 分支带服务名的中文 `SystemException`）。
   - 同族的 `POST /{serviceName}/nodePort` 只读到头部，**未逐行读完**，实现时不要把两者混为一谈。
+- （**user/list 规格**）[findings/98](docs/findings/98-user-list-spec.md)：与 `/v1/user/info` **同一个查询、不同条目形状**——`UserInfoList`(11 字段) vs `UserRoles`(16 字段)；字段差已逐项列出：去掉 `belongUsers`、加上 `email/birth/phone/avatar/uuid` 与布尔 `admin`。
+  - 下一轮要改的点已定位：`UserInfoEntity` 缺 5 个字段（+ `IUserDao` 查询补列）→ 新增 `UserRolesDTO`/`UserRoleListResponseDTO`/装配器（`admin` 由 roles 是否含 `"admin"` 推出）→ 控制器加映射 → **关键字长度校验**（照抄"带 % 算长度 > 38"）。
+  - 验证计划：分页/keyword/超长 keyword(400)/第二页 四例对拉。注意 `/v1/user/list` **不返回口令哈希**，无偏离。
 - （**改动后 e2e 复验**）[findings/97](docs/findings/97-e2e-after-token-fix.md)：第 89 轮把 `/v1/user` 的 token 改成 null 后，专门重跑 e2e——**表头/数据行/可见文本与厂商归档页全等**（64/64 行、仅 vendor 有=空）、前端请求**无 4xx/5xx**、脚本退出 0。⇒ 修复没破坏前端。
   - 经验：**改了前端会读的端点就必须重跑 e2e**——契约比对（L1/L2）只看字段对不对，看不出"页面会不会白屏"。
 - （**工具修正**）[contract-check 增加易变字段模式](docs/findings/96-contract-check-volatile.md)：`/v1/user/info` 的 `createdAt`/`updatedAt` 标为 `mode: volatile`——**只比存在与类型**，不再因样本陈旧误报（**不用 `allowDeviation`**：那是"允许的偏离"会永久豁免，而"易变"只是字段性质）。
