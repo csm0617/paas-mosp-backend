@@ -511,6 +511,18 @@ public class ServiceRuntimeGateway {
         }
     }
 
+    /** 按名字读 ConfigMap 快照；**读不到的跳过**（厂商 `exportConfigMap` 的行为）。 */
+    public List<Map<String, Object>> readConfigMaps(String namespace, List<String> names) {
+        List<Map<String, Object>> result = new java.util.ArrayList<>();
+        for (String name : names) {
+            var cm = kubernetesClient.configMaps().inNamespace(namespace).withName(name).get();
+            if (cm != null) {
+                result.add(toSnapshot(cm));
+            }
+        }
+        return result;
+    }
+
     /** 列命名空间里全部 pod 的原样快照。 */
     public List<Map<String, Object>> listAllPods(String namespace) {
         return kubernetesClient.pods().inNamespace(namespace).list().getItems().stream()

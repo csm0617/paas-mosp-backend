@@ -1306,6 +1306,34 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
         return false;
     }
 
+    /**
+     * 导出配置组（厂商 `exportConfigMapBySoftwareOrService:3915-4018`，规格见 `docs/findings/134`）。
+     */
+    @Override
+    public List<Map<String, Object>> collectConfigMapsForExport(String namespace, String type, List<String> keys) {
+        java.util.Set<String> names = new java.util.LinkedHashSet<>();
+        if ("software".equals(type)) {
+            for (String key : keys == null ? List.<String>of() : keys) {
+                softwareRepository.queryById(key).ifPresent(software -> {
+                    for (String appName : softwareRepository.queryAppNamesBySoftwareId(software.getId())) {
+                        names.addAll(serviceRuntimePort.readDeploymentConfigMapNames(namespace, appName));
+                    }
+                });
+            }
+        } else if ("service".equals(type)) {
+            for (String key : keys == null ? List.<String>of() : keys) {
+                try {
+                    names.addAll(serviceRuntimePort.readDeploymentConfigMapNamesOrThrow(namespace, key));
+                } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+                    log.error("获取服务deployment出现异常,异常为:{}", e.getMessage());
+                    throw new com.csm.paas.core.types.exception.WrongArgumentException(
+                            "service.get.service.config.identifier.exception", key);
+                }
+            }
+        }
+        return serviceRuntimePort.readConfigMaps(namespace, new ArrayList<>(names));
+    }
+
     /** 厂商 `getStringRandom(length)`：每位 `SecureRandom.nextInt(2)%2==0` 取 `a-z`，否则取 `0-9`。 */
     private static String randomString(int length) {
         java.security.SecureRandom random = new java.security.SecureRandom();

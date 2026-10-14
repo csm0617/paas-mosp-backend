@@ -249,6 +249,29 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
     }
 
     @Override
+    public java.util.List<String> readDeploymentConfigMapNamesOrThrow(String namespace, String serviceName) {
+        try {
+            var d = serviceRuntimeGateway.readDeploymentConfigMapNames(namespace, serviceName);
+            if (!serviceRuntimeGateway.deploymentExists(namespace, serviceName)) {
+                throw new com.csm.paas.core.types.exception.K8sApiException(
+                        "deployment " + serviceName + " not found");
+            }
+            return d;
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    @Override
+    public java.util.List<java.util.Map<String, Object>> readConfigMaps(String namespace, java.util.List<String> names) {
+        try {
+            return serviceRuntimeGateway.readConfigMaps(namespace, names);
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    @Override
     public java.util.List<java.util.Map<String, Object>> listAllPods(String namespace) {
         try {
             return serviceRuntimeGateway.listAllPods(namespace);

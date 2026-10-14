@@ -250,4 +250,17 @@ public interface IServiceRuntimePort {
      * <p>Deployment 不存在或读取失败 ⇒ **空列表**（厂商那两处对 ApiException 都是"记日志后跳过"）。
      */
     java.util.List<String> readDeploymentConfigMapNames(String namespace, String serviceName);
+
+    /**
+     * 同上，但 **Deployment 不存在时抛 {@code K8sApiException}**——厂商在
+     * `exportConfigMapBySoftwareOrService` 的 service 分支里对 ApiException 是**抛 400**
+     * （`service.get.service.config.identifier.exception`，带 key），与 `existConfigmap` 的"跳过"不同。
+     */
+    java.util.List<String> readDeploymentConfigMapNamesOrThrow(String namespace, String serviceName);
+
+    /**
+     * 按名字读 ConfigMap 的原样快照（厂商 `exportConfigMap:3453-3477`）：
+     * **读不到的跳过**（只记日志），不抛异常。
+     */
+    java.util.List<java.util.Map<String, Object>> readConfigMaps(String namespace, java.util.List<String> names);
 }

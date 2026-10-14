@@ -418,4 +418,23 @@ public interface IServiceQueryService {
      * 那个分支**永远不可达**。我们按"没有 key ⇒ 返回 false"处理（**不实现**那个死分支）。
      */
     boolean existConfigMap(String namespace, String type, java.util.List<String> keys);
+
+    /**
+     * 导出配置组（厂商 `POST /v1/software/exportConfigmap` →
+     * `SoftwareService.exportConfigMapBySoftwareOrService:3915-4018` + `exportConfigMap:3453-3477`，
+     * 规格见 `docs/findings/134`）。
+     *
+     * <p>收集 ConfigMap 名的那套逻辑与 {@link #existConfigMap} 相同，但**两处不同**：
+     * <ol>
+     *   <li>service 分支里 **Deployment 读不到 ⇒ 抛 400** `service.get.service.config.identifier.exception`
+     *       （带 key），不是"跳过"；</li>
+     *   <li>收集完之后**按名读 ConfigMap**（读不到的跳过），返回这些 ConfigMap 的快照供控制器写成 JSON 附件。</li>
+     * </ol>
+     *
+     * <p>厂商"不带 key ⇒ 列全部 ConfigMap"那条路是**死代码**（`key != null || key.size() != 0` 的 `||` bug）；
+     * 即便走到，它的 fieldSelector 是 `!ingress-lb`——**实测该 selector 非法**（API Server 返回 400），
+     * 于是被 catch 成空列表 ⇒ 导出恒为 `[]`。我们按"没有 key ⇒ 空列表"处理（同 B22）。
+     */
+    java.util.List<java.util.Map<String, Object>> collectConfigMapsForExport(String namespace, String type,
+                                                                             java.util.List<String> keys);
 }

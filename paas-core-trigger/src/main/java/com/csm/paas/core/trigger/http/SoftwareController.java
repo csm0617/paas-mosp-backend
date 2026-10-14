@@ -50,6 +50,38 @@ public class SoftwareController {
     private String namespace;
 
     /**
+     * 厂商 `POST /v1/software/exportConfigmap`：导出配置组（响应是 **JSON 附件**，不是 JSON 信封）。
+     *
+     * <p>收集逻辑与 `existConfigmap` 相同，但 service 分支里 **Deployment 读不到 ⇒ 400**
+     * `service.get.service.config.identifier.exception`；随后按名读 ConfigMap 并把列表写成
+     * `Content-Type: application/octet-stream` + `configmap.json` 附件。
+     * 规则见 `IServiceQueryService.collectConfigMapsForExport`（规格 `findings/134`）。
+     */
+    @org.springframework.web.bind.annotation.PostMapping(value = "/exportConfigmap",
+            produces = org.springframework.http.MediaType.APPLICATION_OCTET_STREAM_VALUE)
+    public void exportConfigmap(
+            @org.springframework.web.bind.annotation.RequestBody com.csm.paas.core.api.dto.ExportConfigDTO form,
+            jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
+        var configMaps = serviceQueryService.collectConfigMapsForExport(namespace,
+                form == null ? null : form.getType(), form == null ? null : form.getKey());
+        byte[] bytes;
+        try {
+            bytes = com.csm.paas.core.trigger.assembler.ExportConfigMapWriter.build(configMaps);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            // 厂商：写 JSON 失败 ⇒ 400 `sync.get.config.group.data.exception`
+            throw new com.csm.paas.core.types.exception.WrongArgumentException(
+                    "sync.get.config.group.data.exception");
+        }
+        response.reset();
+        response.setContentType(org.springframework.http.MediaType.APPLICATION_OCTET_STREAM_VALUE);
+        response.setHeader("Content-Disposition",
+                "attachment; filename*=UTF-8''" + java.net.URLEncoder.encode("configmap.json",
+                        java.nio.charset.StandardCharsets.UTF_8));
+        response.getOutputStream().write(bytes);
+        response.flushBuffer();
+    }
+
+    /**
      * 厂商 `POST /v1/software/existConfigmap`：检测软件或服务是否存在 ConfigMap 配置组。
      *
      * <p>`type=software` 时 `key` 是软件 id（取其关联服务）、`type=service` 时 `key` 是 Deployment 名；
