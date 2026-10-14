@@ -51,6 +51,13 @@ gaop:
     # 厂商 `application.yml:121-122` 的默认值 `${GIS_URL:gis-server:8080}`；
     # 主机名会被当作 **Deployment 名**去读运行状态（`GET /v1/licence/gisStatus`）
     url: ${GIS_URL:gis-server:8080}
+  ssh:
+    # 厂商 `ssh.host/username/password/port`（`application.yml:71-75`），env 同名可覆盖。
+    # 本环境没有可 SSH 的节点 ⇒ 依赖它的端点属类 C（代码齐全、此处不可验证）。
+    host: ${SSH_HOST:localhost}
+    port: ${SSH_PORT:22}
+    username: ${SSH_USERNAME:root}
+    password: ${SSH_PASSWORD:123456}
   gateway:
     # 通知网关刷新规则的目标（厂商 `gaop.gateway.*`）：本地 profile 默认 `gateway`、
     # k8s profile 默认 `gaop-gateway-auth`（`application-k8s.yml:38-40`）。这里取 k8s 那个值，

@@ -42,4 +42,11 @@
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
         </dependency>
+
+        <!-- SSH（厂商 `com.jcraft.jsch`：CS 包上传/启停、节点运维、mysqldump 都走它） -->
+        <dependency>
+            <groupId>com.jcraft</groupId>
+            <artifactId>jsch</artifactId>
+            <version>0.1.55</version>
+        </dependency>
     </dependencies></project>
