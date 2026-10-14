@@ -157,8 +157,8 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
             return null;
         }
         return com.csm.paas.core.domain.software.model.valobj.WorkloadRefVO.builder()
-                .deployment(Boolean.TRUE.equals(ref[0]))
-                .name((String) ref[1])
+                .deployment(ref.deployment())
+                .name(ref.name())
                 .build();
     }
 

@@ -344,14 +344,16 @@ public class ServiceRuntimeGateway {
      * 返回 `[isDeployment, metadata.name]`；**两者都不存在返回 null**。
      * <p>厂商出处：`updateServiceDiscovery:1088-1105`（Deployment 读不到再读 StatefulSet，都读不到抛 500）。
      */
-    public Object[] readWorkloadRef(String namespace, String name) {
+    public com.csm.paas.core.infrastructure.gateway.dto.WorkloadRefDTO readWorkloadRef(String namespace, String name) {
         var d = kubernetesClient.apps().deployments().inNamespace(namespace).withName(name).get();
         if (d != null) {
-            return new Object[]{Boolean.TRUE, d.getMetadata() == null ? name : d.getMetadata().getName()};
+            return new com.csm.paas.core.infrastructure.gateway.dto.WorkloadRefDTO(
+                    true, d.getMetadata() == null ? name : d.getMetadata().getName());
         }
         var s = kubernetesClient.apps().statefulSets().inNamespace(namespace).withName(name).get();
         if (s != null) {
-            return new Object[]{Boolean.FALSE, s.getMetadata() == null ? name : s.getMetadata().getName()};
+            return new com.csm.paas.core.infrastructure.gateway.dto.WorkloadRefDTO(
+                    false, s.getMetadata() == null ? name : s.getMetadata().getName());
         }
         return null;
     }
