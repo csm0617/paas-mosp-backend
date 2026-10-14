@@ -68,4 +68,28 @@ public class ServiceRuntimeEntity {
      * `GET /v1/service` 列表端点保持 null（列表端点恒返回三键全 null 的空对象，已 A/B 对拉通过）。
      */
     private com.csm.paas.core.domain.software.model.valobj.ServiceMappingInfoVO mappingInfo;
+
+    // ---------- 以下三个字段**只有 `GET /v1/service/{serviceName}`（服务详情）会填** ----------
+
+    /**
+     * 容器上次终止状态的原样快照（厂商 `getServiceDetail:1413-1431` 的 `V1ContainerStateTerminated`）。
+     * 列表端点不填 ⇒ null。
+     */
+    private Map<String, Object> terminatedSnapshot;
+
+    /**
+     * `<serviceName>-nodeport` 这个 Service 的**原样快照**（厂商 `getServiceDetail:1439-1468`）。
+     * 读不到 ⇒ null（厂商 catch 掉 ApiException 后把 `nodePortService` 设成 null）。
+     * <p>注意与 {@link #serviceSnapshot} 不是同一个对象：那个是**同名** Service，这个是 `-nodeport` 后缀那个。
+     */
+    private Map<String, Object> nodePortServiceSnapshot;
+
+    /**
+     * 详情端点算出的英文名（厂商 `getServiceDetail:1476-1477`）：
+     * `i18nUtil.getAutoNameMessage("service","en_US",key)`，**空白则回退**注解 `gaop/serviceLabel`。
+     */
+    private String nameUs;
+
+    /** 同上，`fr_FR`（厂商 `:1478-1479`）。 */
+    private String nameFr;
 }

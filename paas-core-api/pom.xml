@@ -15,4 +15,10 @@
             <groupId>com.csm.paas.core</groupId>
             <artifactId>paas-core-types</artifactId>
         </dependency>
+        <!-- 只为少数 DTO 上的 @JsonInclude(NON_NULL)（照抄厂商"子节点非空才序列化"的契约）；
+             版本由 spring-boot BOM 管理，不需要写版本号。 -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-annotations</artifactId>
+        </dependency>
     </dependencies></project>

@@ -91,4 +91,35 @@ public class LanguageVersionRepository implements ILanguageVersionRepository {
                         .build())
                 .toList();
     }
+
+    @Override
+    public long countVersionsCreatedBetween(String lang, long start, long end) {
+        return languageVersionDao.countCreatedBetween(lang, start, end);
+    }
+
+    @Override
+    public int insertLanguageEntries(
+            java.util.List<com.csm.paas.core.domain.language.model.valobj.LanguageImportEntryVO> entries) {
+        if (entries == null || entries.isEmpty()) {
+            return 0;
+        }
+        java.util.List<com.csm.paas.core.infrastructure.dao.po.LanguageEntryPO> pos = entries.stream()
+                .map(e -> com.csm.paas.core.infrastructure.dao.po.LanguageEntryPO.builder()
+                        .textKey(e.getTextKey()).content(e.getContent())
+                        .lang(e.getLang()).langVersion(e.getLangVersion())
+                        .module(e.getModule()).abbr(e.getAbbr()).description(e.getDescription())
+                        .build())
+                .toList();
+        return languageVersionDao.insertLanguageEntries(pos);
+    }
+
+    @Override
+    public int insertLanguageVersionSelective(
+            com.csm.paas.core.domain.language.model.entity.LanguageVersionEntity version) {
+        return languageVersionDao.insertLanguageVersionSelective(
+                com.csm.paas.core.infrastructure.dao.po.LanguageVersionPO.builder()
+                        .lang(version.getLang()).langVersion(version.getLangVersion())
+                        .used(version.getUsed()).createTime(version.getCreateTime())
+                        .build());
+    }
 }

@@ -8,6 +8,7 @@ import com.csm.paas.core.domain.language.adapter.port.ILanguageChangedNotifyPort
 import com.csm.paas.core.domain.language.service.ILanguageQueryService;
 import com.csm.paas.core.types.util.PageUtils;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -19,9 +20,10 @@ import java.util.List;
  * 厂商 `LanguageController`（`/v1/lang`）。
  *
  * <p>已实现 `GET /version`（`findings/137`）、`DELETE /remove`（`findings/138`）、
- * `GET /detail`（`findings/139`）、`POST /version`（`findings/140`）；
- * 其余端点（`/cur`、`/current`、`/import`）尚未实现。
+ * `GET /detail`（`findings/139`）、`POST /version`（`findings/140`）、`POST /import`（本轮）；
+ * 其余端点（`/cur`、`/current`）尚未实现。
  */
+@Slf4j
 @RestController
 @RequestMapping("/v1/lang")
 @RequiredArgsConstructor
@@ -111,5 +113,32 @@ public class LanguageController {
                         .build())
                 .toList();
         return ResponseDTO.ok(LanguageVersionInfoDTO.builder().versionList(list).total(result.getTotal()).build());
+    }
+
+    /**
+     * 厂商 `POST /v1/lang/import`（multipart `version`(可选) + `file`）：语言包导入。
+     *
+     * <p>厂商 `LanguageController.java:51-56` → `LanguageServiceImpl.importLanguageExcel:90-259`。
+     * 照抄点：**没有 MIME 守卫**（直接交给 POI）；`WorkbookFactory.create` 抛 IOException ⇒
+     * 400 `language.parse.language.package.exception`；词条为空 ⇒ 200 `data:false`（不写库）；
+     * 否则算版本号、按 module 查重（重复 ⇒ 400 `language.import.duplicate.key`）、每 4000 条一批插入，
+     * 返回 200 `data:true`。规则见 {@code ILanguageCommandService.importLanguageExcel}。
+     */
+    @org.springframework.web.bind.annotation.PostMapping(value = "/import",
+            consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseDTO<Boolean> importLanguageExcel(
+            @RequestParam(required = false) String version,
+            @RequestParam("file") org.springframework.web.multipart.MultipartFile file)
+            throws java.io.IOException {
+        com.csm.paas.core.domain.language.model.valobj.LanguageImportParseResultVO parsed;
+        try {
+            parsed = com.csm.paas.core.trigger.assembler.LanguageImportExcelParser.parse(file.getInputStream());
+        } catch (java.io.IOException e) {
+            // 厂商 LanguageServiceImpl:105-108
+            log.info("导入语言包出现异常", e);
+            throw new com.csm.paas.core.types.exception.WrongArgumentException(
+                    "language.parse.language.package.exception");
+        }
+        return ResponseDTO.ok(languageCommandService.importLanguageExcel(version, parsed));
     }
 }

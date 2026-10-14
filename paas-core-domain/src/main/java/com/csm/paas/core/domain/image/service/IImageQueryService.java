@@ -7,6 +7,11 @@ import com.csm.paas.core.domain.image.model.entity.ProjectListEntity;
  *
  * <p><b>数据源是数据库（`g_group`），不是 Harbor</b>——厂商 `NodeVersionServiceImpl.getImageServiceInstance()`
  * **无条件返回 k3s 实现**，实际生效的是 `K3sImageServiceImpl`（`docs/findings/79`）。
+ *
+ * <p>这里只留 `projectList`（唯一"纯库读取 + 已对拉一致"的端点）。
+ * 依赖 registry / docker daemon / SSH 的其余端点放在
+ * {@link IImageCatalogQueryService}（那个实现需要的端口更多，单开一个类以免改动本服务既有的
+ * 单参构造器——既有测试 `ImageProjectListTest` 直接 `new ImageQueryServiceImpl(repository)`）。
  */
 public interface IImageQueryService {
 

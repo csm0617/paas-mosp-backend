@@ -23,6 +23,10 @@ public class ServiceController {
     @Resource
     private IServiceQueryService serviceQueryService;
 
+    /** 破坏性运维动作（节点调度 / 重启基础组件 / 删 Pod）。 */
+    @Resource
+    private com.csm.paas.core.domain.software.service.IServiceOpsService serviceOpsService;
+
     @Resource
     private AuthSupport authSupport;
 
@@ -36,6 +40,10 @@ public class ServiceController {
     /** 厂商同名配置：`initPodConfig.image`（默认值与厂商一致）。 */
     @Value("${initPodConfig.image:curl-alpine:latest}")
     private String initPodImage;
+
+    /** 厂商 `mount.path`（`application.yml:203-204`，默认 `/data/paas/`）：`df -h` 的目标挂载点。 */
+    @Value("${mount.path:/data/paas/}")
+    private String mountPath;
 
     /**
      * 厂商 `PUT /v1/service/updateName?serviceKey&name&nameUs&nameFr`：改服务显示名。
@@ -428,6 +436,115 @@ public class ServiceController {
         var list = new java.util.ArrayList<com.csm.paas.core.api.dto.LabelListDTO>();
         merged.forEach((k, v) -> list.add(com.csm.paas.core.api.dto.LabelListDTO.builder().name(k).labels(v).build()));
         return ResponseDTO.ok(list);
+    }
+
+    /**
+     * 厂商 `GET /v1/service/{serviceName}`：服务详情（数据结构与列表项"一致"，实则多三个键）。
+     *
+     * <p>规则与两处主动收紧见 {@link IServiceQueryService#queryServiceDetail}；
+     * 服务不存在 ⇒ 400 `service.service.name.not.found`。
+     * <p><b>路由注意</b>：这个 `{serviceName}` 变量映射会吃掉所有未匹配的 `/v1/service/<x>` 子路径
+     * （Spring 优先精确匹配，所以 `/labels`、`/gaop`、`/baseEvent` 等仍走各自的方法）。
+     */
+    @GetMapping("/v1/service/{serviceName}")
+    public ResponseDTO<com.csm.paas.core.api.dto.ServiceDetailDTO> serviceDetail(
+            @org.springframework.web.bind.annotation.PathVariable String serviceName) {
+        return ResponseDTO.ok(com.csm.paas.core.trigger.assembler.ServiceListAssembler.toDetailResponse(
+                serviceQueryService.queryServiceDetail(namespace, serviceName)));
+    }
+
+    /**
+     * 厂商 `PUT /v1/service/updateServiceRole?serviceKey&name`：更新服务关联其他服务标识的权限。
+     *
+     * <p>两个参数都是 **query parameter**；规则（含厂商那段"put 被覆盖"的缺陷）见
+     * {@link IServiceQueryService#updateServiceRole}。
+     */
+    @org.springframework.web.bind.annotation.PutMapping("/v1/service/updateServiceRole")
+    public ResponseDTO<Boolean> updateServiceRole(
+            @org.springframework.web.bind.annotation.RequestParam String serviceKey,
+            @org.springframework.web.bind.annotation.RequestParam String name) {
+        return ResponseDTO.ok(serviceQueryService.updateServiceRole(namespace, serviceKey, name));
+    }
+
+    /**
+     * 厂商 `POST /v1/service/logs`：服务历史日志（请求体 `ServiceLogForm`）。
+     *
+     * <p>走 Loki：时间跨度过大 ⇒ 400 `query.time.range.must.between.720`；
+     * 日志服务没给出可用响应 ⇒ **`data:null`**（厂商 `Response.ok(null)`）；
+     * 否则是 `{podLogs, count}`（`pod → container` 两级聚合）。规则见
+     * {@link IServiceQueryService#queryServiceHistoryLogJson}（**类 C**）。
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/v1/service/logs")
+    public ResponseDTO<com.csm.paas.core.api.dto.HistoryLogDTO> serviceLogs(
+            @org.springframework.web.bind.annotation.RequestBody com.csm.paas.core.api.dto.ServiceLogFormDTO form) {
+        String raw = serviceQueryService.queryServiceHistoryLogJson(
+                form == null ? null : form.getServiceName(),
+                form == null ? null : form.getStartTime(),
+                form == null ? null : form.getEndTime(),
+                form == null ? null : form.getSize(),
+                form == null ? null : form.getKeyword());
+        if (raw == null) {
+            return ResponseDTO.ok(null);
+        }
+        return ResponseDTO.ok(com.csm.paas.core.trigger.assembler.LokiLogAssembler.toHistoryLog(raw));
+    }
+
+    /**
+     * 厂商 `GET /v1/service/imageStorage`：镜像存储大小（`{free,total}`，字节）。
+     *
+     * <p>SSH 到节点跑 `df -h <mount.path> | awk 'NR==2 {print $2, $4}'` 并把两列换算成字节；
+     * **连不上或命令异常 ⇒ `{free:0,total:0}`**（厂商不报错）。k8s/Harbor 分支未实现（本环境无 Harbor）。
+     * 规则见 {@link IServiceQueryService#queryImageStorage}（**类 C**）。
+     */
+    @GetMapping("/v1/service/imageStorage")
+    public ResponseDTO<com.csm.paas.core.api.dto.StorageInfoDTO> imageStorage() {
+        var vo = serviceQueryService.queryImageStorage(mountPath);
+        return ResponseDTO.ok(com.csm.paas.core.api.dto.StorageInfoDTO.builder()
+                .free(vo.getFree()).total(vo.getTotal()).build());
+    }
+
+    /**
+     * 厂商 `PUT /v1/service/schedulingNode?name&type`：节点调度（type 0 停止 / 1 启动）。
+     *
+     * <p><b>破坏性</b>：SSH 到 master 执行 `kubectl cordon|uncordon <name>`。
+     * 列节点失败、SSH 连不上都返回 `data:false`；节点名不存在 ⇒ 400 `service.node.name.not.found`。
+     * 规则见 {@link com.csm.paas.core.domain.software.service.IServiceOpsService#schedulingNode}（**类 C**）。
+     */
+    @org.springframework.web.bind.annotation.PutMapping("/v1/service/schedulingNode")
+    public ResponseDTO<Boolean> schedulingNode(
+            @org.springframework.web.bind.annotation.RequestParam String name,
+            @org.springframework.web.bind.annotation.RequestParam Integer type) {
+        return ResponseDTO.ok(serviceOpsService.schedulingNode(name, type));
+    }
+
+    /**
+     * 厂商 `POST /v1/service/reStartBaseService?podName`：重启 kube-system 基础服务组件。
+     *
+     * <p><b>破坏性</b>：SSH 到 master 执行
+     * `kubectl delete pod <podName> -n kube-system --force --grace-period=0`。
+     * 列节点失败、SSH 连不上都返回 `data:false`；命令失败 ⇒ 400 `ssh.delete.base.service.pod.failed`。
+     * 规则见 {@link com.csm.paas.core.domain.software.service.IServiceOpsService#restartBaseService}（**类 C**）。
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/v1/service/reStartBaseService")
+    public ResponseDTO<Boolean> reStartBaseService(
+            @org.springframework.web.bind.annotation.RequestParam String podName) {
+        return ResponseDTO.ok(serviceOpsService.restartBaseService(podName));
+    }
+
+    /**
+     * 厂商 `DELETE /v1/service/servicePods`：批量删除服务的 Pod 容器（body `{podNames,namespace,force}`）。
+     *
+     * <p><b>破坏性</b>：直接删 Pod；`force=true` ⇒ `gracePeriodSeconds=0`。
+     * 任一删除失败 ⇒ 500 `service.delete.pod.failed`。规则见
+     * {@link com.csm.paas.core.domain.software.service.IServiceOpsService#deletePods}。
+     */
+    @org.springframework.web.bind.annotation.DeleteMapping("/v1/service/servicePods")
+    public ResponseDTO<Boolean> deleteServicePods(
+            @org.springframework.web.bind.annotation.RequestBody com.csm.paas.core.api.dto.DeletePodsDTO form) {
+        return ResponseDTO.ok(serviceOpsService.deletePods(
+                form == null ? null : form.getNamespace(),
+                form == null ? null : form.getPodNames(),
+                form == null ? null : form.getForce()));
     }
 
     @GetMapping("/v1/service")

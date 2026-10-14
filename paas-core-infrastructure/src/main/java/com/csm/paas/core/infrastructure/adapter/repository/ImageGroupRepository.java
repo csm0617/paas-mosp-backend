@@ -42,6 +42,16 @@ public class ImageGroupRepository implements IImageGroupRepository {
         return po == null ? null : toVO(po);
     }
 
+    @Override
+    public List<ImageGroupVO> queryAll() {
+        return imageGroupDao.selectAll().stream().map(this::toVO).toList();
+    }
+
+    @Override
+    public void deleteById(int id) {
+        imageGroupDao.deleteById(id);
+    }
+
     private ImageGroupVO toVO(ImageGroupPO po) {
         return ImageGroupVO.builder().id(po.getId()).createDate(po.getCreateDate()).name(po.getName()).build();
     }

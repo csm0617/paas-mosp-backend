@@ -34,4 +34,12 @@ public interface IImageGroupDao {
 
     @Select("SELECT id, create_date, name FROM g_group WHERE id = #{id}")
     ImageGroupPO selectById(@Param("id") int id);
+
+    /** 厂商 `imageGroupMapper.select(SelectDSLCompleter.allRows())`：全表、无排序。 */
+    @Select("SELECT id, create_date, name FROM g_group")
+    List<ImageGroupPO> selectAll();
+
+    /** 厂商 `deleteByPrimaryKey`。 */
+    @org.apache.ibatis.annotations.Delete("DELETE FROM g_group WHERE id = #{id}")
+    int deleteById(@Param("id") int id);
 }

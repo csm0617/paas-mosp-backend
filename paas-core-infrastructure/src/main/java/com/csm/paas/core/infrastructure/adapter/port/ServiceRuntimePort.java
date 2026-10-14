@@ -504,6 +504,239 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
         }
     }
 
+    // ---------- 服务详情（厂商 GET /v1/service/{serviceName}）----------
+
+    /**
+     * 厂商 `getServiceDetail:1406-1437` 的三步：确认工作负载存在 → 在**全部命名空间**的 pod 里
+     * 找"第一个容器名 == 服务名"的那个，取 `hostIP` 与 `lastState.terminated` → 取 Deployment 镜像。
+     *
+     * <p>照抄点：厂商的 pod 扫描 **不按工作负载过滤**、容器名取的是 `containers.get(0).getName()`，
+     * 并且找到第一个**容器名匹配**的 pod 就 `break`（不管它的 terminated 是不是 null）。
+     * <p>主动收紧（deviations B24）：`containers` 为空时厂商的 `name` 保持 null ⇒ `name.equals(...)` NPE；
+     * 我们跳过这种 pod。
+     */
+    @Override
+    public ServiceRuntimeEntity lookupServiceDetail(String namespace, String serviceName) {
+        ServiceRuntimeEntity found = null;
+        for (Service svc : serviceRuntimeGateway.listServices(namespace)) {
+            if (!serviceName.equals(svc.getMetadata().getName())) {
+                continue;
+            }
+            // 厂商 `existService` 看的是 Service；工作负载按同名 Deployment 优先、回退 StatefulSet
+            for (var deployment : serviceRuntimeGateway.listDeployments(namespace)) {
+                if (serviceName.equals(deployment.getMetadata().getName())) {
+                    found = toEntity(namespace, serviceName,
+                            deployment.getSpec() != null ? deployment.getSpec().getReplicas() : null,
+                            svc, serviceRuntimeGateway.toSnapshot(deployment));
+                    break;
+                }
+            }
+            if (found == null) {
+                for (var statefulSet : serviceRuntimeGateway.listStatefulSets(namespace)) {
+                    if (serviceName.equals(statefulSet.getMetadata().getName())) {
+                        found = toEntity(namespace, serviceName,
+                                statefulSet.getSpec() != null ? statefulSet.getSpec().getReplicas() : null,
+                                svc, serviceRuntimeGateway.toSnapshot(statefulSet));
+                        break;
+                    }
+                }
+            }
+            break;
+        }
+        if (found == null) {
+            // 厂商：`existService` 判否 ⇒ 400；调用方（domain）负责抛那个 i18n 键
+            return null;
+        }
+
+        for (Map<String, Object> pod : serviceRuntimeGateway.listAllPodsAllNamespaces()) {
+            String containerName = firstContainerName(pod);
+            if (containerName == null) {
+                log.warn("pod 的 containers 为空，跳过（厂商此处会 NPE，deviations B24）");
+                continue;
+            }
+            if (!containerName.equals(serviceName)) {
+                continue;
+            }
+            Map<String, Object> status = childMap(pod, "status");
+            if (status != null) {
+                Object hostIp = status.get("hostIP");
+                if (hostIp instanceof String str) {
+                    found.setHostIP(str);
+                }
+                Map<String, Object> terminated = firstContainerTerminated(status);
+                if (terminated != null) {
+                    found.setTerminatedSnapshot(terminated);
+                }
+            }
+            // 厂商找到第一个容器名匹配的 pod 就 break（不管 terminated 是否为空）
+            break;
+        }
+
+        // `<serviceName>-nodeport` 这个 Service（找不到 ⇒ nodePortServiceSnapshot 为 null）
+        found.setNodePortServiceSnapshot(readServiceSnapshot(namespace, serviceName + "-nodeport"));
+        return found;
+    }
+
+    /** 快照里 `spec.containers[0].name`；列表为空/取不到返回 null。 */
+    @SuppressWarnings("unchecked")
+    private static String firstContainerName(Map<String, Object> pod) {
+        Map<String, Object> spec = childMap(pod, "spec");
+        if (spec == null || !(spec.get("containers") instanceof List<?> containers) || containers.isEmpty()) {
+            return null;
+        }
+        Object first = containers.get(0);
+        return first instanceof Map<?, ?> c && c.get("name") instanceof String name ? name : null;
+    }
+
+    /**
+     * 快照里 `status.containerStatuses[0].lastState.terminated`；链上任何一环缺失返回 null
+     * （厂商 `:1427` 的条件就是这条链全非 null）。
+     */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> firstContainerTerminated(Map<String, Object> status) {
+        if (!(status.get("containerStatuses") instanceof List<?> statuses) || statuses.isEmpty()) {
+            return null;
+        }
+        Object first = statuses.get(0);
+        if (!(first instanceof Map<?, ?> statusMap)) {
+            return null;
+        }
+        Object lastState = ((Map<String, Object>) statusMap).get("lastState");
+        if (!(lastState instanceof Map<?, ?> lastStateMap)) {
+            return null;
+        }
+        Object terminated = ((Map<String, Object>) lastStateMap).get("terminated");
+        return terminated instanceof Map<?, ?> t ? (Map<String, Object>) t : null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> childMap(Map<String, Object> parent, String key) {
+        Object value = parent == null ? null : parent.get(key);
+        return value instanceof Map<?, ?> map ? (Map<String, Object>) map : null;
+    }
+
+    // ---------- updateServiceRole（厂商 PUT /v1/service/updateServiceRole）----------
+
+    @Override
+    public boolean patchDeploymentTemplateMetadata(String namespace, String name, Map<String, String> annotations) {
+        try {
+            return serviceRuntimeGateway.patchWorkloadTemplateAnnotations(namespace, name, true, annotations);
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    @Override
+    public boolean patchStatefulSetTemplateMetadata(String namespace, String name, Map<String, String> annotations) {
+        try {
+            return serviceRuntimeGateway.patchWorkloadTemplateAnnotations(namespace, name, false, annotations);
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    /**
+     * 读工作负载 pod 模板的 `spec.template.metadata.annotations`（Deployment 优先，回退 StatefulSet）。
+     * <p>与厂商 `updateServiceRole:1507-1511` 一致：**对象存在但该字段为 null 时也返回 null**
+     * （这正是厂商那段"put 被覆盖"缺陷成立的前提）。
+     */
+    @Override
+    public Map<String, String> readWorkloadTemplateAnnotations(String namespace, String name) {
+        for (var deployment : serviceRuntimeGateway.listDeployments(namespace)) {
+            if (name.equals(deployment.getMetadata().getName())) {
+                return templateAnnotationsOf(deployment.getSpec() == null ? null : deployment.getSpec().getTemplate());
+            }
+        }
+        for (var statefulSet : serviceRuntimeGateway.listStatefulSets(namespace)) {
+            if (name.equals(statefulSet.getMetadata().getName())) {
+                return templateAnnotationsOf(statefulSet.getSpec() == null ? null : statefulSet.getSpec().getTemplate());
+            }
+        }
+        return null;
+    }
+
+    private static Map<String, String> templateAnnotationsOf(io.fabric8.kubernetes.api.model.PodTemplateSpec template) {
+        if (template == null || template.getMetadata() == null) {
+            return null;
+        }
+        return template.getMetadata().getAnnotations();
+    }
+
+    // ---------- schedulingNode / reStartBaseService（SSH，类 C）----------
+
+    @Override
+    public List<com.csm.paas.core.domain.software.model.valobj.NodeInfoVO> listNodes() {
+        try {
+            return serviceRuntimeGateway.listNodesSnapshot().stream()
+                    .map(n -> com.csm.paas.core.domain.software.model.valobj.NodeInfoVO.builder()
+                            .name(n.getMetadata() == null ? null : n.getMetadata().getName())
+                            .labels(n.getMetadata() == null ? null : n.getMetadata().getLabels())
+                            .firstAddress(firstNodeAddress(n))
+                            .build())
+                    .toList();
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    /** `status.addresses[0].address`（厂商 `:3110` / `:3335` 直接取第 0 个，不判空）。 */
+    private static String firstNodeAddress(io.fabric8.kubernetes.api.model.Node node) {
+        if (node.getStatus() == null || node.getStatus().getAddresses() == null
+                || node.getStatus().getAddresses().isEmpty()) {
+            return null;
+        }
+        return node.getStatus().getAddresses().get(0).getAddress();
+    }
+
+    // ---------- servicePods（厂商 DELETE /v1/service/servicePods）----------
+
+    @Override
+    public void deletePod(String namespace, String podName, Boolean force) {
+        try {
+            serviceRuntimeGateway.deletePod(namespace, podName, force);
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    // ---------- resetService（厂商 POST /v1/software/reset_service）----------
+
+    @Override
+    public Map<String, Map<String, String>> listDeploymentLabels(String namespace) {
+        try {
+            return serviceRuntimeGateway.listDeploymentLabels(namespace);
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    @Override
+    public void deleteDeployment(String namespace, String name) {
+        try {
+            serviceRuntimeGateway.deleteDeployment(namespace, name);
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    @Override
+    public String readPodHostIp(String namespace, String podName) {
+        try {
+            return serviceRuntimeGateway.readPodHostIp(namespace, podName);
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    @Override
+    public java.math.BigDecimal readNodeAllocatableCpuByInternalIp(String internalIp) {
+        try {
+            return serviceRuntimeGateway.readNodeAllocatableCpuByInternalIp(internalIp);
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
     /** 一个探针的"改不改 + 改成什么"（`null` probe 表示清空）。 */
     private record ProbePatch(boolean changed, io.fabric8.kubernetes.api.model.Probe probe) {
     }
@@ -788,5 +1021,93 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
                 .serviceType(annotationOf(workloadSnapshot, "gaop/serviceType"))
                 .deploymentSnapshot(workloadSnapshot)
                 .build();
+    }
+
+    // ---------- 作战模式切换（厂商 ModeServiceImpl.getListWithOutGaop / updateServiceEnv）----------
+
+    /**
+     * 厂商 `ModeServiceImpl.getListWithOutGaop:229-248` 的过滤 + `startModeType:119-120` 取 env。
+     * <p>厂商数据源是腾讯云 API（**类 C 不可验证**）；这里用同集群 Deployment 直读等价复刻其过滤规则。
+     */
+    @Override
+    public List<com.csm.paas.core.domain.software.model.valobj.DeploymentEnvVO>
+    listBusinessServiceDeploymentEnvs(String namespace) {
+        List<Deployment> deployments = serviceRuntimeGateway.listDeployments(namespace);
+        List<com.csm.paas.core.domain.software.model.valobj.DeploymentEnvVO> result = new ArrayList<>();
+        for (Deployment deployment : deployments) {
+            if (deployment == null || deployment.getMetadata() == null
+                    || deployment.getMetadata().getLabels() == null) {
+                continue;
+            }
+            Map<String, String> labels = deployment.getMetadata().getLabels();
+            String appType = labels.get("system/appType");
+            boolean keep;
+            if (appType != null) {
+                // 厂商 AppTypeLabelsEnum.BUSINESS.getType() == "business"
+                keep = "business".equals(appType);
+            } else {
+                String appName = labels.get("system/appName");
+                if ("gis-server".equals(appName) || "gis-jb".equals(appName)) {
+                    keep = false;
+                } else {
+                    keep = !"gaop".equals(appName);
+                }
+            }
+            if (!keep) {
+                continue;
+            }
+            // 厂商 containers.get(0).getEnv()：容器列表为空 ⇒ 越界 500（照抄）
+            List<io.fabric8.kubernetes.api.model.EnvVar> env = deployment.getSpec().getTemplate().getSpec()
+                    .getContainers().get(0).getEnv();
+            result.add(com.csm.paas.core.domain.software.model.valobj.DeploymentEnvVO.builder()
+                    .serviceName(deployment.getMetadata().getName())
+                    // 必须是**可变列表**：领域层会按厂商的索引 bug `env.remove(i)` 就地删
+                    .env(env == null ? null : env.stream()
+                            .map(e -> com.csm.paas.core.domain.software.model.valobj.EnvVarVO.builder()
+                                    .name(e.getName()).value(e.getValue()).build())
+                            .collect(java.util.stream.Collectors.toCollection(ArrayList::new)))
+                    .build());
+        }
+        return result;
+    }
+
+    /**
+     * 厂商 `ModeServiceImpl.updateServiceEnv:162` 的 `readNamespacedDeployment`：
+     * Deployment 不存在 ⇒ null；否则返回第一个容器的 env（可能为 null）。
+     */
+    @Override
+    public com.csm.paas.core.domain.software.model.valobj.DeploymentEnvVO readDeploymentEnv(
+            String namespace, String serviceName) {
+        List<io.fabric8.kubernetes.api.model.EnvVar> env =
+                serviceRuntimeGateway.readDeploymentEnv(namespace, serviceName);
+        if (env == null && !serviceRuntimeGateway.deploymentExists(namespace, serviceName)) {
+            return null;
+        }
+        return com.csm.paas.core.domain.software.model.valobj.DeploymentEnvVO.builder()
+                .serviceName(serviceName)
+                // 可变列表：领域层要 addAll（厂商 envVars.addAll）
+                .env(env == null ? null : env.stream()
+                        .map(e -> com.csm.paas.core.domain.software.model.valobj.EnvVarVO.builder()
+                                .name(e.getName()).value(e.getValue()).build())
+                        .collect(java.util.stream.Collectors.toCollection(ArrayList::new)))
+                .build();
+    }
+
+    /**
+     * 厂商 `ModeServiceImpl.updateServiceEnv:176-205` 的最后一步：把第一个容器的 env 整份替换并 patch。
+     * 合并逻辑在领域层（`ModeCommandServiceImpl.updateServiceEnv`）。
+     */
+    @Override
+    public boolean replaceDeploymentEnv(String namespace, String serviceName,
+            List<com.csm.paas.core.domain.software.model.valobj.EnvVarVO> env) {
+        List<io.fabric8.kubernetes.api.model.EnvVar> fabric8Env = env == null ? null : env.stream()
+                .map(e -> {
+                    io.fabric8.kubernetes.api.model.EnvVar v = new io.fabric8.kubernetes.api.model.EnvVar();
+                    v.setName(e.getName());
+                    v.setValue(e.getValue());
+                    return v;
+                })
+                .toList();
+        return serviceRuntimeGateway.replaceDeploymentEnv(namespace, serviceName, fabric8Env);
     }
 }

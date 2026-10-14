@@ -17,6 +17,20 @@ public interface ISshPort {
     /** 执行一条命令，返回 stdout（厂商 `ChannelExec` + `StreamUtils.copyToString`）。 */
     String exec(String command);
 
+    /**
+     * 在**指定主机**上执行一条命令（而不是配置里那台 `gaop.ssh.host`）。
+     *
+     * <p>厂商出处：`ServiceController.schedulingNode:3116-3163` 与
+     * `reStartBaseService:3338-3373`——两处都是
+     * `new SshUtil(username, password, <master 节点 IP>)` → `setPort(port)` →
+     * `connectSession(client, 30)` → `sshUtil.schedulingStopNode/…` → `session.close(); client.close()`。
+     * 即"连到节点上跑 kubectl"，与我们既有的"连到配置里那台机器"是同一个 SshUtil，只是 host 不同。
+     *
+     * <p><b>类 C</b>：本环境没有可 SSH 的节点 ⇒ 不可在线验证。
+     * <p>调用方负责把异常翻成厂商的 i18n 键；本方法只管"连 + 跑 + 断"。
+     */
+    String execOnHost(String host, String command);
+
     /** `pgrep -f <execName>`（厂商 `Ssh.status:145-160`）：有输出即"在跑"。 */
     boolean processRunning(String execName);
 
@@ -43,4 +57,16 @@ public interface ISshPort {
 
     /** 远端文件是否存在（厂商 `Ssh.existRemoteFile:426-...`）。 */
     boolean exists(String remotePath);
+
+    /**
+     * 递归建目录（厂商 `Ssh.createFolderPath:456-469`：
+     * `if [ ! -d <path> ] ; then mkdir -p <path>; fi`；**失败只记日志、不抛**）。
+     */
+    void mkdirs(String path);
+
+    /**
+     * 递归删目录（厂商 `Ssh.delSoftwareDir:396-409`：
+     * `if [ -d <path> ];then rm -r <path>; fi`；**失败只记日志、不抛**）。
+     */
+    void deleteDir(String path);
 }

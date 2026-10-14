@@ -26,6 +26,21 @@ public class ModeRepository implements IModeRepository {
         return modeDao.selectAll().stream().map(this::toEntity).toList();
     }
 
+    @Override
+    public Optional<ModeEntity> queryById(Long id) {
+        return Optional.ofNullable(modeDao.selectById(id)).map(this::toEntity);
+    }
+
+    @Override
+    public int resetUsed() {
+        return modeDao.resetUsed();
+    }
+
+    @Override
+    public int setUsedById(Long id) {
+        return modeDao.setUsedById(id);
+    }
+
     private ModeEntity toEntity(ModePO po) {
         return ModeEntity.builder()
                 .id(po.getId()).type(po.getType()).mode(po.getMode()).modeName(po.getModeName())

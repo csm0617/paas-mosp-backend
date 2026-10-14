@@ -243,6 +243,63 @@ public class SoftwareController {
     }
 
     /**
+     * 厂商 `POST /v1/software/{id}/service_entry?serviceId&port&type`：设置/取消软件的服务入口。
+     *
+     * <p>四个参数里 `serviceId` **实际是服务名**（照抄厂商的命名混乱）；`type` 1 设置、0 取消。
+     * 四道"静默返回"闸（软件不存在 / 未绑定该服务 / K8s 无此服务 / 服务数据为空）都不报错、照样 200。
+     * 响应是**软件详情**（23 键），规则见 {@link com.csm.paas.core.domain.software.service.IServiceQueryService#setServiceEntry}。
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/{id}/service_entry")
+    public ResponseDTO<com.csm.paas.core.api.dto.SoftwareInfoDTO> setServiceEntry(
+            @org.springframework.web.bind.annotation.PathVariable String id,
+            @org.springframework.web.bind.annotation.RequestParam String serviceId,
+            @org.springframework.web.bind.annotation.RequestParam Integer port,
+            @org.springframework.web.bind.annotation.RequestParam Integer type) {
+        serviceQueryService.setServiceEntry(namespace, id, serviceId, port, type);
+        return ResponseDTO.ok(com.csm.paas.core.trigger.assembler.SoftwareInfoAssembler.toResponse(
+                softwareDetailService.queryDetail(id)));
+    }
+
+    /**
+     * 厂商 `POST /v1/software/reset_service`：重置服务配置（厂商 `AppService.resetService:539-570`）。
+     *
+     * <p>把 gaop-namespace 里**除 `system/appName=gaop` 之外**（以及带 `ingress-lb` 标签之外）的
+     * Deployment **全部删除**，返回 `data:true`；K8s 调用异常 ⇒ 400 `service.reset.failed`。
+     * <p><b>破坏性操作</b>，照抄；厂商开头那段 `allPageApps` + `removeApp` 走的是时速云 App 概念，
+     * 本环境没有对应物（见 findings/79），只做 Deployment 删除这一半。
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/reset_service")
+    public ResponseDTO<Boolean> resetService() {
+        return ResponseDTO.ok(serviceQueryService.resetService(namespace));
+    }
+
+    /**
+     * 厂商 `POST /v1/software/top?type&namespace`：容器资源使用 Top5。
+     *
+     * <p>`type` 取 `cpu`/`mem`/`netout`/`netin`/`diskread`/`diskwrite`（其它值 ⇒ 空数组）；
+     * `namespace` 为空 ⇒ 用后端配置的命名空间。每条恒为 8 个 String 键、查不到的项是 `"0"`。
+     * 规则见 {@link com.csm.paas.core.domain.software.service.IServiceQueryService#queryTopPodResources}
+     * （**类 C**：需要 Prometheus / metrics-server）。
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/top")
+    public ResponseDTO<java.util.List<com.csm.paas.core.api.dto.TopPodResourceInfoDTO>> top(
+            @org.springframework.web.bind.annotation.RequestParam String type,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String namespace) {
+        return ResponseDTO.ok(serviceQueryService.queryTopPodResources(type, namespace).stream()
+                .map(v -> com.csm.paas.core.api.dto.TopPodResourceInfoDTO.builder()
+                        .podName(v.getPodName())
+                        .cpuUsageRate(v.getCpuUsageRate())
+                        .memory(v.getMemory())
+                        .networkOutBound(v.getNetworkOutBound())
+                        .networkInBound(v.getNetworkInBound())
+                        .diskRead(v.getDiskRead())
+                        .diskWrite(v.getDiskWrite())
+                        .namespace(v.getNamespace())
+                        .build())
+                .toList());
+    }
+
+    /**
      * 厂商 `PUT /v1/software/{softwareId}/service/{serviceName}?port&path`：设置端口映射路径。
      * <p>四个参数校验 + 两条业务校验（路径已占用 / 端口不存在）见 `ISoftwareQueryService.updateServicePortPath`；
      * 成功返回**重新查出来的那一行**（8 键 `ServicePort`）。

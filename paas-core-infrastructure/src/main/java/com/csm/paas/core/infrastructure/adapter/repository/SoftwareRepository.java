@@ -337,8 +337,24 @@ public class SoftwareRepository implements ISoftwareRepository {
         }).toList());
     }
 
-    private SoftwarePO toPO(SoftwareEntity s) {
-        SoftwarePO po = new SoftwarePO();
+    // ---------- 软件服务入口（厂商 `POST /v1/software/{id}/service_entry`）----------
+
+    @Override
+    public void updateWebEntry(String softwareId, String serviceName, int port, boolean webEntry) {
+        softwareDao.updateWebEntry(softwareId, serviceName, port, webEntry);
+    }
+
+    @Override
+    public void clearOtherWebEntries(String softwareId, String serviceName, int port) {
+        softwareDao.clearOtherWebEntries(softwareId, serviceName, port);
+    }
+
+    @Override
+    public void updateRouterKey(String softwareId, String routerKey, long updatedAt) {
+        softwareDao.updateRouterKey(softwareId, routerKey, updatedAt);
+    }
+
+    private SoftwarePO toPO(SoftwareEntity s) {        SoftwarePO po = new SoftwarePO();
         po.setId(s.getId());
         po.setKey(s.getKey());
         po.setName(s.getName());
@@ -367,6 +383,42 @@ public class SoftwareRepository implements ISoftwareRepository {
 
     private static String str(Object v) {
         return v == null ? null : String.valueOf(v);
+    }
+
+    // ---------- CS 程序包上传/关联 ----------
+
+    @Override
+    public java.util.Optional<com.csm.paas.core.domain.software.model.valobj.UploadStoreRecordVO>
+    queryUploadRecordById(String uploadStoreRecordId) {
+        var po = softwareDao.selectUploadRecordById(uploadStoreRecordId);
+        if (po == null) {
+            return java.util.Optional.empty();
+        }
+        return java.util.Optional.of(com.csm.paas.core.domain.software.model.valobj.UploadStoreRecordVO.builder()
+                .id(po.getId()).realStoreFilename(po.getRealStoreFilename()).execFileName(po.getExecFileName())
+                .updatedAt(po.getUpdatedAt()).execFaultMessage(po.getExecFaultMessage())
+                .status(po.getStatus()).relationSoftwareId(po.getRelationSoftwareId())
+                .build());
+    }
+
+    @Override
+    public void insertUploadRecord(String id, String realStoreFilename, String execFileName, long updatedAt,
+                                   int status, String execFaultMessage, String relationSoftwareId) {
+        com.csm.paas.core.infrastructure.dao.po.UploadStoreRecordPO po =
+                new com.csm.paas.core.infrastructure.dao.po.UploadStoreRecordPO();
+        po.setId(id);
+        po.setRealStoreFilename(realStoreFilename);
+        po.setExecFileName(execFileName);
+        po.setUpdatedAt(updatedAt);
+        po.setStatus(status);
+        po.setExecFaultMessage(execFaultMessage);
+        po.setRelationSoftwareId(relationSoftwareId);
+        softwareDao.insertUploadRecord(po);
+    }
+
+    @Override
+    public java.util.List<String> queryRoleIdsBySoftwareIdDesc(String softwareId) {
+        return softwareDao.selectRoleIdsBySoftwareIdDesc(softwareId);
     }
 
     private SoftwareEntity toEntity(SoftwarePO po) {

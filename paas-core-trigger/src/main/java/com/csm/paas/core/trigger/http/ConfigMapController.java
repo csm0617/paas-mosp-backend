@@ -20,8 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>已实现：`GET /`（列表）、`GET /{name}`、`GET /{name}/exist`、`GET /relationService`、
  * `POST /`（创建）、`POST /{name}/config`、`DELETE /{name}/config/{configName}`、`DELETE /?names=`。
- * 已实现：`POST /backup`、`POST /listenBackup`、`POST /import`。
- * 未实现：`POST /importListen`（它会**改 ingress Service 的端口**，风险高，另行评估）。
+ * 已实现：`POST /backup`、`POST /listenBackup`、`POST /import`、`POST /importListen`。
  */
 @RestController
 @RequestMapping("/v1/config_map")
@@ -68,6 +67,40 @@ public class ConfigMapController {
                         new com.fasterxml.jackson.core.type.TypeReference<>() {
                         });
         return ResponseDTO.ok(serviceQueryService.importConfigMaps(namespace, configMaps));
+    }
+
+    /**
+     * 厂商 `POST /v1/config_map/importListen`（multipart，部件名 `json`）：导入 tcp/udp 监听配置。
+     *
+     * <p>厂商 `ConfigMapController.java:460-465` → `SoftwareService.importListenConfig:3590-3711`。
+     * 请求体是 `/listenBackup` 导出的同一份 JSON（`{tcpListen, udpListen, ingressList}`）。
+     *
+     * <p><b>破坏性</b>：会 replace（不存在则创建）`tcp-services-<suffix>` / `udp-services-<suffix>`
+     * 两个 ConfigMap。照抄点（含死代码与 NPE）见
+     * {@code IServiceQueryService.importListenConfig}。控制器恒返回 `true`。
+     */
+    @org.springframework.web.bind.annotation.PostMapping(value = "/importListen",
+            consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    @SuppressWarnings("unchecked")
+    public ResponseDTO<Boolean> importListen(
+            @org.springframework.web.bind.annotation.RequestPart(value = "json", required = false)
+            org.springframework.web.multipart.MultipartFile json,
+            jakarta.servlet.http.HttpServletRequest request) throws java.io.IOException {
+        org.springframework.web.multipart.MultipartFile file = json;
+        if (file == null && request instanceof org.springframework.web.multipart.MultipartHttpServletRequest multi) {
+            file = multi.getFileMap().values().stream().findFirst().orElse(null);
+        }
+        com.csm.paas.core.domain.software.model.valobj.ListenImportVO listenImport =
+                new com.csm.paas.core.domain.software.model.valobj.ListenImportVO();
+        if (file != null) {
+            java.util.Map<String, Object> body = new com.fasterxml.jackson.databind.ObjectMapper().readValue(
+                    file.getInputStream(),
+                    new com.fasterxml.jackson.core.type.TypeReference<>() {
+                    });
+            listenImport.setTcpListen((java.util.Map<String, Object>) body.get("tcpListen"));
+            listenImport.setUdpListen((java.util.Map<String, Object>) body.get("udpListen"));
+        }
+        return ResponseDTO.ok(serviceQueryService.importListenConfig(namespace, listenImport));
     }
 
     /**

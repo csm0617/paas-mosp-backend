@@ -465,4 +465,74 @@ public interface ISoftwareDao {
      */
     @Update("UPDATE g_software SET active_code = #{activeCode} WHERE id = #{id}")
     int updateActiveCode(@Param("id") String id, @Param("activeCode") String activeCode);
+
+    // ---------- 软件服务入口（厂商 `POST /v1/software/{id}/service_entry`）----------
+
+    /**
+     * 把某软件+服务+端口那一行的 `web_entry` 置为给定值
+     * （厂商 `setServiceEntry:2259-2263` / `2270-2274` 的 `update … set web_entry = ? where …`）。
+     */
+    @Update("""
+            UPDATE g_service_port SET web_entry = #{webEntry}
+            WHERE software_id = #{softwareId} AND service_name = #{serviceName} AND port = #{port}
+            """)
+    int updateWebEntry(@Param("softwareId") String softwareId, @Param("serviceName") String serviceName,
+                       @Param("port") int port, @Param("webEntry") boolean webEntry);
+
+    /**
+     * 把该软件下**除"某服务+端口"那一行以外**的所有行 `web_entry` 置 0
+     * （厂商 `ServicePortMapper.updateServicePort:136` 的 SQL 原文，含那个
+     * `and sp.id not in (select a.id from (select id …) a)` 的派生表绕行写法）。
+     */
+    @Update("""
+            UPDATE g_service_port sp SET web_entry = 0
+            WHERE sp.software_id = #{softwareId}
+              AND sp.id NOT IN (
+                SELECT a.id FROM (
+                  SELECT id FROM g_service_port s
+                  WHERE s.software_id = #{softwareId} AND s.service_name = #{serviceName} AND s.port = #{port}
+                ) a
+              )
+            """)
+    int clearOtherWebEntries(@Param("softwareId") String softwareId, @Param("serviceName") String serviceName,
+                             @Param("port") int port);
+
+    /**
+     * 只写 `router_key` 与 `updated_at`（厂商 `setServiceEntry:2264-2268` / `2275-2280` 的
+     * `updateByPrimaryKeySelective` 只 set 了这两列；type=0 时 `routerKey` 为 **null** ⇒ 清空该列）。
+     */
+    @Update("UPDATE g_software SET router_key = #{routerKey}, updated_at = #{updatedAt} WHERE id = #{id}")
+    int updateRouterKey(@Param("id") String id, @Param("routerKey") String routerKey,
+                        @Param("updatedAt") long updatedAt);
+
+    // ---------- CS 程序包上传/关联（厂商 CsSoftwareUploadService + StoreMangeService）----------
+
+    /** 按主键查上传记录（厂商 `uploadStoreRecordMapper.selectByPrimaryKey`）。 */
+    @Select("""
+            SELECT id, real_store_filename, exec_file_name, updated_at, exec_fault_message, status, relation_software_id
+            FROM g_upload_store_record WHERE id = #{id}
+            """)
+    com.csm.paas.core.infrastructure.dao.po.UploadStoreRecordPO selectUploadRecordById(@Param("id") String id);
+
+    /**
+     * 插一条上传记录（厂商 `StoreMangeService.addUploadRecord:60-71` 的 `uploadStoreRecordMapper.insert`）。
+     * <p>`real_store_filename` 由调用方拼成 `<now>_<execName>`。
+     */
+    @Insert("""
+            INSERT INTO g_upload_store_record
+              (id, real_store_filename, exec_file_name, updated_at, status, exec_fault_message, relation_software_id)
+            VALUES
+              (#{id}, #{realStoreFilename}, #{execFileName}, #{updatedAt}, #{status},
+               #{execFaultMessage}, #{relationSoftwareId})
+            """)
+    int insertUploadRecord(com.csm.paas.core.infrastructure.dao.po.UploadStoreRecordPO po);
+
+    /**
+     * 该软件关联的战位 id，**按 `created_at DESC`**（厂商 `CsSoftwareUploadService.getRoleIdBySoftwareId:383`
+     * 的 `orderBy(roleSoftware.createdAt.descending())`；与既有 `selectRoleIdsBySoftwareId` 的无序版**不同**）。
+     */
+    @Select("""
+            SELECT role_id FROM g_role_software WHERE app_id = #{softwareId} ORDER BY created_at DESC
+            """)
+    List<String> selectRoleIdsBySoftwareIdDesc(@Param("softwareId") String softwareId);
 }

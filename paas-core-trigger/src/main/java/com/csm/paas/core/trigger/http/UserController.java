@@ -2,6 +2,7 @@ package com.csm.paas.core.trigger.http;
 
 import com.csm.paas.core.api.dto.ResponseDTO;
 import com.csm.paas.core.api.dto.RoleRelationDTO;
+import com.csm.paas.core.api.dto.TenxUserInfoDTO;
 import com.csm.paas.core.api.dto.LoginUserDTO;
 import com.csm.paas.core.api.dto.UserDTO;
 import com.csm.paas.core.api.dto.UserDetailDTO;
@@ -70,6 +71,9 @@ public class UserController {
 
     @Resource
     private com.csm.paas.core.domain.user.service.IUserImportService userImportService;
+
+    @Resource
+    private com.csm.paas.core.domain.user.service.ITenxUserQueryService tenxUserQueryService;
 
     @Resource
     private IUserRepository userRepository;
@@ -424,6 +428,26 @@ public class UserController {
                         .toList())
                 .total(userRepository.count())
                 .build());
+    }
+
+    /**
+     * 厂商 `GET /v1/user/tenx_user?userName=`：天速云用户列表（含 `apiToken`）。
+     *
+     * <p>厂商 `UserController.java:549-554` → `UserService.getTenxUserList:1584-1618`。
+     * **照抄的怪点**：厂商 `TenxCloudImpl.getUserList:634-639` 是恒空 stub ⇒ 该端点在本厂商构建里
+     * 可观测结果**恒为 `data: []`**（`userName` 过滤也只是对空列表过滤），
+     * `service.get.container.admin.info.failed` 不可达。规则见 {@code ITenxUserQueryService}。
+     *
+     * <p>**公开**（与相邻只读端点一致，鉴权在网关侧）。
+     */
+    @GetMapping("/v1/user/tenx_user")
+    public ResponseDTO<List<TenxUserInfoDTO>> tenxUserList(@RequestParam(required = false) String userName) {
+        return ResponseDTO.ok(tenxUserQueryService.queryTenxUserList(userName).stream()
+                .map(u -> TenxUserInfoDTO.builder()
+                        .userName(u.getUserName())
+                        .apiToken(u.getApiToken())
+                        .build())
+                .toList());
     }
 
     /**

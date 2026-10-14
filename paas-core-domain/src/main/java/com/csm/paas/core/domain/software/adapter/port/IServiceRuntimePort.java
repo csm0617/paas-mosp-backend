@@ -319,4 +319,123 @@ public interface IServiceRuntimePort {
 
     /** 用整份对象**替换** ConfigMap（厂商 `importConfigMap:3383` 的 `replaceNamespacedConfigMap`）。 */
     void replaceConfigMapObject(String namespace, java.util.Map<String, Object> configMap);
+
+    // ---------- 服务详情（厂商 GET /v1/service/{serviceName}）----------
+
+    /**
+     * 按名取**工作负载驱动的服务项**，**不受列表端点的 10 条分页限制**
+     * （厂商详情端点走的是 `tenxCloud.service(clusterID, serviceName)`，不是分页的 `allPageService`）。
+     * <p>同时从**全部命名空间**的 pod 里找"第一个容器名 == 服务名"的那个，填 `hostIp` /
+     * `terminatedSnapshot`（厂商 `getServiceDetail:1416-1431`）。
+     *
+     * @return 工作负载（Deployment 优先，再 StatefulSet）不存在时返回 **null**（厂商据此抛 400）
+     */
+    ServiceRuntimeEntity lookupServiceDetail(String namespace, String serviceName);
+
+    // ---------- updateServiceRole（厂商 PUT /v1/service/updateServiceRole）----------
+
+    /**
+     * 给 Deployment 的 pod 模板 metadata 做整份 merge-patch（厂商 `updateServiceRole:1513-1518`
+     * 的 `json.serialize(v1Deployment)` + `application/merge-patch+json`）。
+     *
+     * @return false = Deployment 不存在（厂商此时 patch 抛异常 ⇒ 走 StatefulSet 回退）
+     */
+    boolean patchDeploymentTemplateMetadata(String namespace, String name,
+                                            java.util.Map<String, String> annotations);
+
+    /**
+     * 读工作负载（Deployment 优先，读不到回退 StatefulSet）pod 模板的
+     * `spec.template.metadata.annotations`；**两者都不存在、或该字段为 null ⇒ null**
+     * （厂商 `updateServiceRole:1507-1511` 直接把这个可能为 null 的 Map 当结果用）。
+     */
+    java.util.Map<String, String> readWorkloadTemplateAnnotations(String namespace, String name);
+
+    /** 同上，打在 StatefulSet 上（厂商回退路径）。 */
+    boolean patchStatefulSetTemplateMetadata(String namespace, String name,
+                                             java.util.Map<String, String> annotations);
+
+    // ---------- schedulingNode / reStartBaseService（SSH，类 C）----------
+
+    /**
+     * 列出全部节点，并算出"master 节点 IP"（厂商 `schedulingNode:3096-3112` /
+     * `reStartBaseService:3321-3337`）。节点标签键是 `node-role.kubernetes.io/<nodeRole>`。
+     * <p>厂商遍历**所有**节点、只要含该标签就覆盖 `ip`（最后一个命中者生效）。
+     */
+    java.util.List<com.csm.paas.core.domain.software.model.valobj.NodeInfoVO> listNodes();
+
+    // ---------- servicePods（厂商 DELETE /v1/service/servicePods）----------
+
+    /**
+     * 删一个 pod（厂商 `deleteServicePods:2330-2343`）。
+     * <p>`force` 为 true ⇒ `gracePeriodSeconds = 0`；否则不带该字段（API Server 默认宽限期）。
+     * <p>**破坏性操作**，照抄厂商不做额外校验。失败抛 `K8sApiException`。
+     */
+    void deletePod(String namespace, String podName, Boolean force);
+
+    // ---------- resetService（厂商 POST /v1/software/reset_service）----------
+
+    /**
+     * 命名空间里全部 Deployment 的 `名字 → metadata.labels`（`labels` 可能为 null），
+     * 用于判断有没有 `ingress-lb` 标签。读失败抛 `K8sApiException`。
+     */
+    java.util.Map<String, java.util.Map<String, String>> listDeploymentLabels(String namespace);
+
+    /** 删一个 Deployment（厂商 `deleteNamespacedDeployment`）；失败抛 `K8sApiException`。 */
+    void deleteDeployment(String namespace, String name);
+
+    // ---------- top（厂商 POST /v1/software/top 的 getCpuNum）----------
+
+    /** 读某 pod 的 `status.hostIP`；pod 不存在 ⇒ **null**。失败抛 `K8sApiException`。 */
+    String readPodHostIp(String namespace, String podName);
+
+    /**
+     * 在节点列表里找 `status.addresses` 里 **InternalIP == 给定值**的节点，
+     * 返回其 `status.allocatable["cpu"]`（厂商 `getCpuNum:1886-1908` 的 `quantity.getNumber()`）。
+     * <p>找不到 / 没有该量 ⇒ **null**（厂商保持默认 1 核）。
+     */
+    java.math.BigDecimal readNodeAllocatableCpuByInternalIp(String internalIp);
+
+    // ---------- 作战模式切换（厂商 ModeServiceImpl.getListWithOutGaop / updateServiceEnv）----------
+
+    /**
+     * 列"业务软件"Deployment 的名字与**第一个容器**的 env
+     * （厂商 `ModeServiceImpl.getListWithOutGaop:229-248` 的过滤规则 +
+     * `startModeType:119-120` 取 env）。
+     *
+     * <p>厂商数据源是 `TenxCloud.allPageService(null)`（腾讯云 API，**类 C 不可验证**）；
+     * 本平台没有该客户端，改用**同集群的 Deployment 直读**等价复刻——过滤规则逐条照抄：
+     * <ol>
+     *   <li>`metadata.labels == null` ⇒ 丢弃；</li>
+     *   <li>`labels["system/appType"] != null` ⇒ 只保留值等于 `business` 的；</li>
+     *   <li>否则看 `labels["system/appName"]`：`gis-server` / `gis-jb` ⇒ 丢弃，
+     *       `gaop` ⇒ 丢弃，其余保留。</li>
+     * </ol>
+     * <p>`env` 为 **null** 表示容器没有 env 字段；容器列表为空时抛 `IndexOutOfBoundsException`
+     * （厂商 `containers.get(0)` 同样会抛 ⇒ 500，照抄）。
+     */
+    java.util.List<com.csm.paas.core.domain.software.model.valobj.DeploymentEnvVO>
+    listBusinessServiceDeploymentEnvs(String namespace);
+
+    /**
+     * 读 Deployment **第一个容器**的 env（厂商 `ModeServiceImpl.updateServiceEnv:162`
+     * 的 `readNamespacedDeployment`）。
+     *
+     * @return **null = Deployment 读不到**（厂商此时抛 400 `service.get.service.info.not.found`）；
+     *         否则返回 VO，其 `env` 可能为 **null**（容器没有 env 字段）
+     */
+    com.csm.paas.core.domain.software.model.valobj.DeploymentEnvVO readDeploymentEnv(
+            String namespace, String serviceName);
+
+    /**
+     * 把 Deployment **第一个容器**的 env **整份替换**成给定列表并 merge-patch
+     * （厂商 `ModeServiceImpl.updateServiceEnv:176-205` 的最后一步：改完容器后整份 patch）。
+     *
+     * <p>合并逻辑（"同名 setValue + 剩余的追加"）在领域层做（见 {@code ModeCommandServiceImpl}），
+     * 因为它与 K8s 无关、且厂商那段的 catch/return false 语义要在域层保留。
+     *
+     * @return false = Deployment 读不到（厂商此时抛 400 `service.get.service.info.not.found`）
+     * @throws com.csm.paas.core.types.exception.K8sApiException patch 失败
+     */
+    boolean replaceDeploymentEnv(String namespace, String serviceName,
+                                 java.util.List<com.csm.paas.core.domain.software.model.valobj.EnvVarVO> env);
 }

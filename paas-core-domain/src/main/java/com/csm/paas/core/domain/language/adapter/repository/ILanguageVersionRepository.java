@@ -38,4 +38,28 @@ public interface ILanguageVersionRepository {
     /** 某语言+版本下的词条（`module` 为空白时不过滤）。 */
     java.util.List<com.csm.paas.core.domain.language.model.entity.LanguageEntryEntity> queryLanguages(
             String lang, String version, String module);
+
+    // ---------- 语言包导入（厂商 LanguageServiceImpl.importLanguageExcel:90-259）----------
+
+    /**
+     * 某语言在 `[start, end]` 时间窗内已创建的版本行数（厂商 :130-135 的
+     * `where lang = ? and create_time >= 当天0点 and create_time <= 当天23:59:59.999`）。
+     * <p>用于把"今天第 N 个"版本命名成 `yyyyMMddVN`。
+     */
+    long countVersionsCreatedBetween(String lang, long start, long end);
+
+    /**
+     * 批量插词条（厂商 `languageMapper.insertBatch`，每 4000 条一批）。
+     * <p>`lang`/`langVersion` 必须由调用方填好（厂商是先 `setLang/setLangVersion` 再插）。
+     */
+    int insertLanguageEntries(
+            java.util.List<com.csm.paas.core.domain.language.model.valobj.LanguageImportEntryVO> entries);
+
+    /**
+     * 插一行版本（厂商 `languageVersionMapper.insertSelective(langVersion)`）。
+     * <p>**照抄 selective 语义**：为 null 的列不出现在 INSERT 列表里——所以"版本已存在"那条路径
+     * 只写 `lang` 一列（其余列交给数据库默认值/NULL）。
+     */
+    int insertLanguageVersionSelective(
+            com.csm.paas.core.domain.language.model.entity.LanguageVersionEntity version);
 }

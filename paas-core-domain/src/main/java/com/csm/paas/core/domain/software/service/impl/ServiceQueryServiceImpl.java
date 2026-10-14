@@ -10,6 +10,7 @@ import com.csm.paas.core.domain.software.valobj.GaopServiceNames;
 import com.csm.paas.core.domain.software.service.IServiceQueryService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -55,6 +56,22 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
     /** `relationService` 要按当前语言查 i18n 自动名。 */
     @Resource
     private com.csm.paas.core.domain.language.service.ILanguageQueryService languageQueryService;
+
+    /** `GET /v1/service/imageStorage` 要 SSH 到节点跑 `df -h`（厂商 `K3sImageServiceImpl`）。 */
+    @Resource
+    private com.csm.paas.core.domain.remote.adapter.port.ISshPort sshPort;
+
+    /** `POST /v1/service/logs` 走 Loki（厂商 `TenxCloudImpl.getHistoryLog`）。 */
+    @Resource
+    private com.csm.paas.core.domain.software.adapter.port.ILokiLogPort lokiLogPort;
+
+    /** `POST /v1/software/top` 走 Prometheus（厂商 `SoftwareService.getResourceMetric`）。 */
+    @Resource
+    private com.csm.paas.core.domain.software.adapter.port.IPrometheusMetricPort prometheusMetricPort;
+
+    /** 厂商 `K8s.NAMESPACE`（`/v1/software/top` 的 `namespace` 参数为空时的兜底）。 */
+    @Value("${gaop.k8s.namespace:gaop-namespace}")
+    private String defaultNamespace;
 
     /** 基础服务组件所在的命名空间（厂商在多处**写死** `kube-system`）。 */
     private static final String KUBE_SYSTEM_NAMESPACE = "kube-system";
@@ -679,6 +696,363 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
         }
         // 注意：容器列表为空时端口抛的是 IndexOutOfBoundsException，**厂商也没兜** ⇒ 让它冒到全局
         // 兜底处理（500 `系统错误`/`code=-1`），所以这里**不**catch Exception。
+    }
+
+    /**
+     * 服务详情（厂商 `getServiceDetail:1404-1481`，规格见 {@link IServiceQueryService#queryServiceDetail}）。
+     */
+    @Override
+    public ServiceRuntimeEntity queryServiceDetail(String namespace, String serviceName) {
+        ServiceRuntimeEntity item = serviceRuntimePort.lookupServiceDetail(namespace, serviceName);
+        if (item == null) {
+            // 厂商 `existService(clusterID, serviceName).isData()` 为 false 时抛的就是这个键
+            throw new com.csm.paas.core.types.exception.WrongArgumentException(
+                    "service.service.name.not.found", serviceName);
+        }
+        // 厂商 `:1476-1479`：先取 i18n 自动名，**空白**再回退注解 `gaop/serviceLabel`
+        String label = item.getServiceLabel();
+        String us = autoNameForLanguage("en_US", serviceName);
+        item.setNameUs(us == null || us.isBlank() ? label : us);
+        String fr = autoNameForLanguage("fr_FR", serviceName);
+        item.setNameFr(fr == null || fr.isBlank() ? label : fr);
+        // 厂商 `:1433-1435`：`servicesItem.setTerminated(...)` / `setHostIP(...)`
+        // 厂商 `:1436-1437`：`imageInfo` = `deployment...containers.get(0).getImage()`（实体里的 image 就是它）
+        return item;
+    }
+
+    /**
+     * `i18n.service.<lang>.<key>` 的原值（**不做**语言回退、不按当前语言挑）——
+     * 厂商详情端点写死了 `en_US` 与 `fr_FR` 两次（`:1476-1479`）。
+     */
+    private String autoNameForLanguage(String language, String serviceKey) {
+        return i18nRepository.queryValue("i18n.service." + language + "." + serviceKey).orElse(null);
+    }
+
+    /**
+     * 更新服务的战位标识（厂商 `updateServiceRole:1483-1531`，规格见
+     * {@link IServiceQueryService#updateServiceRole}）。
+     */
+    @Override
+    public boolean updateServiceRole(String namespace, String serviceKey, String name) {
+        // 先读 Deployment；读不到回退 StatefulSet；两者都没有 ⇒ 400 `service.get.service.failed.not.found`
+        var ref = serviceRuntimePort.readWorkloadRef(namespace, name);
+        if (ref == null) {
+            throw new com.csm.paas.core.types.exception.WrongArgumentException(
+                    "service.get.service.failed.not.found");
+        }
+        boolean isDeployment = ref.isDeployment();
+
+        // 厂商那段**缺陷**照抄：
+        //   HashMap<String,String> annotations = new HashMap<>();
+        //   annotations.put("gaop/serviceRole", serviceKey);
+        //   if (isDeployment) { annotations = v1Deployment.getSpec()...getAnnotations();   // ← 覆盖掉了刚才的 put
+        //                       v1Deployment.getSpec()...setAnnotations(annotations); }
+        // 于是只有"工作负载的 annotations 原本为 null"时 `gaop/serviceRole` 才会被写进去。
+        Map<String, String> workloadAnnotations =
+                serviceRuntimePort.readWorkloadTemplateAnnotations(namespace, name);
+        Map<String, String> annotations = new java.util.HashMap<>();
+        annotations.put("gaop/serviceRole", serviceKey);
+        if (workloadAnnotations != null) {
+            annotations = workloadAnnotations;   // 照抄：刚才那个 put 被丢弃
+        }
+
+        try {
+            // 厂商序列化的始终是 Deployment 对象；StatefulSet 分支下它是 null（body "null"）。
+            // 我们按 isDeployment 走，失败再回退——分支顺序与厂商一致。
+            if (isDeployment) {
+                serviceRuntimePort.patchDeploymentTemplateMetadata(namespace, name, annotations);
+            } else {
+                serviceRuntimePort.patchStatefulSetTemplateMetadata(namespace, name, annotations);
+            }
+            return true;
+        } catch (Exception e) {
+            log.error("更新deployment失败", e);
+            try {
+                serviceRuntimePort.patchStatefulSetTemplateMetadata(namespace, name, annotations);
+                return true;
+            } catch (Exception statefulSetException) {
+                throw new com.csm.paas.core.types.exception.WrongArgumentException(
+                        "service.update.deployment.failed");
+            }
+        }
+    }
+
+    /**
+     * 设置/取消软件的服务入口（厂商 `SoftwareService.setServiceEntry:2238-2284`，规格见
+     * {@link IServiceQueryService#setServiceEntry}）。
+     *
+     * <p>**分层说明**：厂商这个方法在 `SoftwareService` 里；我们把它放在服务域的实现上，
+     * 因为这里已经注入了 `IServiceRuntimePort` 与 `IGatewayRefreshPort`，而
+     * `SoftwareCommandServiceImpl` 是 `@RequiredArgsConstructor`（新增构造参数会牵动 4 个测试的构造调用）。
+     */
+    @Override
+    public void setServiceEntry(String namespace, String softwareId, String serviceName, Integer port, Integer type) {
+        var software = softwareRepository.queryById(softwareId);
+        if (software.isEmpty()) {
+            log.warn("软件不存在: {}", softwareId);
+            return;
+        }
+        // 厂商 `softwareAllService(softwareId)` 后 `anyMatch(e -> serviceName.equals(e.getAppName()))`
+        List<String> appNames = softwareRepository.queryAppNamesBySoftwareId(softwareId);
+        boolean contain = appNames != null && appNames.stream().anyMatch(serviceName::equals);
+        if (!contain) {
+            log.warn("软件没有绑定该服务：{}", serviceName);
+            return;
+        }
+        if (!serviceRuntimePort.serviceExists(namespace, serviceName)) {
+            log.warn("不存在该服务: {}", serviceName);
+            return;
+        }
+        var snapshot = serviceRuntimePort.readServiceSnapshot(namespace, serviceName);
+        if (snapshot == null || snapshot.isEmpty()) {
+            log.warn("不存在该服务：{}", serviceName);
+            return;
+        }
+        int targetPort = port == null ? 0 : port;
+        if (type != null && type == 1) {
+            // ① 该行 web_entry = true
+            softwareRepository.updateWebEntry(softwareId, serviceName, targetPort, true);
+            // ② 该软件下除该行以外全部 web_entry = 0
+            softwareRepository.clearOtherWebEntries(softwareId, serviceName, targetPort);
+            // ③ router_key = "/" + key + "/"
+            softwareRepository.updateRouterKey(softwareId, "/" + software.get().getKey() + "/",
+                    System.currentTimeMillis());
+        }
+        if (type != null && type == 0) {
+            softwareRepository.updateWebEntry(softwareId, serviceName, targetPort, false);
+            softwareRepository.updateRouterKey(softwareId, null, System.currentTimeMillis());
+        }
+        gatewayRefreshPort.refresh();
+    }
+
+    /**
+     * 重置服务配置（厂商 `AppService.resetService:539-570`，规格见
+     * {@link IServiceQueryService#resetService}）。**破坏性**。
+     */
+    @Override
+    public boolean resetService(String namespace) {
+        Map<String, Map<String, String>> deployments;
+        try {
+            deployments = serviceRuntimePort.listDeploymentLabels(namespace);
+        } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+            log.error("重置服务出现异常:{}", e.getMessage(), e);
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("service.reset.failed");
+        }
+        for (var entry : deployments.entrySet()) {
+            Map<String, String> labels = entry.getValue();
+            // 厂商：带 `ingress-lb` 标签的跳过
+            if (labels != null && labels.containsKey("ingress-lb")) {
+                continue;
+            }
+            log.info("重置服务名称：{}", entry.getKey());
+            log.info("delete deployment: {}", entry.getKey());
+            try {
+                serviceRuntimePort.deleteDeployment(namespace, entry.getKey());
+            } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+                log.error("重置服务出现异常:{}", e.getMessage(), e);
+                throw new com.csm.paas.core.types.exception.WrongArgumentException("service.reset.failed");
+            }
+        }
+        return true;
+    }
+
+    /**
+     * 镜像存储大小（厂商 `K3sImageServiceImpl.imageStorageInfo:128-171` + `SshUtil.getImageStorage:521-561`，
+     * 规格见 {@link IServiceQueryService#queryImageStorage}）。**类 C：不可在线验证**。
+     */
+    @Override
+    public com.csm.paas.core.domain.software.model.valobj.StorageInfoVO queryImageStorage(String mountPath) {
+        String command = " df -h " + mountPath + " | awk 'NR==2 {print $2, $4}'";
+        String output;
+        try {
+            output = sshPort.exec(command);
+        } catch (Exception e) {
+            // 厂商：连接不上 / 命令异常 ⇒ `{free:0,total:0}`（不报错）
+            log.error("请求ssh获镜像存储信息失败,异常为:", e);
+            return com.csm.paas.core.domain.software.model.valobj.StorageInfoVO.builder()
+                    .free(0L).total(0L).build();
+        }
+        if (output == null || output.isBlank()) {
+            return com.csm.paas.core.domain.software.model.valobj.StorageInfoVO.builder()
+                    .free(0L).total(0L).build();
+        }
+        String[] split = output.split("\\s+");
+        // 照抄：厂商直接取 split[0]/split[1]，数组短了会 ArrayIndexOutOfBounds（这里主动收紧，见 deviations B25）
+        if (split.length < 2) {
+            return com.csm.paas.core.domain.software.model.valobj.StorageInfoVO.builder()
+                    .free(0L).total(0L).build();
+        }
+        return com.csm.paas.core.domain.software.model.valobj.StorageInfoVO.builder()
+                .total(switchSize(split[0]))
+                .free(switchSize(split[1]))
+                .build();
+    }
+
+    /**
+     * 厂商 `SshUtil.switchSize:541-561` 的逐行照抄：**三个独立的 if**（不是 else-if），
+     * 只认 `T`/`G`/`M` 后缀，其它（含没有后缀的纯字节数）一律得到 **0**。
+     */
+    private static long switchSize(String value) {
+        long size = 0L;
+        if (value.endsWith("T")) {
+            size = (long) (Double.parseDouble(value.replaceAll("T", "")) * 1024.0 * 1024.0 * 1024.0 * 1024.0);
+        }
+        if (value.endsWith("G")) {
+            size = (long) (Double.parseDouble(value.replaceAll("G", "")) * 1024.0 * 1024.0 * 1024.0);
+        }
+        if (value.endsWith("M")) {
+            size = (long) (Double.parseDouble(value.replaceAll("M", "")) * 1024.0 * 1024.0);
+        }
+        return size;
+    }
+
+    /**
+     * 服务历史日志（厂商 `TenxCloudImpl.getHistoryLog:159-235` 的前置校验 + 取原始 JSON，
+     * 规格见 {@link IServiceQueryService#queryServiceHistoryLogJson}）。**类 C：不可在线验证**。
+     */
+    @Override
+    public String queryServiceHistoryLogJson(String serviceName, java.util.Date startTime, java.util.Date endTime,
+                                             Integer size, String keyword) {
+        java.util.Date start = startTime == null ? new java.util.Date() : startTime;
+        java.util.Date end = endTime == null ? new java.util.Date() : endTime;
+        int limit = size == null || size < 0 ? 1000 : size;
+        java.time.Duration between = java.time.Duration.between(start.toInstant(), end.toInstant());
+        if (between.toHours() > 720L) {
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("query.time.range.must.between.720");
+        }
+        return lokiLogPort.queryRange(serviceName, keyword == null ? "" : keyword, limit,
+                start.getTime(), end.getTime());
+    }
+
+    /**
+     * 容器资源使用 Top5（厂商 `SoftwareService.topPodResource:1734-1873`，规格见
+     * {@link IServiceQueryService#queryTopPodResources}）。**类 C：不可在线验证**。
+     */
+    @Override
+    public List<com.csm.paas.core.domain.software.model.valobj.TopPodResourceInfoVO> queryTopPodResources(
+            String type, String namespace) {
+        String ns = namespace == null || namespace.isEmpty() ? this.defaultNamespace : namespace;
+        String kind = type == null ? "" : type;
+        List<com.csm.paas.core.domain.software.model.valobj.TopPodResourceVO> podResources = switch (kind) {
+            case "cpu" -> prometheusMetricPort.query(String.format(
+                    "topk(5,avg(rate(container_cpu_usage_seconds_total"
+                            + "{docker_type='container', namespace='%s'}[5m])) by (pod_name,pod_namespace))", ns));
+            case "mem" -> prometheusMetricPort.query(String.format(
+                    "topk(5, sum by (pod_name,pod_namespace) "
+                            + "(container_memory_usage_bytes{pod_name!=\"\",namespace=\"%s\"}))", ns));
+            case "netout" -> prometheusMetricPort.query(String.format(
+                    "topk(5, sum by (pod_name,pod_namespace) "
+                            + "(rate(container_network_transmit_bytes_total{pod_name!=\"\",namespace=\"%s\"}[5m])))", ns));
+            case "netin" -> prometheusMetricPort.query(String.format(
+                    "topk(5, sum by (pod_name,pod_namespace) "
+                            + "(rate(container_network_receive_bytes_total{pod_name!=\"\",namespace=\"%s\"}[5m])))", ns));
+            case "diskread" -> prometheusMetricPort.query(String.format(
+                    "topk(5, sum by (pod_name,pod_namespace) "
+                            + "(rate(container_fs_reads_bytes_total{pod_name!=\"\",namespace=\"%s\"}[5m])))", ns));
+            case "diskwrite" -> prometheusMetricPort.query(String.format(
+                    "topk(5, sum by (pod_name,pod_namespace) "
+                            + "(rate(container_fs_writes_bytes_total{pod_name!=\"\",namespace=\"%s\"}[5m])))", ns));
+            default -> List.of();
+        };
+        List<com.csm.paas.core.domain.software.model.valobj.TopPodResourceInfoVO> list = new ArrayList<>();
+        for (var r : podResources) {
+            var item = com.csm.paas.core.domain.software.model.valobj.TopPodResourceInfoVO.builder()
+                    .podName(r.getPodName())
+                    .namespace(r.getNamespace())
+                    .build();
+            switch (kind) {
+                case "cpu" -> item.setCpuUsageRate(r.getValue());
+                case "mem" -> item.setMemory(r.getValue());
+                case "netout" -> item.setNetworkOutBound(r.getValue());
+                case "netin" -> item.setNetworkInBound(r.getValue());
+                case "diskread" -> item.setDiskRead(r.getValue());
+                case "diskwrite" -> item.setDiskWrite(r.getValue());
+                default -> { }
+            }
+            list.add(item);
+        }
+        // 厂商随后对每个 pod 逐项补齐其它 5 项：**该字段为空才查**，查不到写 "0"
+        // （`SoftwareService:1814-1872`：cpu 是**无条件**覆盖，其余 5 项都是 `if (s.getX() == null || isEmpty())`）
+        for (var s : list) {
+            Integer cpuNum = cpuNumOfPod(s.getPodName(), ns);
+            s.setCpuUsageRate(firstValueOrZero(prometheusMetricPort.query(String.format(
+                    "avg(rate(container_cpu_usage_seconds_total"
+                            + "{pod_name=~\"^%s.*$\",docker_type='container', namespace='%s'}[5m])) "
+                            + "by (pod_name,pod_namespace)*%d",
+                    s.getPodName(), ns, cpuNum))));
+            if (isEmptyString(s.getMemory())) {
+                s.setMemory(firstValueOrZero(prometheusMetricPort.query(String.format(
+                        "container_memory_usage_bytes{pod_name=~\"^%s.*$\",namespace=\"%s\"}",
+                        s.getPodName(), ns))));
+            }
+            if (isEmptyString(s.getNetworkOutBound())) {
+                // 照抄：netout 的正则**没有** `^`
+                s.setNetworkOutBound(firstValueOrZero(prometheusMetricPort.query(String.format(
+                        "rate(container_network_transmit_bytes_total{pod_name=~\"%s.*$\","
+                                + "namespace=\"%s\"}[5m])",
+                        s.getPodName(), ns))));
+            }
+            if (isEmptyString(s.getNetworkInBound())) {
+                s.setNetworkInBound(firstValueOrZero(prometheusMetricPort.query(String.format(
+                        "rate(container_network_receive_bytes_total{pod_name=~\"^%s.*$\","
+                                + "namespace=\"%s\"}[5m])",
+                        s.getPodName(), ns))));
+            }
+            if (isEmptyString(s.getDiskRead())) {
+                s.setDiskRead(firstValueOrZero(prometheusMetricPort.query(String.format(
+                        "rate(container_fs_reads_bytes_total{pod_name=~\"^%s.*$\","
+                                + "namespace=\"%s\"}[5m])",
+                        s.getPodName(), ns))));
+            }
+            if (isEmptyString(s.getDiskWrite())) {
+                s.setDiskWrite(firstValueOrZero(prometheusMetricPort.query(String.format(
+                        "rate(container_fs_writes_bytes_total{pod_name=~\"^%s.*$\","
+                                + "namespace=\"%s\"}[5m])",
+                        s.getPodName(), ns))));
+            }
+        }
+        return list;
+    }
+
+    /** 厂商 `getResourceMetric` 的消费口径：**取第 0 条**，没有就写 `"0"`。 */
+    private static String firstValueOrZero(List<com.csm.paas.core.domain.software.model.valobj.TopPodResourceVO> list) {
+        if (list != null && !list.isEmpty()) {
+            return list.get(0).getValue();
+        }
+        return "0";
+    }
+
+    /**
+     * 厂商那 5 个 `if (s.getX() == null || s.getX().isEmpty())` 的**精确**等价判断。
+     * <p>刻意**不用** {@code String.isBlank()}（那个把纯空白也算空），也不用本类里已有的
+     * `isBlank`（同样的 isBlank 语义）——厂商写的是 `isEmpty()`。
+     */
+    private static boolean isEmptyString(String value) {
+        return value == null || value.isEmpty();
+    }
+
+    /**
+     * 厂商 `getCpuNum:1876-1912`：读该 pod 的 `status.hostIP`，在节点列表里找 **InternalIP 相同**的节点，
+     * 取 `status.allocatable.cpu` 的整数部分；读 pod / 读节点失败都只记日志并用 **1**。
+     */
+    private Integer cpuNumOfPod(String podName, String namespace) {
+        Integer cpuNum = 1;
+        String hostIp = null;
+        try {
+            hostIp = serviceRuntimePort.readPodHostIp(namespace, podName);
+        } catch (RuntimeException e) {
+            log.error("获取容器:{}所属节点ip失败,默认设置为1核,异常为:{}", podName, e.getMessage());
+        }
+        try {
+            var cpu = serviceRuntimePort.readNodeAllocatableCpuByInternalIp(hostIp);
+            if (cpu != null) {
+                cpuNum = cpu.intValue();
+            }
+        } catch (RuntimeException e) {
+            log.error("获取节点信息失败,默认设置为1核,异常为:{}", e.getMessage());
+        }
+        log.info("获取到容器:{}所属节点的cpu的核数为:{}", podName, cpuNum);
+        return cpuNum;
     }
 
     /**
@@ -1743,6 +2117,142 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
                 log.info("导入configmap配置名称:{}失败，导入下一个,异常为:{}", name, e.getMessage());
             }
         }
+        return true;
+    }
+
+    /**
+     * 厂商 `SoftwareService.importListenConfig:3590-3711`，逐行照抄（含死代码与 NPE 行为）。
+     * 规则见 {@code IServiceQueryService.importListenConfig}。
+     */
+    @Override
+    @SuppressWarnings("unchecked")
+    public boolean importListenConfig(String namespace,
+            com.csm.paas.core.domain.software.model.valobj.ListenImportVO listenImport) {
+        // ① 找 ingressName：列 ingress-lb 标签的 ConfigMap，取第一个标签值 != "true" 的
+        String ingressName = null;
+        List<Map<String, Object>> configMaps;
+        try {
+            configMaps = serviceRuntimePort.listConfigMapsWithIngressLb(namespace);
+        } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+            log.error("获取集群configmap失败,异常为:", e);
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("k8s.get.cluster.lb.info.failed");
+        }
+        for (Map<String, Object> item : configMaps) {
+            Map<String, Object> metadata = asMap(item.get("metadata"));
+            Map<String, Object> labels = metadata == null ? null : asMap(metadata.get("labels"));
+            String ingressLb = labels == null ? null : (String) labels.get("ingress-lb");
+            log.info("获取当前集群ingress-lb名称:{}", ingressLb);
+            if ("true".equals(ingressLb)) {
+                continue;
+            }
+            ingressName = ingressLb;
+            break;
+        }
+        String suffixName = null;
+        // ② 厂商先 new 一个空 V1Service，读到才替换 ⇒ 读不到时后面 getSpec() 为 null（NPE）
+        Map<String, Object> ingressService = new java.util.HashMap<>();
+        if (ingressName != null) {
+            // 厂商：ingressName.split("-")[1] —— 没有 "-" 时越界（照抄）
+            String[] split3 = ingressName.split("-");
+            suffixName = split3[1];
+            try {
+                Map<String, Object> snapshot = serviceRuntimePort.readServiceSnapshot(namespace, ingressName);
+                if (snapshot != null) {
+                    ingressService = snapshot;
+                }
+            } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+                log.error("获取ingress名称:{}的服务发现失败，异常为:", ingressName, e);
+            }
+        }
+        // ③ 厂商死代码：把 port-0/port-1/port-status/port-health 收进 ports，**之后从不使用**。
+        //    但它的 NPE 是可观测的（spec 为 null、ports 为 null 都会 500），所以照抄。
+        List<Map<String, Object>> ports = new ArrayList<>();
+        Map<String, Object> ingressSpec = asMap(ingressService.get("spec"));
+        List<Map<String, Object>> servicePorts = ingressSpec == null
+                ? null : (List<Map<String, Object>>) ingressSpec.get("ports");
+        for (Map<String, Object> servicePort : servicePorts) {
+            String portName = (String) servicePort.get("name");
+            if (!"port-0".equals(portName) && !"port-1".equals(portName)
+                    && !"port-status".equals(portName) && !"port-health".equals(portName)) {
+                continue;
+            }
+            ports.add(servicePort);
+        }
+        // ④ tcp
+        Map<String, Object> tcpListen = listenImport == null ? null : listenImport.getTcpListen();
+        if (tcpListen != null) {
+            Map<String, Object> data = asMap(tcpListen.get("data"));
+            if (data == null) {
+                // 厂商：`return;`——**连 udp 也不再处理**（照抄这个早退）
+                return true;
+            }
+            for (Map.Entry<String, Object> entry : data.entrySet()) {
+                String tcpPort = entry.getKey();
+                String tcpPortInfoValue = (String) entry.getValue();
+                // 厂商：split(":", 2)[1] —— 没有冒号时越界（照抄）
+                String tcpPorts = tcpPortInfoValue.split(":", 2)[1];
+                Map<String, Object> port = new java.util.HashMap<>();
+                port.put("name", "port-tcp-" + tcpPort);
+                port.put("port", Integer.valueOf(tcpPorts));
+                port.put("targetPort", tcpPorts);
+                port.put("protocol", "TCP");
+                ports.add(port);
+            }
+            String name = configMapName(tcpListen);
+            log.info("导入tcp名称为:{}", name);
+            String[] split = name.split("-");
+            String tcpPre = split[0] + "-" + split[1];
+            String tcpName = tcpPre + "-" + suffixName;
+            Map<String, Object> metadata = asMap(tcpListen.get("metadata"));
+            metadata.remove("resourceVersion");
+            metadata.put("name", tcpName);
+            asMap(metadata.get("labels")).put("ingress-lb", ingressName);
+            metadata.put("name", tcpName);
+            metadata.remove("uid");
+            try {
+                serviceRuntimePort.replaceConfigMapObject(namespace, tcpListen);
+                log.info("更新服务配置组名称:{}成功", name);
+            } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+                log.info("更新Tcpconfigmap配置名称:{}失败，异常为:{}", name, e.getMessage());
+            }
+        }
+        // ⑤ udp（与 tcp 同构）
+        Map<String, Object> udpListen = listenImport == null ? null : listenImport.getUdpListen();
+        if (udpListen != null) {
+            Map<String, Object> data = asMap(udpListen.get("data"));
+            if (data == null) {
+                return true;
+            }
+            for (Map.Entry<String, Object> entry : data.entrySet()) {
+                String udpPort = entry.getKey();
+                String udpPortInfoValue = (String) entry.getValue();
+                String udpPorts = udpPortInfoValue.split(":", 2)[1];
+                Map<String, Object> port = new java.util.HashMap<>();
+                port.put("name", "port-udp-" + udpPort);
+                port.put("port", Integer.valueOf(udpPorts));
+                port.put("targetPort", udpPorts);
+                port.put("protocol", "UDP");
+                ports.add(port);
+            }
+            String name = configMapName(udpListen);
+            log.info("导入udp名称为:{}", name);
+            String[] split = name.split("-");
+            String udpPre = split[0] + "-" + split[1];
+            String udpName = udpPre + "-" + suffixName;
+            Map<String, Object> metadata = asMap(udpListen.get("metadata"));
+            metadata.remove("resourceVersion");
+            metadata.put("name", udpName);
+            asMap(metadata.get("labels")).put("ingress-lb", ingressName);
+            metadata.put("name", udpName);
+            metadata.remove("uid");
+            try {
+                serviceRuntimePort.replaceConfigMapObject(namespace, udpListen);
+                log.info("更新服务配置组名称:{}成功", name);
+            } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+                log.info("更新Udpconfigmap配置名称:{}失败，异常为:{}", name, e.getMessage());
+            }
+        }
+        // 厂商 importListenConfig 是 void；控制器恒返回 true
         return true;
     }
 

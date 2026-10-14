@@ -98,4 +98,54 @@ public interface ILanguageVersionDao {
             """)
     long countByLangAndVersion(@org.apache.ibatis.annotations.Param("lang") String lang,
                                @org.apache.ibatis.annotations.Param("version") String version);
+
+    // ---------- 语言包导入（厂商 LanguageServiceImpl.importLanguageExcel）----------
+
+    /**
+     * 某语言在 `[start, end]` 内已创建的版本行数（厂商 :135 的
+     * `where lang = ? and create_time >= 当天0点 and create_time <= 当天最后一毫秒`）。
+     */
+    @Select("""
+            SELECT COUNT(*) FROM g_language_version
+            WHERE lang = #{lang} AND create_time >= #{start} AND create_time <= #{end}
+            """)
+    long countCreatedBetween(@org.apache.ibatis.annotations.Param("lang") String lang,
+                             @org.apache.ibatis.annotations.Param("start") long start,
+                             @org.apache.ibatis.annotations.Param("end") long end);
+
+    /** 批量插词条（厂商 `languageMapper.insertBatch`；调用方已按 4000 条切片）。 */
+    @org.apache.ibatis.annotations.Insert("""
+            <script>
+            INSERT INTO g_language (text_key, content, lang, lang_version, module, abbr, description) VALUES
+            <foreach collection="list" item="e" separator=",">
+              (#{e.textKey}, #{e.content}, #{e.lang}, #{e.langVersion}, #{e.module}, #{e.abbr}, #{e.description})
+            </foreach>
+            </script>
+            """)
+    int insertLanguageEntries(
+            @org.apache.ibatis.annotations.Param("list")
+            java.util.List<com.csm.paas.core.infrastructure.dao.po.LanguageEntryPO> entries);
+
+    /**
+     * 插一行版本（厂商 `languageVersionMapper.insertSelective`）——**selective**：
+     * null 的列不进 INSERT 列表。
+     */
+    @org.apache.ibatis.annotations.Insert("""
+            <script>
+            INSERT INTO g_language_version
+            <trim prefix="(" suffix=")" suffixOverrides=",">
+              <if test="lang != null">lang,</if>
+              <if test="langVersion != null">lang_version,</if>
+              <if test="used != null">used,</if>
+              <if test="createTime != null">create_time,</if>
+            </trim>
+            <trim prefix="VALUES (" suffix=")" suffixOverrides=",">
+              <if test="lang != null">#{lang},</if>
+              <if test="langVersion != null">#{langVersion},</if>
+              <if test="used != null">#{used},</if>
+              <if test="createTime != null">#{createTime},</if>
+            </trim>
+            </script>
+            """)
+    int insertLanguageVersionSelective(com.csm.paas.core.infrastructure.dao.po.LanguageVersionPO version);
 }

@@ -227,6 +227,160 @@ public interface IServiceQueryService {
                               com.csm.paas.core.domain.software.model.valobj.HealthCheckVO form);
 
     /**
+     * 服务详情（厂商 `GET /v1/service/{serviceName}` → `ServiceController.getServiceDetail:1404-1481`）。
+     *
+     * <p>逐行照抄的点：
+     * <ol>
+     *   <li>服务不存在 ⇒ 400 **`service.service.name.not.found`**（带服务名）；</li>
+     *   <li>遍历**全部命名空间**的 pod，找"**第一个容器名 == 服务名**"的那个：取它的 `status.hostIP`；
+     *       若它的 `status.containerStatuses[0].lastState.terminated != null` 就记下 `terminated` 并 **break**
+     *       （注意厂商一旦进到那个 pod 就会 break，**不管** terminated 是否为空）；</li>
+     *   <li>`imageInfo` = Deployment 的 `spec.template.spec.containers[0].image`；</li>
+     *   <li>`<serviceName>-nodeport` 的 Service：读得到就**裁剪**成 `{ports:[…], type}`（`targetPort` 只取
+     *       `IntOrString` 的 int 值 ⇒ **具名端口是 null**），读不到 ⇒ `nodePortService = null`；</li>
+     *   <li>`nameUs`/`nameFr` = `i18n.service.<en_US|fr_FR>.<key>`，**空白则回退**注解开
+     *       `gaop/serviceLabel`；key 是 Deployment 的 `metadata.name`。</li>
+     * </ol>
+     *
+     * <p><b>一处主动收紧</b>（deviations B24）：厂商在 pod 的 `containers` 为空时 `name` 保持 null，
+     * 紧接着 `name.equals(serviceName)` ⇒ **NPE ⇒ 500**。我们**跳过**这类 pod。
+     * <p><b>未填充</b>：`softwareNameList` / `podInfoList` / `belongNodeList` / `cpuOrder` / `memoryOrder` /
+     * `gpuOrder`——前两个依赖监控域（Prometheus），后三个依赖 `computerService` 的 24 小时指标；
+     * 厂商详情端点里 `restartCount` 恒为 `0`（字段初始化值，从不赋值），我们照抄 `0`。
+     *
+     * @return 含 `terminatedSnapshot` / `hostIp` / `nodePortServiceSnapshot` / `nameUs` / `nameFr` 的实体
+     * @throws com.csm.paas.core.types.exception.WrongArgumentException `service.service.name.not.found`
+     */
+    com.csm.paas.core.domain.software.model.entity.ServiceRuntimeEntity queryServiceDetail(
+            String namespace, String serviceName);
+
+    /**
+     * 更新服务的战位标识（厂商 `PUT /v1/service/updateServiceRole?serviceKey&name` →
+     * `ServiceController.updateServiceRole:1483-1531`）。
+     *
+     * <p>先读 Deployment `name`；读不到回退 StatefulSet 并把 `isDeployment` 置 false；
+     * **两者都读不到 ⇒ 400 `service.get.service.failed.not.found`**。
+     *
+     * <p><b>照抄的厂商缺陷</b>：厂商先 `new HashMap<>()` 并 `put("gaop/serviceRole", serviceKey)`，
+     * 然后**立刻把变量重新赋值**成工作负载自己的 `spec.template.metadata.annotations`：
+     * <ul>
+     *   <li>工作负载的 annotations **为 null** 时：`setAnnotations(那个 HashMap)` ⇒
+     *       patch 后注解**只有** `gaop/serviceRole`；</li>
+     *   <li>annotations **非 null** 时：那个 put 被丢弃 ⇒ patch 出去的是**原有的注解集合（原样，没加 serviceRole）**
+     *       —— 于是这个端点对绝大多数真实服务是**静默 no-op**。</li>
+     * </ul>
+     * 也就是说 `serviceKey`（"关联的服务标识"）**几乎永远不会被真正写进去**。这是厂商如此，照抄。
+     *
+     * <p>随后把 **Deployment 对象**（即便走的是 StatefulSet 分支，序列化的仍是 Deployment——
+     * 回退分支下 `v1Deployment` 为 null，`json.serialize(null)` 得到 `"null"`）序列化并整份
+     * merge-patch；**任意异常**都回退到用**同一份 body** patch StatefulSet；
+     * 回退也失败 ⇒ 400 `service.update.deployment.failed`。成功（含回退成功）返回 true。
+     *
+     * <p><b>未端到端验证</b>：会真改 K8s 工作负载，只用离线单测钉住报文内容 + 回退顺序。
+     */
+    boolean updateServiceRole(String namespace, String serviceKey, String name);
+
+    /**
+     * 设置/取消软件的服务入口（厂商 `POST /v1/software/{id}/service_entry?serviceId&port&type` →
+     * `SoftwareController.setServiceEntry:492-499` + `SoftwareService.setServiceEntry:2238-2284`）。
+     *
+     * <p><b>四道"静默返回"闸</b>（厂商都是 `log.warn` 后 `return`，**不报错**，接口照样 200）：
+     * <ol>
+     *   <li>软件不存在；</li>
+     *   <li>该软件**没有绑定**这个服务（拿 `serviceId` 参数去比 `g_software_app.app_name`）；</li>
+     *   <li>K8s 里不存在该服务；</li>
+     *   <li>`tenxCloud.service(clusterID, serviceName)` 返回的 Map 为空。</li>
+     * </ol>
+     * 注意参数名叫 `serviceId`，**实际是服务名**（照抄厂商的命名混乱）。
+     *
+     * <p>`type == 1`（设置入口）：
+     * ① 把 (软件,服务,**port**) 那一行 `web_entry` 置 **true**；
+     * ② 再执行厂商 `ServicePortMapper.updateServicePort` 那条 SQL——把该软件下**除那一行以外**的所有行
+     * `web_entry` 置 **0**（即"全软件只有一个 web 入口"）；
+     * ③ 把 `g_software.router_key` 设成 **`"/" + software.key + "/"`**、推进 `updated_at`。
+     *
+     * <p>`type == 0`（取消入口）：① 那一行 `web_entry` 置 **false**；② **不清其它行**；③ `router_key` 置 **null**。
+     * <p>其它 type 值：两个 `if` 都不进 ⇒ 只通知网关。
+     * <p>最后一律 `notificationGateway()`（异步、失败不影响响应）。
+     */
+    void setServiceEntry(String namespace, String softwareId, String serviceName, Integer port, Integer type);
+
+    /**
+     * 重置服务配置（厂商 `POST /v1/software/reset_service` → `AppService.resetService:539-570`）。
+     *
+     * <p>**破坏性**：把命名空间里**不带 `ingress-lb` 标签**的 Deployment **全部删除**（厂商循环里
+     * `if (labels != null && labels.containsKey("ingress-lb")) continue;` 之外的全部删掉），
+     * 任一删除抛 `ApiException` ⇒ 400 `service.reset.failed`；全部成功返回 `true`。
+     *
+     * <p><b>未照抄</b>：厂商在删 Deployment 之前还有一段基于时速云"App"概念的
+     * `allPageApps()` + `removeApp()`（把"没有任何 `system/appName=gaop` 服务的 App"整个删掉）。
+     * 本环境是原生 K8s，没有 App 这一层（见 `docs/findings/79`），所以只做 Deployment 那半段。
+     */
+    boolean resetService(String namespace);
+
+    /**
+     * 镜像存储大小（厂商 `GET /v1/service/imageStorage` → `ServiceController.getImageStorageInfo:2588-2595`）。
+     *
+     * <p>厂商先取 `nodeVersionService.getVersion()`（只打日志），再调
+     * `imageServiceInstance.imageStorageInfo()`。**k3s 分支**（`K3sImageServiceImpl:128-171`）是：
+     * SSH 到 `ssh.host` → `df -h <mount.path> | awk 'NR==2 {print $2, $4}'` → 把两列换算成**字节**
+     * （`switchSize`：T/G/M 后缀分别乘 1024^4/1024^3/1024^2，**没有 K/B 分支**，因此 `df -h` 给出
+     * 不带后缀的字节数时会得到 **0**）；
+     * **连接失败或命令异常 ⇒ 返回 `{free:0,total:0}`（不报错）**。
+     * <p>k8s（Harbor）分支走 Harbor API 的 `systemVolumeInfo`，本环境没有 Harbor（`findings/79`）⇒ 不做。
+     *
+     * <p><b>类 C：本环境不可验证</b>（需要能 SSH 的节点 + `df` 输出）。
+     *
+     * @param mountPath 厂商 `mount.path`（默认 `/data/paas/`）
+     */
+    com.csm.paas.core.domain.software.model.valobj.StorageInfoVO queryImageStorage(String mountPath);
+
+    /**
+     * 服务历史日志（厂商 `POST /v1/service/logs` → `ServiceController.serviceLogs:3931-3947` +
+     * `TenxCloudImpl.getHistoryLog:159-235`）。
+     *
+     * <p>厂商把 body 拷成 `LogForm`（`serviceName/startTime/endTime/size/keyword`）后：
+     * <ol>
+     *   <li>`startTime`/`endTime` 为 null ⇒ 都取**当前时间**；`size` 为 null 或 &lt;0 ⇒ **1000**；</li>
+     *   <li>时间跨度 &gt; **720 小时** ⇒ 400 `query.time.range.must.between.720`；</li>
+     *   <li>拼 Loki `query_range` URL（`start`/`end` 是 **毫秒 × 1_000_000**）并 GET；</li>
+     *   <li>`historyLog.success()` 为真才返回 `data`，否则 `Response.ok(null)` ⇒ **`data:null`**。</li>
+     * </ol>
+     *
+     * <p>本方法只做**前两步 + 取原始 JSON**：解析成厂商 `HistoryLog` 形状由 trigger 层完成
+     * （domain 不引 Jackson）。返回 **null** 表示"日志服务没有给出可用响应" ⇒ 控制器回 `data:null`。
+     *
+     * <p><b>类 C：本环境不可验证</b>（本机没有 Loki）。
+     */
+    String queryServiceHistoryLogJson(String serviceName, java.util.Date startTime, java.util.Date endTime,
+                                      Integer size, String keyword);
+
+    /**
+     * 容器资源使用 Top5（厂商 `POST /v1/software/top?type&namespace` →
+     * `SoftwareController.topPodResource:759-764` + `SoftwareService.topPodResource:1734-1873`）。
+     *
+     * <p>`namespace` 为空 ⇒ 用配置的命名空间；`type` 只影响**用哪条 PromQL 取榜单**：
+     * `cpu` / `mem` / `netout` / `netin` / `diskread` / `diskwrite`；**其它值 ⇒ 榜单为空**
+     * （厂商 `switch` 无 default）。
+     *
+     * <p>逐行照抄的两点：
+     * <ol>
+     *   <li>榜单出来之后，**每个** pod 都要把另外 5 个指标补齐（`getOtherType*`，各查一次 Prometheus），
+     *       查不到就写 **字符串 `"0"`**；</li>
+     *   <li>`cpu` 补齐时先算 `cpuNum`：读该 pod 的 `status.hostIP`，再在节点列表里找
+     *       **InternalIP 相同**的节点，取其 `status.allocatable.cpu` 的**整数部分**；
+     *       读 pod / 读节点失败都**只记日志**并用 **1**（照抄）。</li>
+     * </ol>
+     *
+     * <p>响应每条恒为 **8 个键**（`podName / cpuUsageRate / memory / networkOutBound /
+     * networkInBound / diskRead / diskWrite / namespace`），未取到的项是 `"0"` 而不是 null。
+     *
+     * <p><b>类 C：本环境不可验证</b>（需要 Prometheus / metrics-server）。
+     */
+    java.util.List<com.csm.paas.core.domain.software.model.valobj.TopPodResourceInfoVO> queryTopPodResources(
+            String type, String namespace);
+
+    /**
      * 某软件**关联的服务**列表（厂商 `GET /v1/software/relationService/{id}` →
      * `SoftwareService.softwareRelationServiceList:3064-3158`，规格见 `docs/findings/120`）。
      *
@@ -582,4 +736,33 @@ public interface IServiceQueryService {
      * `RECOVERY` 控制、**默认为 false**，且只往内存列表追加 + 推 `/topic/recoveryLog`；我们不做。
      */
     boolean importConfigMaps(String namespace, java.util.List<java.util.Map<String, Object>> configMaps);
+
+    /**
+     * 导入 tcp/udp 监听配置（厂商 `POST /v1/config_map/importListen` →
+     * `SoftwareService.importListenConfig:3590-3711`）。
+     *
+     * <p><b>破坏性</b>：会 **replace**（不存在则创建）`tcp-services-<suffix>` / `udp-services-<suffix>`
+     * 两个 ConfigMap。
+     *
+     * <p>照抄规则（含怪点）：
+     * <ol>
+     *   <li>先列 `ingress-lb` 标签的 ConfigMap，取**第一个标签值 != "true"** 的当 `ingressName`
+     *       （列表读失败 ⇒ 400 `k8s.get.cluster.lb.info.failed`）；</li>
+     *   <li>`suffixName = ingressName.split("-")[1]`（没有 `-` ⇒ **越界异常 500**，照抄）；</li>
+     *   <li>读 `ingressName` 这个 **Service**，把名字为 `port-0`/`port-1`/`port-status`/`port-health`
+     *       的端口收进一个局部 `ports` 列表——**这个列表之后完全没被使用（厂商死代码）**，
+     *       但它带来的 NPE 是可观测的：`ingressName` 为 null 或 Service 读不到 ⇒ `getSpec()` 为 null
+     *       ⇒ **NPE 500**；`spec.ports` 为 null 同理。照抄（仍要读、仍要遍历）；</li>
+     *   <li>`tcpListen`：`data` 为 null ⇒ **直接 return（连 udp 也不处理）**；否则每个 entry
+     *       的 key 当端口名 `port-tcp-<key>`，value 按 `":"` 拆两段取第 2 段当 port 与 targetPort
+     *       （**没有冒号 ⇒ 越界 500**，照抄），协议写死 `TCP`；</li>
+     *   <li>然后把该 ConfigMap 改名：原名按 `-` 拆开取前两段 + `-<suffixName>`；
+     *       `resourceVersion`/`uid` 置 null；labels 里写 `ingress-lb=ingressName`；
+     *       replace（**失败只记日志**）；</li>
+     *   <li>`udpListen` 同 tcp（协议 `UDP`、名前缀 `port-udp-`）；</li>
+     *   <li>控制器恒返回 `true`。</li>
+     * </ol>
+     */
+    boolean importListenConfig(String namespace,
+            com.csm.paas.core.domain.software.model.valobj.ListenImportVO listenImport);
 }

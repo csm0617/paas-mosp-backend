@@ -3,12 +3,12 @@ package com.csm.paas.core.domain.sync.service;
 import com.csm.paas.core.domain.sync.model.entity.SyncStatusEntity;
 
 /**
- * 数据同步查询（厂商 `SyncController` 的 `GET /v1/sync/status` 等）。
+ * 数据同步查询（厂商 `SyncController` 的 `GET /v1/sync/status`）。
  *
- * <p>**未实现**：`POST /v1/sync`（真正的同步，依赖 SSH/rsync 与对端节点）与
- * `GET /v1/sync/database/exist`（要打对端节点的 HTTP 接口）。
- * 因此这里的 `SyncStatusEntity` **始终是初始状态**（`syncing=false`），
- * 与厂商"没有同步在跑时"的可观测结果一致。
+ * <p>状态是一个**进程内单例**（{@code SyncStatusHolder.INSTANCE}，对应厂商的 static
+ * `SyncController.syncStatus`）；`POST /v1/sync`（{@code ISyncCommandService}）读写同一个对象，
+ * 所以同步中 `GET /status` 能看到进度。注意厂商在线程末尾**推完就复位**，
+ * 事后看到的仍是初始形状。
  */
 public interface ISyncQueryService {
 

@@ -204,4 +204,36 @@ public interface ISoftwareRepository {
      * 非法 SQL 并报 400，我们在领域层显式抛同一个键（见 `findings/118` §3）。
      */
     void insertServicePorts(List<com.csm.paas.core.domain.software.model.valobj.ServicePortVO> rows);
+
+    // ---------- 软件服务入口（厂商 `POST /v1/software/{id}/service_entry`）----------
+
+    /** 把某软件+服务+端口那一行的 `web_entry` 置为给定值（厂商 `setServiceEntry:2259`/`:2270`）。 */
+    void updateWebEntry(String softwareId, String serviceName, int port, boolean webEntry);
+
+    /**
+     * 把该软件下**除"某服务+端口"那一行以外**的所有行 `web_entry` 置 0
+     * （厂商 `ServicePortMapper.updateServicePort:136` 的原文 SQL）。
+     */
+    void clearOtherWebEntries(String softwareId, String serviceName, int port);
+
+    /** 只写 `router_key` 与 `updated_at`（`routerKey` 传 null ⇒ 清空该列）。 */
+    void updateRouterKey(String softwareId, String routerKey, long updatedAt);
+
+    // ---------- CS 程序包上传/关联（厂商 CsSoftwareUploadService）----------
+
+    /** 按主键查上传记录（厂商 `uploadStoreRecordMapper.selectByPrimaryKey`）。 */
+    Optional<UploadStoreRecordVO> queryUploadRecordById(String uploadStoreRecordId);
+
+    /**
+     * 插一条上传记录（厂商 `StoreMangeService.addUploadRecord:60-71`）：
+     * `id` 由调用方给 UUID，`realStoreFilename` 拼成 `<updatedAt>_<execFileName>`。
+     */
+    void insertUploadRecord(String id, String realStoreFilename, String execFileName, long updatedAt,
+                            int status, String execFaultMessage, String relationSoftwareId);
+
+    /**
+     * 该软件关联的战位 id，**按 `created_at DESC`**（厂商
+     * `CsSoftwareUploadService.getRoleIdBySoftwareId:381-389`）。
+     */
+    List<String> queryRoleIdsBySoftwareIdDesc(String softwareId);
 }

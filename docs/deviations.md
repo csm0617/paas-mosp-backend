@@ -56,12 +56,21 @@
 | B27 | 子角色域写"用户-子角色"关联时**不覆盖用户的 `created_at`** | 厂商 `SubRoleServiceImpl.usersRelateRole:144-160` 每插一条都会 `users.setCreatedAt(now); userMapper.updateByPrimaryKey(users)`（**写错字段**，本意大概是 updated_at）。role 域照抄了这个覆盖（`findings/156` 实测确认），sub_role 域**统一不做**——导入路径与既有 `addSubRole` 保持一致，避免同一域两条路径行为不同 | `findings/158` §4 |
 | B28 | 子角色导入的"子角色-战位"关联：**按意图删 `g_sub_role_role`** | 厂商 `SubRoleServiceImpl.subRoleRelateRoles:410-412` 的 delete 写错了表——`userSubRoleMapper.delete(where sub_role_id = ?)`，删的是 `g_user_sub_role`，会把导入上一步刚写好的用户关联清掉。响应恒为 `data:null`，照抄只会静默毁数据 | `findings/158` §4 |
 | B29 | 导入 Excel 的关联列填 `[]`（空 JSON 数组）时**按"空列表 = 不动"处理** | 厂商的 `isInWhenPresent(空集合)` 会**去掉整个 where** ⇒ 退化成"全表"：子角色导入的 `[]` 表示**关联所有用户/所有战位**（`SubRoleServiceImpl:598-612`）；战位导入的子角色列 `[]` 则**清空该战位的全部子角色关联**（`RoleService:997-1000`）。前端导出对空列表写的是**空单元格**（不是 `[]`），所以这条路径上产不出 `[]`；照抄等于给手改文件留一个"清库"开关 | `findings/158` §4 |
+| B30 | `GET /v1/service/{serviceName}`：pod 的 `containers` 为空时**跳过该 pod** | 厂商 `getServiceDetail:1419-1425` 让 `name` 保持 null，紧接着 `if (!name.equals(serviceName))` ⇒ **NPE ⇒ 500**。空容器列表在 K8s 里可发生（如刚创建/被驱逐的 pod） | `findings/161` §4 |
+| B31 | `GET /v1/service/imageStorage`：`df` 输出不足两列时**返回 `{0,0}`** | 厂商 `SshUtil.getImageStorage:527-529` 直接取 `split[0]`/`split[1]`，`df` 报错时输出只有一段 ⇒ **ArrayIndexOutOfBounds ⇒ 500**；厂商本意就是"拿不到就给 0"（连接失败分支就是这么写的） | `findings/161` §4 |
+| B32 | `POST /v1/service/logs`：Loki 返回**非 200** 时按"空日志"处理 | 厂商 OkHttp 版不看状态码，直接 `mapper.readTree(body)`；body 不是 JSON（例如 Loki 的 404 纯文本）⇒ **JsonProcessingException ⇒ 500**。控制器本来就会把"日志服务没给出可用响应"翻成 `data:null` | `findings/161` §4 |
 
 ## C. 参考环境限制导致无法对拉（按代码实现 + 标注证据来源）
 
 | # | 端点/能力 | 缺什么 | 我们的证据来源 |
 | --- | --- | --- | --- |
-| C1 | `GET /v1/service/{serviceName}` | 厂商自身 500（A1） | `/v1/service` 列表项的 `ServicesItem` 形状（**已对拉**） |
+| C1 | `GET /v1/service/{serviceName}` | 厂商自身 500（A1） | **已实现**（`findings/161`）：形状按 `ServicesItem` 源码 + 列表项已对拉形状，**只做离线单测**（不宣称在线一致） | `findings/161` §1 |
+| C8 | `GET /v1/service/imageStorage` | 走 **SSH** 到 `ssh.host` 跑 `df -h`；本机无节点可连 | **已实现**（k3s 分支，`findings/161` §2）；连接失败 ⇒ `{0,0}`（厂商行为）。Harbor（k8s）分支未做 |
+| C9 | `POST /v1/service/logs` | 走 **Loki** `query_range`；本机无 Loki | **已实现**（`findings/161` §2）；URL 逐字照抄厂商，**未在线验证** |
+| C10 | `POST /v1/software/top` | 走 **Prometheus** `api/v1/query`（榜单 + 每 pod 补齐 6 次）；本机无 Prometheus | **已实现**（`findings/161` §3）；PromQL 逐字照抄，**未在线验证** |
+| C11 | `PUT /v1/service/schedulingNode` / `POST /v1/service/reStartBaseService` | SSH 到 master 跑 `kubectl cordon/uncordon`、`kubectl delete pod -n kube-system`；本机无节点可连，且**破坏性** | **已实现**（`findings/161` §2）；只做离线单测（命令字符串 + 分支），**不做在线实验** |
+| C12 | `PUT /v1/service/patch` | 依赖时速云"App"概念（`existApp`/`createApp`）与 `AppService.deploymentToYaml`（GSON 风格的 Deployment→YAML）；本环境是原生 K8s，无 App 层 | **未实现**（`findings/161` §5） | `findings/79` |
+| C13 | `GET /v1/service/serviceInfoByNode` | 依赖 `computerService.getServiceCpuMonitor/getServiceMemoryMonitor`（24 小时窗口的**外部监控后端**） | **未实现**（`findings/161` §5） |
 | B12 | `POST /v1/user/export`（与 `/backup`）导出的第 7 列 | 厂商把 **`password` 口令哈希**直接写进 Excel（`generateExportExcel:1021`） | **照抄**（兼容优先）；若将来脱敏属"主动偏离"，须先记录并评估影响 | `findings/100` |
 | B11 | `GET /v1/user` 的 `data.token` | 厂商返回 **null**（只在 `login` 里 `setToken`）；我们填了会话 token | **已修**（`findings/95`）：`currentLogin` 不再设 token；契约比对 **L1+L2 全部通过**，且登录响应仍带 token（已验证未被误伤） | `findings/95` |
 | B10 | `GET /v1/user/access_permission` 无 Cookie 时 | 厂商 **NPE → 500 系统错误**（判空写在 `new UserLoginInfo()` 之后，永远不成立）；其**本意**是抛 `user.not.logged.in.or.expired` | 我们实现其本意：400 `user.not.logged.in.or.expired` | `findings/93` |

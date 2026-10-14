@@ -629,6 +629,134 @@ public class ServiceRuntimeGateway {
                 .map(this::toSnapshot).toList();
     }
 
+    /** 列**全部命名空间**的 pod 原样快照（厂商 `getServiceDetail:1416` 的 `listPodForAllNamespaces`）。 */
+    public List<Map<String, Object>> listAllPodsAllNamespaces() {
+        return kubernetesClient.pods().inAnyNamespace().list().getItems().stream()
+                .map(this::toSnapshot).toList();
+    }
+
+    /**
+     * 全部节点（厂商 `schedulingNode:3096` / `reStartBaseService:3321` 的 `listNode`）。
+     * <p>直接返回 fabric8 模型（调用方要读 `metadata.labels` 与 `status.addresses`）。
+     */
+    public List<io.fabric8.kubernetes.api.model.Node> listNodesSnapshot() {
+        return kubernetesClient.nodes().list().getItems();
+    }
+
+    /**
+     * 给工作负载的 pod 模板注解做整份 merge-patch（厂商 `updateServiceRole:1513-1525` 的手法：
+     * 把对象序列化后 `application/merge-patch+json` 发出去）。
+     *
+     * @param deployment true ⇒ Deployment，false ⇒ StatefulSet
+     * @return false = 工作负载不存在（厂商此时补丁抛异常 ⇒ 走回退）
+     */
+    public boolean patchWorkloadTemplateAnnotations(String namespace, String name, boolean deployment,
+                                                   Map<String, String> annotations) {
+        return patchTemplateMetadata(namespace, name, deployment, "annotations", annotations);
+    }
+
+    /** 给 pod 模板的 `metadata.labels` 做整份 merge-patch（与上面同款手法，字段换成 labels）。 */
+    public boolean patchWorkloadTemplateLabels(String namespace, String name, boolean deployment,
+                                               Map<String, String> labels) {
+        return patchTemplateMetadata(namespace, name, deployment, "labels", labels);
+    }
+
+    /**
+     * 把 pod 模板 metadata 的某一子字段整份 merge-patch。
+     * <p>刻意**逐字段拼 Map 后序列化**（而不是用 fabric8 的 `edit`）：厂商发的是"整份对象序列化"的
+     * merge-patch，`edit` 的读-改-写语义在"注解集合原本为 null"时会补齐字段而成功，
+     * 与厂商"patch 抛异常 ⇒ 回退 StatefulSet"的分支顺序不同。
+     */
+    private boolean patchTemplateMetadata(String namespace, String name, boolean deployment,
+                                          String fieldName, Map<String, String> value) {
+        Object resource = deployment
+                ? kubernetesClient.apps().deployments().inNamespace(namespace).withName(name).get()
+                : kubernetesClient.apps().statefulSets().inNamespace(namespace).withName(name).get();
+        if (resource == null) {
+            return false;
+        }
+        Map<String, Object> templateMetadata = new java.util.LinkedHashMap<>();
+        templateMetadata.put(fieldName, value);
+        Map<String, Object> spec = new java.util.LinkedHashMap<>();
+        spec.put("template", Map.of("metadata", templateMetadata));
+        Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("spec", spec);
+
+        if (deployment) {
+            kubernetesClient.apps().deployments().inNamespace(namespace).withName(name)
+                    .patch(io.fabric8.kubernetes.client.dsl.base.PatchContext.of(
+                            io.fabric8.kubernetes.client.dsl.base.PatchType.JSON_MERGE), Serialization.asJson(body));
+        } else {
+            kubernetesClient.apps().statefulSets().inNamespace(namespace).withName(name)
+                    .patch(io.fabric8.kubernetes.client.dsl.base.PatchContext.of(
+                            io.fabric8.kubernetes.client.dsl.base.PatchType.JSON_MERGE), Serialization.asJson(body));
+        }
+        return true;
+    }
+
+    /**
+     * 删 pod（厂商 `deleteServicePods:2330-2343`）。
+     * <p>厂商的删除选项：`gracePeriodSeconds = (force != null && force != false) ? 0L : null`
+     * ——**只有 force 为 true 才显式给 0**，否则该字段留 null（走 API Server 默认宽限期）。
+     * <p>删失败抛 `KubernetesClientException`，由上层翻成厂商的 `SystemException`。
+     */
+    public void deletePod(String namespace, String podName, Boolean force) {
+        var pod = kubernetesClient.pods().inNamespace(namespace).withName(podName);
+        if (force != null && force) {
+            pod.withGracePeriod(0L).delete();
+        } else {
+            pod.delete();
+        }
+    }
+
+    /** 命名空间里全部 Deployment 的 `名字 → metadata.labels`（厂商 `resetService:560-565` 只看这个）。 */
+    public Map<String, Map<String, String>> listDeploymentLabels(String namespace) {
+        Map<String, Map<String, String>> result = new java.util.LinkedHashMap<>();
+        for (var d : kubernetesClient.apps().deployments().inNamespace(namespace).list().getItems()) {
+            if (d.getMetadata() != null) {
+                result.put(d.getMetadata().getName(), d.getMetadata().getLabels());
+            }
+        }
+        return result;
+    }
+
+    /** 删一个 Deployment（厂商 `deleteNamespacedDeployment`）。 */
+    public void deleteDeployment(String namespace, String name) {
+        kubernetesClient.apps().deployments().inNamespace(namespace).withName(name).delete();
+    }
+
+    /** 读某 pod 的 `status.hostIP`；pod 不存在 ⇒ null（厂商 `getCpuNum:1882-1886`）。 */
+    public String readPodHostIp(String namespace, String podName) {
+        var pod = kubernetesClient.pods().inNamespace(namespace).withName(podName).get();
+        return pod == null || pod.getStatus() == null ? null : pod.getStatus().getHostIP();
+    }
+
+    /**
+     * 找 `status.addresses` 里 InternalIP 等于给定值的节点，返回其 `status.allocatable["cpu"]` 的数值；
+     * 找不到 ⇒ null（厂商 `getCpuNum:1887-1908`）。
+     */
+    public java.math.BigDecimal readNodeAllocatableCpuByInternalIp(String internalIp) {
+        if (internalIp == null) {
+            return null;
+        }
+        for (var node : kubernetesClient.nodes().list().getItems()) {
+            if (node.getStatus() == null || node.getStatus().getAddresses() == null) {
+                continue;
+            }
+            boolean match = node.getStatus().getAddresses().stream()
+                    .anyMatch(a -> "InternalIP".equals(a.getType()) && internalIp.equals(a.getAddress()));
+            if (!match) {
+                continue;
+            }
+            var allocatable = node.getStatus().getAllocatable();
+            if (allocatable == null || allocatable.get("cpu") == null) {
+                return null;
+            }
+            return allocatable.get("cpu").getNumericalAmount();
+        }
+        return null;
+    }
+
     /** 按"标签 + `spec.nodeName`"列 pod 的原样快照（厂商 `listNamespacedPod` 的两个 selector）。 */
     public List<Map<String, Object>> listPodsByLabelAndNode(String namespace, String labelKey, String labelValue,
                                                            String nodeName) {
@@ -899,5 +1027,40 @@ public class ServiceRuntimeGateway {
         } catch (Exception e) {
             throw new IllegalStateException("K8s 对象快照序列化失败", e);
         }
+    }
+
+    /**
+     * 读 Deployment **第一个容器**的 env（厂商 `ModeServiceImpl.updateServiceEnv:162`）。
+     *
+     * @return **null = Deployment 不存在**；否则返回列表（容器没有 env 字段时为 null）
+     */
+    public List<io.fabric8.kubernetes.api.model.EnvVar> readDeploymentEnv(String namespace, String name) {
+        Deployment deployment = kubernetesClient.apps().deployments().inNamespace(namespace).withName(name).get();
+        if (deployment == null) {
+            return null;
+        }
+        return deployment.getSpec().getTemplate().getSpec().getContainers().get(0).getEnv();
+    }
+
+    /**
+     * 把 Deployment **第一个容器**的 env **整份替换**成给定列表并 merge-patch
+     * （厂商 `ModeServiceImpl.updateServiceEnv:176-205` 的最后一步）。
+     *
+     * @return false = Deployment 不存在
+     */
+    public boolean replaceDeploymentEnv(String namespace, String name,
+                                        List<io.fabric8.kubernetes.api.model.EnvVar> env) {
+        Deployment deployment = kubernetesClient.apps().deployments().inNamespace(namespace).withName(name).get();
+        if (deployment == null) {
+            return false;
+        }
+        var containers = deployment.getSpec().getTemplate().getSpec().getContainers();
+        var container = containers.get(0);
+        container.setEnv(env);
+        containers.set(0, container);
+        kubernetesClient.apps().deployments().inNamespace(namespace).withName(name)
+                .patch(io.fabric8.kubernetes.client.dsl.base.PatchContext.of(
+                        io.fabric8.kubernetes.client.dsl.base.PatchType.JSON_MERGE), Serialization.asJson(deployment));
+        return true;
     }
 }

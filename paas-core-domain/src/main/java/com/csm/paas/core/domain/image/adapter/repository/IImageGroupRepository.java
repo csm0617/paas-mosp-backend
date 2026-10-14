@@ -20,4 +20,10 @@ public interface IImageGroupRepository {
     ImageGroupVO insert(String name, long createDate);
 
     ImageGroupVO queryById(int id);
+
+    /** 全表、无排序（厂商 `imageGroupMapper.select(SelectDSLCompleter.allRows())`，`getAllProjectImageList` 用）。 */
+    List<ImageGroupVO> queryAll();
+
+    /** 按主键删除（厂商 `deleteByPrimaryKey`；行不存在时静默）。 */
+    void deleteById(int id);
 }

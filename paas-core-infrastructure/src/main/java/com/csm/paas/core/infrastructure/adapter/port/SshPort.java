@@ -44,8 +44,13 @@ public class SshPort implements ISshPort {
     private String password;
 
     private Session connect() throws JSchException {
+        return connect(host);
+    }
+
+    /** 厂商 `new SshUtil(username, password, <host>)` + `setPort` + `connectSession(client, 30)` 的等价物。 */
+    private Session connect(String targetHost) throws JSchException {
         JSch jsch = new JSch();
-        Session session = jsch.getSession(username, host, port);
+        Session session = jsch.getSession(username, targetHost, port);
         session.setPassword(password);
         session.setConfig("StrictHostKeyChecking", "no");
         session.setConfig("userauth.gssapi-with-mic", "no");
@@ -55,10 +60,23 @@ public class SshPort implements ISshPort {
 
     @Override
     public String exec(String command) {
+        return runOn(host, command);
+    }
+
+    @Override
+    public String execOnHost(String targetHost, String command) {
+        return runOn(targetHost, command);
+    }
+
+    /**
+     * 在指定主机上跑一条命令（厂商 `SshUtil.getRunCommand(session, cmd)` 的位置：
+     * exec channel + 读全量 stdout + `replaceAll("\n","")` 由调用方决定，这里保留原始输出）。
+     */
+    private String runOn(String targetHost, String command) {
         Session session = null;
         ChannelExec channel = null;
         try {
-            session = connect();
+            session = connect(targetHost);
             channel = (ChannelExec) session.openChannel("exec");
             channel.setCommand(command + "\n");
             channel.setInputStream(null);
@@ -163,5 +181,21 @@ public class SshPort implements ISshPort {
     @Override
     public boolean exists(String remotePath) {
         return !exec("test -f " + remotePath + " && echo 1").trim().isEmpty();
+    }
+
+    /**
+     * 厂商 `Ssh.createFolderPath:456-469`：`if [ ! -d <path> ] ; then mkdir -p <path>; fi`。
+     * <p>厂商把 `JSchException` catch 掉只记日志；我们让 `exec` 的异常按既有语义冒出去
+     * （该端口其它方法也是这样）——**注意这一处比厂商更严格**，记录在报告里。
+     */
+    @Override
+    public void mkdirs(String path) {
+        exec("if [ ! -d " + path + " ] ; then    mkdir -p " + path + "; fi");
+    }
+
+    /** 厂商 `Ssh.delSoftwareDir:396-409`：`if [ -d <path> ];then rm -r <path>; fi`。 */
+    @Override
+    public void deleteDir(String path) {
+        exec("if [ -d " + path + " ];then rm -r " + path + "; fi");
     }
 }
