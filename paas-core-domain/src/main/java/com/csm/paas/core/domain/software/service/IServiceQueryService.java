@@ -111,4 +111,16 @@ public interface IServiceQueryService {
      * <p>全部成功返回 true；**列表里有一个失败就中断**（厂商在循环里直接抛）。
      */
     boolean cancelServiceStartup(String namespace, java.util.List<String> serviceNames);
+
+    /**
+     * 设置延时启动（厂商 `POST /v1/service/startUp` → `ServiceController:3968-4026`）。
+     *
+     * <p>`time < 0` → 400 `service.negative.startup.delay`；
+     * 逐个服务：读 Deployment（读不到 → 400 `service.get.service.config.exception.set.delay`，参数为服务名）
+     * → `time == 0` 走"取消"（删注解 + 清 initContainers + 整份 replace）；
+     * `time > 0` 走"设置"（写注解 `gaop/serviceInitTime` + 注入 initContainer，镜像为
+     * `<harborIp>/system_containers/<initPodConfig.image>`）。
+     */
+    boolean setServiceStartup(String namespace, java.util.List<String> serviceNames, long time,
+                              String harborHost, String initImage);
 }

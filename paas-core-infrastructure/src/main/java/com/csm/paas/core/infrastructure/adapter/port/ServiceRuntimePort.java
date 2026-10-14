@@ -100,6 +100,12 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
     }
 
     @Override
+    public boolean setDeploymentStartup(String namespace, String serviceName, long delaySeconds,
+                                        String harborHost, String initImage) {
+        return serviceRuntimeGateway.setDeploymentStartup(namespace, serviceName, delaySeconds, harborHost, initImage);
+    }
+
+    @Override
     public Map<String, List<String>> queryNodeLabels() {
         // 厂商：遍历每个节点的 metadata.labels，按 label 键把"值"塞进一个 set（HashMap 聚合，顺序不可依赖）
         Map<String, java.util.Set<String>> collected = new java.util.HashMap<>();

@@ -29,6 +29,14 @@ public class ServiceController {
     @Value("${gaop.k8s.namespace:gaop-namespace}")
     private String namespace;
 
+    /** 厂商同名配置：Harbor 地址（用于拼 initContainer 镜像前缀）。 */
+    @Value("${server.host.harbor:}")
+    private String harborHost;
+
+    /** 厂商同名配置：`initPodConfig.image`（默认值与厂商一致）。 */
+    @Value("${initPodConfig.image:curl-alpine:latest}")
+    private String initPodImage;
+
     /**
      * 厂商 `PUT /v1/service/updateName?serviceKey&name&nameUs&nameFr`：改服务显示名。
      * <p>四个参数都是 **query parameter**（不是 body）。规则与未验证说明见 `IServiceQueryService.updateServiceName`。
@@ -166,6 +174,19 @@ public class ServiceController {
     public ResponseDTO<Boolean> cancelStartUp(
             @org.springframework.web.bind.annotation.RequestBody com.csm.paas.core.api.dto.StartUpServiceListDTO form) {
         return ResponseDTO.ok(serviceQueryService.cancelServiceStartup(namespace, form.getList()));
+    }
+
+    /**
+     * 厂商 `POST /v1/service/startUp`：设置/取消服务的延时启动（请求体 `{list, time}`）。
+     * <p>`time<0` → 400；`time=0` 取消（删注解+清 initContainers+整份 replace）；`time>0` 写注解并注入
+     * `startup` initContainer（镜像来自 `server.host.harbor` + `initPodConfig.image`）。
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/v1/service/startUp")
+    public ResponseDTO<Boolean> startUp(
+            @org.springframework.web.bind.annotation.RequestBody com.csm.paas.core.api.dto.InitServiceInfoDTO form) {
+        return ResponseDTO.ok(serviceQueryService.setServiceStartup(
+                namespace, form.getList(), form.getTime() == null ? 0L : form.getTime(),
+                harborHost, initPodImage));
     }
 
     @GetMapping("/v1/service/labels")

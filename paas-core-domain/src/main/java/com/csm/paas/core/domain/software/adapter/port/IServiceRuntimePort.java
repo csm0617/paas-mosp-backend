@@ -63,4 +63,8 @@ public interface IServiceRuntimePort {
 
     /** 取消延时启动（删 `gaop/serviceInitTime` 注解 + `initContainers` 置 null + 整份 replace）；不存在返回 false。 */
     boolean cancelDeploymentStartup(String namespace, String serviceName);
+
+    /** 设置延时启动（0 = 取消；>0 = 写注解 + 注入 initContainer）；Deployment 不存在返回 false。 */
+    boolean setDeploymentStartup(String namespace, String serviceName, long delaySeconds,
+                                 String harborHost, String initImage);
 }

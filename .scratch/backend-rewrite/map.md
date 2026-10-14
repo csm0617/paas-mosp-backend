@@ -321,6 +321,10 @@ Label: `wayfinder:map`
 - 当前：46 端点映射、38 测试类 **236 条全绿**、81 提交、63 篇 findings。
 - 下一步优先序：服务切片同模式推进 → K2 跨域（`/auth` 列表可对拉；CS 上传/导入导出需先定边界）→ K3 侧效应 → 把"不可验证项"整理成对外偏离清单。
 
+- （**服务切片 13/33**）[POST /v1/service/startUp](docs/findings/83-service-startup.md)：独立 namespace（`paas-verify-su2`）e2e——`time=30` 写注解 + 注入 `startup` initContainer（**镜像 `192.168.1.52:30002/system_containers/curl-alpine:latest` 完全符合厂商公式**，command/env 都对）；`time=0` 走取消；`time<0` 与"服务不存在"各自 400。
+  - 配置项来历：厂商 `initPodConfig.image` 的默认值是从**厂商运行中的 jar** 里读出来的（`${INITIMAGE:curl-alpine:latest}`）；我们用同名配置 + `server.host.harbor`。
+  - **循环里是双分支**（容易只写一半）：`time=0` → 删注解 + 清 initContainers + **整份 replace**；`time>0` → 写注解 + 注入容器 + **merge patch**。`cancelStartUp` 相当于只做 `time=0` 那一支。
+  - 测试 270 → **273 条**全绿。
 - （**服务切片 12/33**）[POST /v1/service/cancelStartUp](docs/findings/82-service-cancel-startup.md)：独立 namespace（`paas-verify-su`，用完即删）e2e——注解 `gaop/serviceInitTime` 与 `initContainers` 都被清掉；不存在的服务 → 400 且文案与厂商逐字相同（只差服务名）。
   - 三处照抄：**整份 `replace` 而不是 patch**（与 `hostName`/`priority`/`patchCommand` 的 merge patch 不同）；`initContainers` 置 **null**（不是空列表）；注解只在 `annotations != null` 时删。另：列表里一个失败就**中断**。
   - 测试 268 → **270 条**全绿。

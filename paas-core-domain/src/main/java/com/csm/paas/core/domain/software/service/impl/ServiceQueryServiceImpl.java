@@ -127,6 +127,21 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
     }
 
     @Override
+    public boolean setServiceStartup(String namespace, List<String> serviceNames, long time,
+                                     String harborHost, String initImage) {
+        if (time < 0L) {
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("service.negative.startup.delay");
+        }
+        for (String serviceName : serviceNames) {
+            if (!serviceRuntimePort.setDeploymentStartup(namespace, serviceName, time, harborHost, initImage)) {
+                throw new com.csm.paas.core.types.exception.WrongArgumentException(
+                        "service.get.service.config.exception.set.delay", serviceName);
+            }
+        }
+        return true;
+    }
+
+    @Override
     public Map<String, List<Map<String, Object>>> queryOtherPluginWorkloads() {
         return serviceRuntimePort.listOtherPluginWorkloads();
     }

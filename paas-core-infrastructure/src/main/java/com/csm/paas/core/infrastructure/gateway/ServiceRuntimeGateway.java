@@ -233,6 +233,52 @@ public class ServiceRuntimeGateway {
         return true;
     }
 
+    /**
+     * 设置服务的延时启动（厂商 `setServiceStartUpInfo:3968-4026`）。
+     *
+     * <p>`delaySeconds == 0`：删注解 `gaop/serviceInitTime`、`initContainers` 置 null、**整份 replace**；
+     * <br>`delaySeconds > 0`：写注解 `gaop/serviceInitTime = <秒>`，并**注入一个 initContainer**
+     * `{name: startup, image: <harborIp>/system_containers/<initImage>, command: [sh, /data/curl.sh],
+     *   env: [{_SERVICE_NAME: <deployment 名>}]}`，然后 **merge-patch**。
+     *
+     * @return Deployment 不存在时返回 false（厂商据此抛 400）
+     */
+    public boolean setDeploymentStartup(String namespace, String name, long delaySeconds,
+                                        String harborHost, String initImage) {
+        var d = kubernetesClient.apps().deployments().inNamespace(namespace).withName(name).get();
+        if (d == null) {
+            return false;
+        }
+        var template = d.getSpec().getTemplate();
+        var annotations = template.getMetadata().getAnnotations();
+        if (annotations != null) {
+            if (delaySeconds == 0L) {
+                annotations.remove("gaop/serviceInitTime");
+            } else {
+                annotations.put("gaop/serviceInitTime", String.valueOf(delaySeconds));
+            }
+            template.getMetadata().setAnnotations(annotations);
+        }
+        if (delaySeconds == 0L) {
+            template.getSpec().setInitContainers(null);
+            kubernetesClient.apps().deployments().inNamespace(namespace).withName(name).replace(d);   // 整份替换
+            return true;
+        }
+        String harborIp = harborHost == null ? "" : harborHost.replace("http://", "").replace("https://", "");
+        var container = new io.fabric8.kubernetes.api.model.ContainerBuilder()
+                .withName("startup")
+                .withImage(harborIp + "/system_containers/" + initImage)
+                .withCommand("sh", "/data/curl.sh")
+                .withEnv(new io.fabric8.kubernetes.api.model.EnvVarBuilder()
+                        .withName("_SERVICE_NAME").withValue(d.getMetadata().getName()).build())
+                .build();
+        template.getSpec().setInitContainers(java.util.List.of(container));
+        kubernetesClient.apps().deployments().inNamespace(namespace).withName(name)
+                .patch(io.fabric8.kubernetes.client.dsl.base.PatchContext.of(
+                        io.fabric8.kubernetes.client.dsl.base.PatchType.JSON_MERGE), Serialization.asJson(d));
+        return true;
+    }
+
     public List<StatefulSet> listStatefulSets(String namespace) {
         List<StatefulSet> items = kubernetesClient.apps().statefulSets().inNamespace(namespace).list().getItems();
         log.info("fabric8 读到 namespace:{} 的 StatefulSet {} 个", namespace, items.size());
