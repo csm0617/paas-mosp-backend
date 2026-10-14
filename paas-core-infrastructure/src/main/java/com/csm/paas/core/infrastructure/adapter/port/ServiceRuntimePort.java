@@ -84,6 +84,11 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
     }
 
     @Override
+    public Map<String, List<Map<String, Object>>> listOtherPluginWorkloads() {
+        return serviceRuntimeGateway.listOtherPluginWorkloads();
+    }
+
+    @Override
     public Map<String, List<String>> queryNodeLabels() {
         // 厂商：遍历每个节点的 metadata.labels，按 label 键把"值"塞进一个 set（HashMap 聚合，顺序不可依赖）
         Map<String, java.util.Set<String>> collected = new java.util.HashMap<>();

@@ -122,6 +122,15 @@ public class ServiceController {
         return ResponseDTO.ok(serviceQueryService.scaleService(namespace, serviceName, scale));
     }
 
+    /**
+     * 厂商 `GET /v1/service/otherPlugin`：跨命名空间的"其它插件"工作负载（三类原始 K8s 对象列表）。
+     * <p>排除 `gaop-namespace` 并套厂商的标签选择器；某一类失败只返回空列表（照抄）。
+     */
+    @GetMapping("/v1/service/otherPlugin")
+    public ResponseDTO<java.util.Map<String, java.util.List<java.util.Map<String, Object>>>> otherPlugin() {
+        return ResponseDTO.ok(serviceQueryService.queryOtherPluginWorkloads());
+    }
+
     @GetMapping("/v1/service/labels")
     public ResponseDTO<java.util.List<com.csm.paas.core.api.dto.LabelListDTO>> labels() {
         var merged = serviceQueryService.queryNodeLabels();

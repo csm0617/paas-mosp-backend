@@ -50,4 +50,10 @@ public interface IServiceRuntimePort {
     java.util.Map<String, Object> patchDeploymentReplicas(String namespace, String serviceName, int replicas);
 
     java.util.Map<String, Object> patchStatefulSetReplicas(String namespace, String serviceName, int replicas);
+
+    /**
+     * 其它插件工作负载（厂商 `GET /v1/service/otherPlugin`）：跨命名空间列 DaemonSet/Deployment/StatefulSet，
+     * 排除 `gaop-namespace`，并套用厂商那串标签选择器。键为 `daemonSetList`/`deploymentList`/`statefulSetList`。
+     */
+    java.util.Map<String, java.util.List<java.util.Map<String, Object>>> listOtherPluginWorkloads();
 }

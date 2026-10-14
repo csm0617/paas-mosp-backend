@@ -18,6 +18,13 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ServiceRuntimeGateway {
 
+    /** 厂商 `otherPlugin` 的字段选择器（跨命名空间，排除 gaop-namespace）。 */
+    static final String OTHER_PLUGIN_FIELD_SELECTOR = "metadata.namespace!=gaop-namespace";
+    /** 厂商 `otherPlugin` 的标签选择器（原样照抄）。 */
+    static final String OTHER_PLUGIN_LABEL_SELECTOR =
+            "!system-network,!log,app.kubernetes.io/instance!=prometheus,app!=harbor,tier!=control-plane";
+
+
     private final KubernetesClient kubernetesClient;
 
     public List<Service> listServices(String namespace) {
@@ -127,6 +134,64 @@ public class ServiceRuntimeGateway {
                         io.fabric8.kubernetes.client.dsl.base.PatchType.STRATEGIC_MERGE),
                         "{\"spec\":{\"replicas\":" + replicas + "}}");
         return s == null ? null : toSnapshot(s);
+    }
+
+    /**
+     * 复刻厂商那串选择器的语义（**严格按 k8s 规则**）：
+     * <ul>
+     *   <li>`metadata.namespace!=gaop-namespace` → 排除 gaop-namespace；</li>
+     *   <li>`!system-network` / `!log` → 该标签**不存在**；</li>
+     *   <li>`k!=v` → 标签**不存在或值不等于 v**（k8s 的 `!=` 对缺失键也成立）。</li>
+     * </ul>
+     * 厂商是把选择器交给 API server；我们在这里等价复刻，并用对拉核对结果集合。
+     */
+    static boolean matchesOtherPluginSelector(io.fabric8.kubernetes.api.model.HasMetadata resource) {
+        if ("gaop-namespace".equals(resource.getMetadata().getNamespace())) {
+            return false;
+        }
+        Map<String, String> labels = resource.getMetadata().getLabels();
+        if (labels == null) {
+            labels = Map.of();
+        }
+        return !labels.containsKey("system-network")
+                && !labels.containsKey("log")
+                && !"prometheus".equals(labels.get("app.kubernetes.io/instance"))
+                && !"harbor".equals(labels.get("app"))
+                && !"control-plane".equals(labels.get("tier"));
+    }
+
+    /**
+     * 厂商 `GET /v1/service/otherPlugin` 的三类"其它插件"工作负载：**跨命名空间**列出，
+     * 排除 `gaop-namespace`，并带厂商那串标签选择器。
+     * <p>厂商原样把选择器交给 API server：
+     * `fieldSelector = "metadata.namespace!=gaop-namespace"`、
+     * `labelSelector = "!system-network,!log,app.kubernetes.io/instance!=prometheus,app!=harbor,tier!=control-plane"`。
+     * 我们同样交给 API server（**不自己在内存里过滤**），否则会与 API server 的选择器语义产生偏差。
+     */
+    public java.util.Map<String, java.util.List<java.util.Map<String, Object>>> listOtherPluginWorkloads() {
+        java.util.Map<String, java.util.List<java.util.Map<String, Object>>> result = new java.util.LinkedHashMap<>();
+        try {
+            result.put("daemonSetList", kubernetesClient.apps().daemonSets().inAnyNamespace().list().getItems().stream()
+                    .filter(ServiceRuntimeGateway::matchesOtherPluginSelector).toList().stream().map(this::toSnapshot).toList());
+        } catch (Exception e) {
+            log.error("获取daemonset异常:{}", e.getMessage());
+            result.put("daemonSetList", java.util.List.of());   // 厂商：异常只记日志，返回空列表
+        }
+        try {
+            result.put("deploymentList", kubernetesClient.apps().deployments().inAnyNamespace().list().getItems().stream()
+                    .filter(ServiceRuntimeGateway::matchesOtherPluginSelector).toList().stream().map(this::toSnapshot).toList());
+        } catch (Exception e) {
+            log.error("获取deployment异常:{}", e.getMessage());
+            result.put("deploymentList", java.util.List.of());
+        }
+        try {
+            result.put("statefulSetList", kubernetesClient.apps().statefulSets().inAnyNamespace().list().getItems().stream()
+                    .filter(ServiceRuntimeGateway::matchesOtherPluginSelector).toList().stream().map(this::toSnapshot).toList());
+        } catch (Exception e) {
+            log.error("获取statefulset异常:{}", e.getMessage());
+            result.put("statefulSetList", java.util.List.of());
+        }
+        return result;
     }
 
     public List<StatefulSet> listStatefulSets(String namespace) {

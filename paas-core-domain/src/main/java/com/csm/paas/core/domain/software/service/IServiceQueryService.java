@@ -78,4 +78,11 @@ public interface IServiceQueryService {
      * `SystemException(异常消息)`（HTTP 500 / `code=-1`）。
      */
     java.util.Map<String, Object> scaleService(String namespace, String serviceName, int replicas);
+
+    /**
+     * 其它插件工作负载（厂商 `GET /v1/service/otherPlugin`，`ServiceController:4058-4090`）：
+     * 三类工作负载**跨命名空间**、排除 `gaop-namespace`、套厂商的标签选择器；
+     * 某一类取失败时厂商只记日志并返回**空列表**（不是整体报错）。
+     */
+    java.util.Map<String, java.util.List<java.util.Map<String, Object>>> queryOtherPluginWorkloads();
 }

@@ -95,6 +95,11 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
     }
 
     @Override
+    public Map<String, List<Map<String, Object>>> queryOtherPluginWorkloads() {
+        return serviceRuntimePort.listOtherPluginWorkloads();
+    }
+
+    @Override
     public java.util.Map<String, Object> scaleService(String namespace, String serviceName, int replicas) {
         java.util.Map<String, Object> patched = null;
         try {

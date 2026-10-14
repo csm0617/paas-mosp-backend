@@ -321,6 +321,11 @@ Label: `wayfinder:map`
 - 当前：46 端点映射、38 测试类 **236 条全绿**、81 提交、63 篇 findings。
 - 下一步优先序：服务切片同模式推进 → K2 跨域（`/auth` 列表可对拉；CS 上传/导入导出需先定边界）→ K3 侧效应 → 把"不可验证项"整理成对外偏离清单。
 
+- （**服务切片**）[GET /v1/service/otherPlugin](docs/findings/69-service-other-plugin.md)：**三类列表的 `namespace/name` 集合全部与厂商相同**（4/15/1，跨命名空间）——服务切片第二个非空对拉。
+  - 实现取舍：fabric8 7 在"跨命名空间列举"上不便直接带选择器（`withFieldSelector` 与 `ListOptionsBuilder` 两版都编译不过）⇒ 改为全量列举 + **内存里严格复刻 k8s 选择器语义**（`!k` 要求键不存在；**`k!=v` 对缺失键也成立** ⇒ "什么标签都没有"的对象会被保留，这正是 vendor 那 15 个 Deployment 的来源）。
+  - 风险用**对拉结果集合**兜底（本集群上语义等价已证明）+ 4 条单测钉住语义本身。
+  - 与 `serviceAuth` 的对照：两者都是"列表"，但 `otherPlugin` 发的是**原始 K8s 对象**、**不能套装配器**。
+  - 服务切片 **9/33**；测试 240 → **244 条**全绿。
 - （**K2 跨域第一个**）[GET /v1/software/auth](docs/findings/68-software-auth-list.md)：**7 种情形对拉全部完全相等**（含三态探针、name 只打在 name 上、分页）。
   - **先踩了自己两个坑**，都是"顺手复用隔壁端点的查询"：①授权列表的 `likeName` **只打在 `name`**，我复用了列表端点的 `name OR key`；②修完①后 `total` 仍不一致，因为 `countAuthList` 复用了列表的 `count()` ⇒ **total 与 list 来自两套 WHERE**。已各补专用查询。
   - 同族第 4 例：`edit()`vs`patch`、`fixedName`vs`gaop/serviceLabel`、存在vs值为空、现在是"列表过滤"vs"授权列表过滤"——**复用相邻实现的代价，是在它们分叉的那一点静默出错**。
