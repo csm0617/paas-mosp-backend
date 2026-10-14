@@ -92,6 +92,28 @@ public class SubRoleCommandServiceImpl implements ISubRoleCommandService {
         return subRoleRepository.updateSubRoleSelective(id, key, name, desc, now) > 0;
     }
 
+    @Override
+    public boolean userAddRole(String userId, java.util.List<String> subRoleIdList) {
+        subRoleRepository.deleteUserSubRolesByUserId(userId);
+        long now = System.currentTimeMillis();
+        for (String subRoleId : subRoleIdList == null ? java.util.List.<String>of() : subRoleIdList) {
+            // 厂商：不校验子角色是否存在
+            subRoleRepository.insertUserSubRole(java.util.UUID.randomUUID().toString(), userId, subRoleId, now, now);
+        }
+        return true;
+    }
+
+    @Override
+    public boolean roleAddUser(String subRoleId, java.util.List<String> userIdList) {
+        subRoleRepository.deleteUserSubRolesBySubRoleId(subRoleId);
+        long now = System.currentTimeMillis();
+        for (String userId : userIdList == null ? java.util.List.<String>of() : userIdList) {
+            // 厂商：**不校验用户是否存在**（与 usersRelateRole 不同）
+            subRoleRepository.insertUserSubRole(java.util.UUID.randomUUID().toString(), userId, subRoleId, now, now);
+        }
+        return true;
+    }
+
     /**
      * 厂商 `usersRelateRole:144-160`：**先删光该子角色的用户关联**，再逐个 userId 关联
      * （**用户不存在则跳过**；用 `HashSet` 去重 ⇒ 顺序不确定）。

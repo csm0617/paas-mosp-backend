@@ -143,6 +143,34 @@ class SubRoleAddUpdateTest {
     }
 
     @Test
+    void userAddRoleWipesThenInsertsWithoutExistenceChecks() {
+        assertTrue(service().userAddRole("u1", List.of("sr1", "ghost")));
+
+        verify(repository).deleteUserSubRolesByUserId("u1");
+        // 不校验子角色是否存在 ⇒ 两个都插
+        verify(repository).insertUserSubRole(anyString(), eq("u1"), eq("sr1"), anyLong(), anyLong());
+        verify(repository).insertUserSubRole(anyString(), eq("u1"), eq("ghost"), anyLong(), anyLong());
+        verify(repository, never()).userExists(anyString());
+    }
+
+    @Test
+    void userAddRoleWithNullListOnlyWipes() {
+        assertTrue(service().userAddRole("u1", null));
+        verify(repository).deleteUserSubRolesByUserId("u1");
+        verify(repository, never()).insertUserSubRole(anyString(), anyString(), anyString(), anyLong(), anyLong());
+    }
+
+    @Test
+    void roleAddUserWipesThenInsertsWithoutExistenceChecks() {
+        assertTrue(service().roleAddUser("sr1", List.of("u1", "ghost")));
+
+        verify(repository).deleteUserSubRolesBySubRoleId("sr1");
+        verify(repository).insertUserSubRole(anyString(), eq("u1"), eq("sr1"), anyLong(), anyLong());
+        verify(repository).insertUserSubRole(anyString(), eq("ghost"), eq("sr1"), anyLong(), anyLong());
+        verify(repository, never()).userExists(anyString());
+    }
+
+    @Test
     void updateValidatesNameKeyLengthWhenPresent() {
         when(repository.queryById("id1")).thenReturn(Optional.of(SubRoleEntity.builder().id("id1").build()));
         assertEquals("sub.role.change.name.invalid", assertThrows(WrongArgumentException.class,

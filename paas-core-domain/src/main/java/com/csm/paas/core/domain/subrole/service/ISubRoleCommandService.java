@@ -50,4 +50,22 @@ public interface ISubRoleCommandService {
      * @return 受影响行数 > 0
      */
     boolean updateSubRole(com.csm.paas.core.domain.subrole.model.valobj.SubRoleFormVO form);
+
+    /**
+     * 给用户重设子角色（厂商 `POST /v1/sub_role/userAddRole/{userId}` →
+     * `SubRoleServiceImpl.userAddRole:346-359`，规格见 `docs/findings/149`）。
+     *
+     * <p>**先删光该用户的全部 `g_user_sub_role`**，再按 `subRoleIdList` 逐个插入
+     * （`id = UUID`、`createdAt = updatedAt = now`）。**不校验子角色是否存在**、**恒返回 true**。
+     */
+    boolean userAddRole(String userId, java.util.List<String> subRoleIdList);
+
+    /**
+     * 给子角色重设用户（厂商 `POST /v1/sub_role/roleAddUser/{roleId}` →
+     * `SubRoleServiceImpl.roleAddUser:369-382`）。
+     *
+     * <p>**先删光该子角色的全部 `g_user_sub_role`**，再按 `userIdList` 逐个插入。
+     * **不校验用户是否存在**（与 `usersRelateRole` 不同！）、**恒返回 true**。
+     */
+    boolean roleAddUser(String subRoleId, java.util.List<String> userIdList);
 }

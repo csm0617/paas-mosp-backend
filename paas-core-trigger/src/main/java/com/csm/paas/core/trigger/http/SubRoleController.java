@@ -3,6 +3,7 @@ package com.csm.paas.core.trigger.http;
 import com.csm.paas.core.api.dto.ResponseDTO;
 import com.csm.paas.core.api.dto.SubRoleListResponseDTO;
 import com.csm.paas.core.api.dto.SubRoleFormDTO;
+import com.csm.paas.core.api.dto.UserIdsDTO;
 import com.csm.paas.core.api.dto.SubRoleIdsDTO;
 import com.csm.paas.core.api.dto.SubRoleItemDTO;
 import com.csm.paas.core.domain.subrole.service.ISubRoleCommandService;
@@ -30,6 +31,34 @@ public class SubRoleController {
 
     @Resource
     private ISubRoleCommandService subRoleCommandService;
+
+    /**
+     * 厂商 `POST /v1/sub_role/userAddRole/{userId}`：给用户重设子角色（body `{subRoleIdList}`）。
+     *
+     * <p>**先删光该用户的全部关联**再逐个插入；**不校验子角色是否存在**、恒返回 true。
+     * 规则见 `ISubRoleCommandService.userAddRole`（规格 `findings/149`）。
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/userAddRole/{userId}")
+    public ResponseDTO<Boolean> userAddRole(
+            @org.springframework.web.bind.annotation.PathVariable String userId,
+            @org.springframework.web.bind.annotation.RequestBody SubRoleIdsDTO form) {
+        return ResponseDTO.ok(subRoleCommandService.userAddRole(userId,
+                form == null ? null : form.getSubRoleIdList()));
+    }
+
+    /**
+     * 厂商 `POST /v1/sub_role/roleAddUser/{roleId}`：给子角色重设用户（body `{userIdList}`）。
+     *
+     * <p>**先删光该子角色的全部关联**再逐个插入；**不校验用户是否存在**（与 `usersRelateRole` 不同）、
+     * 恒返回 true。规则见 `ISubRoleCommandService.roleAddUser`（规格 `findings/149`）。
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/roleAddUser/{roleId}")
+    public ResponseDTO<Boolean> roleAddUser(
+            @org.springframework.web.bind.annotation.PathVariable String roleId,
+            @org.springframework.web.bind.annotation.RequestBody UserIdsDTO form) {
+        return ResponseDTO.ok(subRoleCommandService.roleAddUser(roleId,
+                form == null ? null : form.getUserIdList()));
+    }
 
     /**
      * 厂商 `POST /v1/sub_role`：新增子角色（body `{key, name, nameUs, nameFr, desc, userList}`）。
