@@ -25,6 +25,7 @@
 | A9 | `addSoftWare` | `softwareForm.getRoleListKey().size()` 不判 null ⇒ NPE | 按空列表处理（见 B1） | `findings/38` |
 | A10 | `PUT /v1/role/{id}` | 响应 `name:null`（controller 参数传错位） | 不复制（见 B3） | `findings/35` |
 | A11 | 任意 PUT 的会话 TTL | 厂商把会话 TTL 从 86400 砍到 600 | 不复制（见 B2） | `findings/33` |
+| A12 | `PUT /v1/service/updateServiceRole` | **写入的是死代码**：`annotations.put("gaop/serviceRole", serviceKey)` 之后立刻被 `annotations = ...getAnnotations()` **重新赋值覆盖**，该注解**永远不会被写入**；且 StatefulSet 分支会对 `v1Deployment`（null）调 `getMetadata()` ⇒ NPE | **不实现该"无副作用"语义**；错误路径已对拉确认（400 `service.get.service.failed.not.found`） | `findings/69` 前的勘查（本轮） |
 
 ## B. 我们主动收紧（成功路径与厂商一致）
 
