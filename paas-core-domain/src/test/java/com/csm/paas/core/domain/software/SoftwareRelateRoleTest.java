@@ -34,7 +34,7 @@ class SoftwareRelateRoleTest {
     private final IRoleRepository roleRepository = mock(IRoleRepository.class);
 
     private SoftwareCommandServiceImpl service() {
-        return new SoftwareCommandServiceImpl(softwareRepository, broadcast, roleRepository);
+        return new SoftwareCommandServiceImpl(softwareRepository, broadcast, roleRepository, mock(com.csm.paas.core.domain.licence.service.ILicenceQueryService.class), mock(com.csm.paas.core.domain.software.adapter.port.IGatewayRefreshPort.class));
     }
 
     private void roleExists(String key, String id) {

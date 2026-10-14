@@ -34,7 +34,7 @@ class SoftwareCommandServiceImplTest {
             mock(com.csm.paas.core.domain.role.adapter.repository.IRoleRepository.class);
 
     private SoftwareCommandServiceImpl service() {
-        return new SoftwareCommandServiceImpl(repository, relationBroadcastPort, roleRepository);
+        return new SoftwareCommandServiceImpl(repository, relationBroadcastPort, roleRepository, mock(com.csm.paas.core.domain.licence.service.ILicenceQueryService.class), mock(com.csm.paas.core.domain.software.adapter.port.IGatewayRefreshPort.class));
     }
 
     @Test

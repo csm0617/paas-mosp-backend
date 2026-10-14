@@ -371,6 +371,30 @@ public interface ISoftwareDao {
                                                      @Param("serviceName") String serviceName);
 
     /**
+     * 删某软件下**若干服务名**的 `g_software_app` 行（厂商 `unRelateServices:2107-2110` 的
+     * `where software_id = ? and app_name in (...)`）。
+     */
+    @org.apache.ibatis.annotations.Delete("""
+            <script>
+            DELETE FROM g_software_app WHERE software_id = #{softwareId} AND app_name IN
+            <foreach collection="names" item="it" open="(" separator="," close=")">#{it}</foreach>
+            </script>
+            """)
+    int deleteSoftwareAppsByNames(@Param("softwareId") String softwareId, @Param("names") List<String> names);
+
+    /**
+     * 删某软件下**若干服务名**的 `g_service_port` 行（厂商 `unRelateServices:2111-2114` 的
+     * `where software_id = ? and service_name in (...)`）。
+     */
+    @org.apache.ibatis.annotations.Delete("""
+            <script>
+            DELETE FROM g_service_port WHERE software_id = #{softwareId} AND service_name IN
+            <foreach collection="names" item="it" open="(" separator="," close=")">#{it}</foreach>
+            </script>
+            """)
+    int deleteServicePortsByNames(@Param("softwareId") String softwareId, @Param("names") List<String> names);
+
+    /**
      * 批量插端口映射（厂商 `ServicePortMapper.insertBatch`，`:139-140` 的 `<foreach>` 单条 insert）。
      * <p>**空列表由调用方拦下**：厂商那个 `<foreach>` 对空列表会拼出 `INSERT … VALUES`（非法 SQL）⇒ 400；
      * 我们在领域层显式抛同一个键（`findings/118` §3 的第 2 条怪点），所以这里对空列表直接返回 0。
@@ -433,4 +457,12 @@ public interface ISoftwareDao {
     /** 按 `key` 取 id（厂商 `importRoleExcel:975` 等处 `select(key = ?)` 后取 `Software::getId`）。 */
     @Select("SELECT id FROM g_software WHERE `key` = #{key} LIMIT 1")
     String selectIdByKey(@Param("key") String key);
+
+    /**
+     * 只写 `active_code`（厂商 `activeSoftware:3150-3152` 的 `updateByPrimaryKeySelective` 只 set 了
+     * `id`+`activeCode`；`resetSoftwareLicence:3158` 则把它置 NULL）。
+     * <p>与 {@link #clearSoftwareAuth}（清三列）和 {@link #saveSoftwareAuth}（写三列）都不同。
+     */
+    @Update("UPDATE g_software SET active_code = #{activeCode} WHERE id = #{id}")
+    int updateActiveCode(@Param("id") String id, @Param("activeCode") String activeCode);
 }

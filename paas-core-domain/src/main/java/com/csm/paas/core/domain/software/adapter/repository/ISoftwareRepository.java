@@ -131,6 +131,14 @@ public interface ISoftwareRepository {
     /** 写入授权（`active_create`/`active_code`/`active_expire`；**不动 `updated_at`**，照抄厂商）。 */
     void saveSoftwareAuth(String softwareId, long activeCreate, String activeCode, long activeExpire);
 
+    /**
+     * **只写 `active_code`**（`activeCode` 传 null 即置 NULL）。
+     * <p>厂商 `PUT /v1/software/{id}/licence`（`activeSoftware:3150-3152`）与
+     * `DELETE /v1/software/{id}/licence`（`resetSoftwareLicence:3158`）都只动这一列——
+     * 与上面的三列清空/写入不同，别混用。
+     */
+    void updateActiveCode(String softwareId, String activeCode);
+
     /** 某服务的 Pod 重启记录（厂商 `GET /v1/service/restartInfo`，按 `create_at` 倒序）。 */
     List<com.csm.paas.core.domain.software.model.valobj.PodRestartInfoVO> queryPodRestartInfo(String serviceName);
 
@@ -184,6 +192,12 @@ public interface ISoftwareRepository {
 
     /** 删某软件在某服务下的全部端口映射（厂商 `where software_id = ? and service_name = ?`）。 */
     void deleteServicePorts(String softwareId, String serviceName);
+
+    /** 删某软件下若干服务名的 `g_software_app` 行（厂商 `unRelateServices` 的 `app_name in (...)`）。 */
+    void deleteSoftwareAppsByNames(String softwareId, List<String> names);
+
+    /** 删某软件下若干服务名的 `g_service_port` 行（厂商 `unRelateServices` 的 `service_name in (...)`）。 */
+    void deleteServicePortsByNames(String softwareId, List<String> names);
 
     /**
      * 批量插端口映射（厂商 `insertBatch`）。**空列表由调用方拦下**——厂商的 `<foreach>` 对空列表会拼出

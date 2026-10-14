@@ -433,4 +433,52 @@ public class SoftwareController {
                 PageUtils.normalizePage(page), PageUtils.normalizeSize(size),
                 name, type, order, sort, request.getHeader(FORWARDED_HOST_HEADER))));
     }
+
+    /**
+     * 厂商 `PUT /v1/software/{id}/licence`：设置软件授权码（body `{activeCode}`；与 `POST /v1/licence`
+     * 的请求体同形状，故复用 `ActiveLicenceDTO`）。
+     *
+     * <p>校验不通过（含"授权码里没有这个软件"）⇒ 400 `licence.activation.code.error`；
+     * 通过 ⇒ 只写 `g_software.active_code`，响应是**软件详情**（不是 LicenceInfo）。
+     * 规则见 `ISoftwareCommandService.activateLicence`。
+     */
+    @org.springframework.web.bind.annotation.PutMapping("/{id}/licence")
+    public ResponseDTO<com.csm.paas.core.api.dto.SoftwareInfoDTO> activeSoftware(
+            @org.springframework.web.bind.annotation.PathVariable String id,
+            @org.springframework.web.bind.annotation.RequestBody(required = false)
+            com.csm.paas.core.api.dto.ActiveLicenceDTO form) {
+        if (softwareCommandService.activateLicence(id, form == null ? null : form.getActiveCode()).isEmpty()) {
+            throw new WrongArgumentException("licence.activation.code.error");
+        }
+        return ResponseDTO.ok(com.csm.paas.core.trigger.assembler.SoftwareInfoAssembler.toResponse(
+                softwareDetailService.queryDetail(id)));
+    }
+
+    /**
+     * 厂商 `DELETE /v1/software/{id}/licence`：清除授权码（只把 `active_code` 置 NULL），
+     * 响应同样是软件详情。
+     */
+    @org.springframework.web.bind.annotation.DeleteMapping("/{id}/licence")
+    public ResponseDTO<com.csm.paas.core.api.dto.SoftwareInfoDTO> resetSoftwareLicence(
+            @org.springframework.web.bind.annotation.PathVariable String id) {
+        softwareCommandService.resetLicence(id);
+        return ResponseDTO.ok(com.csm.paas.core.trigger.assembler.SoftwareInfoAssembler.toResponse(
+                softwareDetailService.queryDetail(id)));
+    }
+
+    /**
+     * 厂商 `DELETE /v1/software/{id}/relate_service`：删除软件关联的服务（body `{list:[服务名]}`）。
+     *
+     * <p>照抄点：入参虽然叫 `serviceIdList`，实际是拿去跟 `g_software_app.app_name` 比的**服务名**；
+     * 软件不存在、或与现有服务无交集 ⇒ **直接返回**（不报错）。响应是软件详情。
+     */
+    @org.springframework.web.bind.annotation.DeleteMapping("/{id}/relate_service")
+    public ResponseDTO<com.csm.paas.core.api.dto.SoftwareInfoDTO> unRelateServices(
+            @org.springframework.web.bind.annotation.PathVariable String id,
+            @org.springframework.web.bind.annotation.RequestBody(required = false)
+            com.csm.paas.core.api.dto.RelateServicesDTO form) {
+        softwareCommandService.unRelateServices(id, form == null ? null : form.getList());
+        return ResponseDTO.ok(com.csm.paas.core.trigger.assembler.SoftwareInfoAssembler.toResponse(
+                softwareDetailService.queryDetail(id)));
+    }
 }

@@ -224,6 +224,11 @@ public class SoftwareRepository implements ISoftwareRepository {
     }
 
     @Override
+    public void updateActiveCode(String softwareId, String activeCode) {
+        softwareDao.updateActiveCode(softwareId, activeCode);
+    }
+
+    @Override
     public List<com.csm.paas.core.domain.software.model.valobj.PodRestartInfoVO> queryPodRestartInfo(String serviceName) {
         return softwareDao.selectPodEvents(serviceName).stream()
                 .map(po -> com.csm.paas.core.domain.software.model.valobj.PodRestartInfoVO.builder()
@@ -298,6 +303,20 @@ public class SoftwareRepository implements ISoftwareRepository {
     @Override
     public void deleteServicePorts(String softwareId, String serviceName) {
         softwareDao.deleteServicePortsBySoftwareIdAndServiceName(softwareId, serviceName);
+    }
+
+    @Override
+    public void deleteSoftwareAppsByNames(String softwareId, java.util.List<String> names) {
+        if (names != null && !names.isEmpty()) {
+            softwareDao.deleteSoftwareAppsByNames(softwareId, names);
+        }
+    }
+
+    @Override
+    public void deleteServicePortsByNames(String softwareId, java.util.List<String> names) {
+        if (names != null && !names.isEmpty()) {
+            softwareDao.deleteServicePortsByNames(softwareId, names);
+        }
     }
 
     @Override

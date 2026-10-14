@@ -37,7 +37,7 @@ class SoftwareIconScreenshotTest {
             mock(com.csm.paas.core.domain.role.adapter.repository.IRoleRepository.class);
 
     private SoftwareCommandServiceImpl service() {
-        return new SoftwareCommandServiceImpl(softwareRepository, relationBroadcastPort, roleRepository);
+        return new SoftwareCommandServiceImpl(softwareRepository, relationBroadcastPort, roleRepository, mock(com.csm.paas.core.domain.licence.service.ILicenceQueryService.class), mock(com.csm.paas.core.domain.software.adapter.port.IGatewayRefreshPort.class));
     }
 
     private void existing(String icon, String screenshot) {

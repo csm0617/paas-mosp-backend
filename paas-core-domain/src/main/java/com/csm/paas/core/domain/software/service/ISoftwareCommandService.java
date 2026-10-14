@@ -118,4 +118,44 @@ public interface ISoftwareCommandService {
      * <p>恒返回 `true`（厂商 `Response.ok(true)`；即使 roleKeyList 为空也只是"删光不加"）。
      */
     boolean updateSoftwareRelateRole(String softwareId, java.util.List<String> roleKeyList);
+
+    /**
+     * 软件授权（厂商 `PUT /v1/software/{id}/licence` → `SoftwareController.activeSoftware:683-690` +
+     * `SoftwareService.activeSoftware:3140-3155`）。
+     *
+     * <ol>
+     *   <li>软件不存在 ⇒ 400 `software.not.exist`；</li>
+     *   <li>`machineCodeBase64 = ILicenceQueryService.machineCodeForSoftware()`；</li>
+     *   <li>`softwareCode = machineCodeBase64 + Base64(software.key)`（厂商 `geneSoftwareCode`）；</li>
+     *   <li>`checkSoftwareActiveCode(softwareCode, activeCode, software.key)`：
+     *       通过 ⇒ 返回 4 键 `LicenceInfo`，**并把 `g_software.active_code` 写成入参**（只写这一列）；
+     *       校验失败 ⇒ 返回 **null**（调用方把它翻成 400 `licence.activation.code.error`）。</li>
+     * </ol>
+     *
+     * @return 校验通过的授权信息；失败/未授权 ⇒ `Optional.empty()`
+     */
+    java.util.Optional<com.csm.paas.core.domain.licence.model.entity.LicenceInfoEntity> activateLicence(
+            String softwareId, String activeCode);
+
+    /**
+     * 清除软件授权（厂商 `DELETE /v1/software/{id}/licence` → `SoftwareService.resetSoftwareLicence:3157-3159`）：
+     * `UPDATE g_software SET active_code = NULL WHERE id = ?`——**只清 `active_code`**，
+     * 不动 `active_create`/`active_expire`（与 `cancelAuth` 的三列清空不同）。
+     */
+    void resetLicence(String softwareId);
+
+    /**
+     * 删除软件关联的服务（厂商 `DELETE /v1/software/{id}/relate_service` →
+     * `SoftwareController.unRelateServices:447-451` + `SoftwareService.unRelateServices:2101-2115`）。
+     *
+     * <ol>
+     *   <li>软件不存在 ⇒ **直接返回**（不报错）；</li>
+     *   <li>入参是**服务名列表**（厂商字段叫 `serviceIdList`，实际拿它跟 `g_software_app.app_name` 比）；
+     *       与现有 app_name 集合求交，**交集为空就直接返回**；</li>
+     *   <li>删 `g_software_app`（`software_id` + `app_name in (...)`）与
+     *       `g_service_port`（`software_id` + `service_name in (...)`）；</li>
+     *   <li>通知网关刷新（异步、失败不影响响应）。</li>
+     * </ol>
+     */
+    void unRelateServices(String softwareId, java.util.List<String> serviceNames);
 }

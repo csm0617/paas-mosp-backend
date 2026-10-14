@@ -32,6 +32,12 @@ public class SoftwareCommandServiceImpl implements ISoftwareCommandService {
     /** 按 roleKey 查 roleId（厂商 `roleMapper.select(where key = ?)` 后取第 0 条）。 */
     private final com.csm.paas.core.domain.role.adapter.repository.IRoleRepository roleRepository;
 
+    /** 软件授权校验要用的机器码与激活码验签（厂商 `licenceService`）。 */
+    private final com.csm.paas.core.domain.licence.service.ILicenceQueryService licenceQueryService;
+
+    /** 关联服务/授权变化后通知网关刷新（厂商 `notificationGateway`）。 */
+    private final com.csm.paas.core.domain.software.adapter.port.IGatewayRefreshPort gatewayRefreshPort;
+
     @Override
     public SoftwareEntity prepareNewSoftware(SoftwareFormVO form) {
         String key = form.getKey();
@@ -300,5 +306,50 @@ public class SoftwareCommandServiceImpl implements ISoftwareCommandService {
         if (key.length() > 36 || key.length() < 2) {
             throw new WrongArgumentException("software.key.identifier.illegal.length", key);
         }
+    }
+
+    // ---------- 软件授权（PUT / DELETE /v1/software/{id}/licence）----------
+
+    @Override
+    public java.util.Optional<com.csm.paas.core.domain.licence.model.entity.LicenceInfoEntity> activateLicence(
+            String softwareId, String activeCode) {
+        SoftwareEntity software = softwareRepository.queryById(softwareId)
+                .orElseThrow(() -> new WrongArgumentException("software.not.exist"));
+        // 厂商 `geneSoftwareCode(machineCodeBase64, key)` = 机器码 + Base64(软件 key)
+        String machineCodeBase64 = licenceQueryService.machineCodeForSoftware();
+        String softwareCode = machineCodeBase64 + java.util.Base64.getEncoder()
+                .encodeToString(software.getKey().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        var licenceInfo = java.util.Optional.ofNullable(licenceQueryService.checkSoftwareActiveCode(
+                softwareCode, activeCode, software.getKey()));
+        licenceInfo.ifPresent(info -> {
+            // 厂商只写 active_code（selective update）
+            softwareRepository.updateActiveCode(software.getId(), activeCode);
+            log.info("软件 {} 授权成功，到期 {}", software.getKey(), info.getEnd());
+        });
+        return licenceInfo;
+    }
+
+    @Override
+    public void resetLicence(String softwareId) {
+        softwareRepository.updateActiveCode(softwareId, null);
+        log.info("已清除软件 {} 的授权码", softwareId);
+    }
+
+    @Override
+    public void unRelateServices(String softwareId, java.util.List<String> serviceNames) {
+        if (softwareRepository.queryById(softwareId).isEmpty()) {
+            return;
+        }
+        java.util.Set<String> existing = new java.util.HashSet<>(
+                softwareRepository.queryAppNamesBySoftwareId(softwareId));
+        java.util.List<String> needDelete = (serviceNames == null ? java.util.List.<String>of() : serviceNames)
+                .stream().filter(existing::contains).toList();
+        if (needDelete.isEmpty()) {
+            return;
+        }
+        softwareRepository.deleteSoftwareAppsByNames(softwareId, needDelete);
+        softwareRepository.deleteServicePortsByNames(softwareId, needDelete);
+        gatewayRefreshPort.refresh();
+        log.info("软件 {} 解除关联服务 {}", softwareId, needDelete);
     }
 }
