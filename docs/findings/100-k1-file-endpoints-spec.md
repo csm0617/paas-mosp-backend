@@ -243,8 +243,19 @@ roleKey == "admin" 或 "dev" ⇒ **只**写这一条角色关系
 跳过规则（空用户名、admin/root、已存在且不覆盖、口令 <6）→ 长度校验（[2,36]）→ 新用户插入
 （UUID/createdAt/默认头像/口令）→ **角色关系**（上表）→（子角色关系）→ 覆盖模式走 `existUpdateUser`。
 
-**实现时仍需确认的最后一小点**：子角色关系（col4 解析出的 `subRoles`）在哪一步写库——
-**下一轮实现前补读一次即可**（不影响主体结构）。
+### 第 120 轮补读：**子角色关系的写入**（规格 100% 完成）
+
+紧跟角色关系之后（`UserService:1220-1230`）：
+
+```
+selectUsers 为空 或 col4 的 subRoles 为空 ⇒ 跳过
+逐个 subRole key：在 g_sub_role 里按 key 查（查不到就跳过）
+  写 g_user_sub_role：{userId, subRoleId, createdAt = currentTime}
+```
+
+⇒ **`/import` 的全部写库动作现在都已知**：`g_user`（插入或覆盖更新）+ `g_user_role`（角色关系，
+`admin`/`dev` 只写自身、其它自动加 `user`）+ `g_user_sub_role`（col4 的 JSON 列表）。
+**实现要素齐备，可直接开工**（六例验证 + 可回滚探针：核对这三张表的行数/内容并还原）。
 
 **建议**：把它排在 K1 最后、单独一轮；**不要**与其它端点混做。验证至少覆盖：
 ① 空表 ⇒ 200 且**库无变化**；② 只含 admin 的行 ⇒ 同样无变化；③ 新用户行 ⇒ 插入；
