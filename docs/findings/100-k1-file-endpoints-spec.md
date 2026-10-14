@@ -148,9 +148,27 @@ return Response.ok(userService.detail(userId));      // ← 响应就是"用户�
 - 取 `UserStatus`（`UserController.userStatus` 静态字段）并 `setEvent("MODIFY")`；
 - 组装 `UserInfo` 与"登录状态列表"，然后（**待读**）大概率写 `g_user.avatar` + 触发 TenX/审计同步。
 
-**库内事实**：`g_user` **只有 `avatar`（mediumtext）**，**没有 md5 列** ⇒ 传进来的 `md5` 不是写 `g_user`，
-而是给**别的路径**用的（TenX 用户同步 / 状态事件里的一环）——**这一点必须先读完再实现**，
-否则会漏掉一个外部副作用。
+**`md5` 的去向（第 107 轮读全，已解开）**：**它不落库，只用来决定一个图标标记**：
+
+```java
+if (既有 avatar 非空 && md5 非空) {
+    md5Hex = md5Hex(Base64.decode(user.getAvatar()));      // 把库里存的旧头像解码后再算 md5
+    icon = md5Hex.equals(md5) ? "UN-CHANGE" : "CHANGE";     // 与本次上传的文件 md5 比
+} else {
+    icon = "CHANGE";
+}
+userStatus.setUserInfo(userInfo);            // userInfo: userId/username/nickname/status/icon
+if (userStatus.isSendStatus()) {
+    webSocket.sendUserInfo(gson.toJson(userStatus));        // ← **唯一的"外部副作用"：WebSocket 推送**
+}
+userMapper.updateByPrimaryKeySelective(update);             // 只写 g_user.avatar = base64
+```
+
+⇒ 真正的副作用只有一条：**通过 WebSocket 推送一条用户变更消息**（`event=MODIFY`、带 `icon` 标记）；
+**没有** TenX 调用、**没有** md5 落库。所以实现清单是：大小校验 → 查用户 → 算 `icon` → **推 WebSocket** → 更新 `avatar` → 返回详情。
+
+（这也是"先读全再实现"的直接收益：如果按上一轮看到的部分实现，会**漏掉这条 WebSocket 推送**——
+而它在响应里完全看不出来。）
 
 ⇒ **本端点的实现前置**：① 读全 `updateAvatar`（尤其 md5 的去向）；② 确认"用户详情"响应能否复用
 我们已实现的 `/v1/user/detailByUserId` 装配（能复用就省一大块）。
