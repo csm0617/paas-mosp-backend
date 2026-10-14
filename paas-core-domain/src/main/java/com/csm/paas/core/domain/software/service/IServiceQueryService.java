@@ -369,4 +369,21 @@ public interface IServiceQueryService {
      * <p>入参为空 ⇒ 直接返回 true。
      */
     boolean batchRestartServices(String namespace, java.util.List<String> serviceNames);
+
+    /**
+     * kube-system 基础组件列表（厂商 `GET /v1/service/baseComponent?nodeName=` →
+     * `ServiceController.getKubeSystemInfo:3218-3311`，规格见 `docs/findings/128`）。
+     *
+     * <p>三个组件固定顺序：`weave-net`、`kube-proxy`、`kube-keepalived-vip`。每项含两个键
+     * `daemonSet`（DaemonSet 快照，读不到为 null）与 `v1PodList`（该节点上的 pod 快照，空则 null）。
+     *
+     * <p><b>标签选择器不一样</b>：`weave-net` 与 `kube-keepalived-vip` 用 `name=`，
+     * 而 **`kube-proxy` 用 `k8s-app=`**（照抄）。
+     *
+     * <p><b>两处"静默"</b>（照抄）：① 任何 K8s 读失败都**只记日志、不报错**（所以这个端点不会 400）；
+     * ② `kube-keepalived-vip` 的 pod 列表为空（或读取失败）时，**整个条目直接不出现**在响应里。
+     *
+     * @param nodeName 节点名（用于 `spec.nodeName` 过滤 pod）
+     */
+    java.util.List<java.util.Map<String, Object>> queryBaseComponents(String nodeName);
 }

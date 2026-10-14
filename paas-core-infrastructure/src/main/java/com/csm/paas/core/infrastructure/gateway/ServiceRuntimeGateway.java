@@ -484,6 +484,21 @@ public class ServiceRuntimeGateway {
         return true;
     }
 
+    /** 读某个 DaemonSet 的原样快照；**不存在返回 null**。 */
+    public Map<String, Object> readDaemonSetSnapshot(String namespace, String name) {
+        var ds = kubernetesClient.apps().daemonSets().inNamespace(namespace).withName(name).get();
+        return ds == null ? null : toSnapshot(ds);
+    }
+
+    /** 按"标签 + `spec.nodeName`"列 pod 的原样快照（厂商 `listNamespacedPod` 的两个 selector）。 */
+    public List<Map<String, Object>> listPodsByLabelAndNode(String namespace, String labelKey, String labelValue,
+                                                           String nodeName) {
+        return kubernetesClient.pods().inNamespace(namespace)
+                .withLabel(labelKey, labelValue)
+                .withField("spec.nodeName", nodeName)
+                .list().getItems().stream().map(this::toSnapshot).toList();
+    }
+
     /**
      * 给 pod 模板打注解 `kubectl.kubernetes.io/restartedAt` 并整份 replace
      * （厂商 `serviceRestart:3826-3912` 的滚动重启手法）。

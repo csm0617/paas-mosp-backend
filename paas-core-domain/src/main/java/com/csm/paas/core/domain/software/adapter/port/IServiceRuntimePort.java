@@ -227,4 +227,16 @@ public interface IServiceRuntimePort {
      * @return false = 工作负载不存在
      */
     boolean replaceWorkloadRestartedAt(String namespace, String serviceName, boolean deployment, String restartedAt);
+
+    // ---------- baseComponent（厂商 GET /v1/service/baseComponent）----------
+
+    /** 读某个 DaemonSet 的原样快照；**不存在返回 null**（厂商对读不到只记日志）。 */
+    java.util.Map<String, Object> readDaemonSetSnapshot(String namespace, String daemonSetName);
+
+    /**
+     * 按"标签 + `spec.nodeName`"列 pod 的原样快照（厂商 `listNamespacedPod(kube-system, fieldSelector=
+     * "spec.nodeName=<node>", labelSelector=…)`）。
+     */
+    java.util.List<java.util.Map<String, Object>> listPodsByLabelAndNode(String namespace, String labelKey,
+                                                                        String labelValue, String nodeName);
 }

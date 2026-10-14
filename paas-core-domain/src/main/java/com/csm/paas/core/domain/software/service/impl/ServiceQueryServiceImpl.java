@@ -901,6 +901,48 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
     }
 
     /**
+     * kube-system 基础组件列表（厂商 `getKubeSystemInfo:3218-3311`，规格见 `docs/findings/128`）。
+     */
+    @Override
+    public List<Map<String, Object>> queryBaseComponents(String nodeName) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        result.add(baseComponent("weave-net", "name", nodeName));
+        result.add(baseComponent("kube-proxy", "k8s-app", nodeName));
+        // 厂商：keepalived 的 pod 列表为空（或读取失败）⇒ **整个条目不出现**
+        Map<String, Object> keepAlived = baseComponent("kube-keepalived-vip", "name", nodeName);
+        if (keepAlived.get("v1PodList") != null) {
+            result.add(keepAlived);
+        }
+        return result;
+    }
+
+    /**
+     * 一个基础组件的两个键：`daemonSet` 与 `v1PodList`。
+     * <p>厂商对这两种读的异常**都只记日志**（组件条目照常出现，字段为 null）。
+     */
+    private Map<String, Object> baseComponent(String daemonSetName, String labelKey, String nodeName) {
+        Map<String, Object> row = new java.util.HashMap<>();
+        Object daemonSet = null;
+        try {
+            daemonSet = serviceRuntimePort.readDaemonSetSnapshot(KUBE_SYSTEM_NAMESPACE, daemonSetName);
+        } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+            log.error("获取{}组件服务出现异常，异常为:{}", daemonSetName, e.getMessage());
+        }
+        List<Map<String, Object>> pods = null;
+        try {
+            List<Map<String, Object>> found = serviceRuntimePort.listPodsByLabelAndNode(
+                    KUBE_SYSTEM_NAMESPACE, labelKey, daemonSetName, nodeName);
+            // 厂商：**只有非空才 set**（空列表时字段保持 null）
+            pods = found.isEmpty() ? null : found;
+        } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+            log.error("获取{}下所属节点:{}下的pod容器出现异常，异常为:{}", daemonSetName, nodeName, e.getMessage());
+        }
+        row.put("daemonSet", daemonSet);
+        row.put("v1PodList", pods);
+        return row;
+    }
+
+    /**
      * 批量重启（厂商 `serviceRestart:3826-3912`，规格见 `docs/findings/127`）。
      */
     @Override

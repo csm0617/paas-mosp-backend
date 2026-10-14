@@ -225,6 +225,25 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
     }
 
     @Override
+    public java.util.Map<String, Object> readDaemonSetSnapshot(String namespace, String daemonSetName) {
+        try {
+            return serviceRuntimeGateway.readDaemonSetSnapshot(namespace, daemonSetName);
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    @Override
+    public java.util.List<java.util.Map<String, Object>> listPodsByLabelAndNode(String namespace, String labelKey,
+                                                                               String labelValue, String nodeName) {
+        try {
+            return serviceRuntimeGateway.listPodsByLabelAndNode(namespace, labelKey, labelValue, nodeName);
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    @Override
     public boolean replaceWorkloadRestartedAt(String namespace, String serviceName, boolean deployment,
                                               String restartedAt) {
         try {

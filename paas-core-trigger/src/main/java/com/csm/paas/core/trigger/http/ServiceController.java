@@ -143,6 +143,19 @@ public class ServiceController {
     }
 
     /**
+     * 厂商 `GET /v1/service/baseComponent?nodeName=`：kube-system 基础组件列表。
+     *
+     * <p>固定顺序 `weave-net` / `kube-proxy` / `kube-keepalived-vip`；每项两个键 `daemonSet` 与 `v1PodList`；
+     * `kube-proxy` 的 pod 用 `k8s-app=` 选择器（另两个用 `name=`）；keepalived 没有 pod 时**整条不出现**。
+     * 规则见 `IServiceQueryService.queryBaseComponents`（规格 `findings/128`）。
+     */
+    @GetMapping("/v1/service/baseComponent")
+    public ResponseDTO<java.util.List<java.util.Map<String, Object>>> baseComponent(
+            @org.springframework.web.bind.annotation.RequestParam String nodeName) {
+        return ResponseDTO.ok(serviceQueryService.queryBaseComponents(nodeName));
+    }
+
+    /**
      * 厂商 `PUT /v1/service/batch-restart`：批量重启服务（body 是**服务名数组**）。
      *
      * <p>Deployment：先按 `system/svcName` 找第一个 pod 名写一条 `g_pod_event`（`restartNum = max(1, 历史最大值)`），
