@@ -31,7 +31,14 @@ public void exportConfigBySoftwareOrService(@RequestBody ExportConfig exportConf
 | --- | --- | --- |
 | 1 | **service 分支与 software 分支对"读不到 Deployment"的处理相反** | 前者 **400**、后者**跳过**——同一个端点里两种态度 |
 | 2 | **名字集合是 `HashSet` ⇒ 顺序不确定** | 所以导出文件的元素顺序**不可依赖**（对比时只能比集合） |
-| 3 | **"不带 key ⇒ 列全部 ConfigMap"是双重死路** | ① `key != null \|\| key.size() != 0` 的 `\|\|` bug 让该分支不可达；② 即便走到，它的 fieldSelector 是 **`!ingress-lb`**——**实测该 selector 非法**（`invalid selector: '!ingress-lb'`），API Server 返回 400 ⇒ 被 catch 成**空列表** ⇒ 导出恒为 `[]` |
+| 3 | **"不带 key ⇒ 列全部 ConfigMap"是死代码** | `key != null \|\| key.size() != 0` 的 `\|\|` bug 让该分支**不可达**（`key != null` 为真时已进第一支；`key` 为 null 时 `key.size()` 直接 NPE）。⇒ 导出恒为"按 key 收集"的结果 |
+
+> ⚠️ **更正（第 149 轮）**：本文件早前写的是"该分支的 selector `!ingress-lb` **非法** ⇒ 导出恒为 `[]`"——**这是错的**。
+> 厂商把它传在 `listNamespacedConfigMap` 的**第 6 个参数**（`labelSelector`），而 `!key` 是**合法的标签选择器语法**
+> （"该键不存在"）；我早前用 `kubectl --field-selector='!ingress-lb'` 验证，那是**字段选择器**，才报非法。
+> 实测对照：`kubectl -n gaop-namespace get cm -l '!ingress-lb'` **正常返回** `kube-root-ca.crt`。
+> 结论修正为：该分支**不可达**（`||` bug），但**若可达**，它会列出"不带 `ingress-lb` 标签"的全部 ConfigMap（不是空）。
+> 我们仍按"没有 key ⇒ 空列表"处理（B22 不变），只是**理由**从"selector 非法"改为"分支不可达"。
 
 ## 4. 实现与验证
 

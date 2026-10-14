@@ -277,4 +277,12 @@ public interface IServiceRuntimePort {
 
     /** 列命名空间里 `type=NodePort` 的 Service 原样快照。 */
     java.util.List<java.util.Map<String, Object>> listNodePortServices(String namespace);
+
+    /**
+     * 列**不带 `ingress-lb` 标签**的 ConfigMap（厂商 `listConfigMap` 传的
+     * `labelSelector = "!ingress-lb"`——标签选择器的"该键不存在"语法，**合法**）。
+     *
+     * <p>返回**整份列表快照**（含 `apiVersion`/`items`/`kind`/`metadata`），因为响应里要带上这些键。
+     */
+    java.util.Map<String, Object> listConfigMapsWithoutIngressLb(String namespace);
 }

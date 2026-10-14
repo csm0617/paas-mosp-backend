@@ -1448,6 +1448,64 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
         return value instanceof Map<?, ?> map ? (Map<String, Object>) map : null;
     }
 
+    /**
+     * 配置组列表（厂商 `listConfigMap:185-243`，规格见 `docs/findings/142`）。
+     */
+    @Override
+    public com.csm.paas.core.domain.software.model.entity.ConfigMapListEntity queryConfigMapList(
+            String namespace, int page, int size, String keyword) {
+        String normalizedKeyword = keyword == null || keyword.isBlank() ? null : keyword.replaceAll(" +", "");
+        Map<String, Object> listSnapshot;
+        try {
+            listSnapshot = serviceRuntimePort.listConfigMapsWithoutIngressLb(namespace);
+        } catch (Exception e) {
+            log.error("configmap列表查询失败异常", e);
+            throw new com.csm.paas.core.types.exception.SystemException("configmap.get.list.failed");
+        }
+        List<Map<String, Object>> all = itemsOf(listSnapshot);
+        // 厂商硬编码排除这两个名字
+        List<Map<String, Object>> filtered = all.stream()
+                .filter(v -> !"ingress-nginx-controller".equals(configMapName(v)))
+                .filter(v -> !"kube-root-ca.crt".equals(configMapName(v)))
+                .toList();
+        long total = filtered.size();
+        List<Map<String, Object>> pageItems;
+        if (normalizedKeyword == null) {
+            pageItems = slice(filtered, page, size);
+        } else {
+            List<Map<String, Object>> matched = filtered.stream()
+                    .filter(v -> configMapName(v) != null
+                            && configMapName(v).matches("(.*)" + normalizedKeyword + "(.*)"))
+                    .toList();
+            // 厂商：匹配为空 ⇒ items 置 null
+            pageItems = matched.isEmpty() ? null : slice(matched, page, size);
+        }
+        return com.csm.paas.core.domain.software.model.entity.ConfigMapListEntity.builder()
+                .apiVersion((String) listSnapshot.get("apiVersion"))
+                .kind((String) listSnapshot.get("kind"))
+                .metadata(asMap(listSnapshot.get("metadata")))
+                .items(pageItems)
+                .total(total)
+                .build();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> itemsOf(Map<String, Object> listSnapshot) {
+        Object items = listSnapshot == null ? null : listSnapshot.get("items");
+        return items instanceof List<?> list ? (List<Map<String, Object>>) list : List.of();
+    }
+
+    private static String configMapName(Map<String, Object> configMap) {
+        Map<String, Object> metadata = asMap(configMap.get("metadata"));
+        return metadata == null ? null : (String) metadata.get("name");
+    }
+
+    /** 厂商 `skip((page-1)*size).limit(size)`（越界自然为空）。 */
+    private static List<Map<String, Object>> slice(List<Map<String, Object>> source, int page, int size) {
+        long from = (long) (page - 1) * size;
+        return source.stream().skip(Math.max(from, 0)).limit(size).toList();
+    }
+
     /** 厂商 `getStringRandom(length)`：每位 `SecureRandom.nextInt(2)%2==0` 取 `a-z`，否则取 `0-9`。 */
     private static String randomString(int length) {
         java.security.SecureRandom random = new java.security.SecureRandom();

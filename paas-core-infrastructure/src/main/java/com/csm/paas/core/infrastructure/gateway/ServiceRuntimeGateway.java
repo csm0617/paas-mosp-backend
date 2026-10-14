@@ -535,6 +535,12 @@ public class ServiceRuntimeGateway {
         return cm == null ? null : cm.getData();
     }
 
+    /** 不带 `ingress-lb` 标签的 ConfigMap 列表（整份快照，含 items/metadata）。 */
+    public Map<String, Object> listConfigMapsWithoutIngressLb(String namespace) {
+        var list = kubernetesClient.configMaps().inNamespace(namespace).withoutLabel("ingress-lb").list();
+        return toSnapshot(list);
+    }
+
     /** `type=NodePort` 的 Service 原样快照。 */
     public List<Map<String, Object>> listNodePortServices(String namespace) {
         return kubernetesClient.services().inNamespace(namespace).list().getItems().stream()

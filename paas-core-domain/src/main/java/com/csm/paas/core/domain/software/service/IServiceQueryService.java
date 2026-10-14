@@ -469,4 +469,23 @@ public interface IServiceQueryService {
      */
     java.util.List<com.csm.paas.core.domain.software.model.valobj.NodePortUsedVO> queryNodePortUsed(
             String namespace, Integer port);
+
+    /**
+     * 配置组列表（厂商 `GET /v1/config_map?page=&size=&keyword=` →
+     * `ConfigMapController.listConfigMap:185-243`，规格见 `docs/findings/142`）。
+     *
+     * <p>规则：
+     * <ol>
+     *   <li>列 ConfigMap 时用**标签选择器 `!ingress-lb`**（"该标签不存在"，**合法语法**）；</li>
+     *   <li>再**硬编码排除**两个名字：`ingress-nginx-controller`、`kube-root-ca.crt`；</li>
+     *   <li>`keyword` 非空白 ⇒ 先只去掉**空格**，再按**正则 `(.*)<keyword>(.*)` 匹配名字**；
+     *       **匹配为空 ⇒ `items` 置 null**；</li>
+     *   <li>分页用 `skip((page-1)*size).limit(size)`；</li>
+     *   <li><b>`total` 恒为"排除两个名字之后、关键字过滤之前"的总数</b>——即使带了关键字，
+     *       `total` 也不反映命中数（厂商如此，照抄）；</li>
+     *   <li>任何异常 ⇒ 500 `configmap.get.list.failed`。</li>
+     * </ol>
+     */
+    com.csm.paas.core.domain.software.model.entity.ConfigMapListEntity queryConfigMapList(
+            String namespace, int page, int size, String keyword);
 }
