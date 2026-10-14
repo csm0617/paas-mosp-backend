@@ -400,6 +400,9 @@ Label: `wayfinder:map`
 - （**node_port 规格**）[findings/85](docs/findings/85-node-port-spec.md)：把 120 行的 `patchServicePorts` 读到"可直接翻译"（两个分支 + 异常映射 + 三处易错点 + 下一轮的实现与验证计划）。
   - 关键：**返回布尔**（`Response.ok(v1Service != null)`），A 分支"推导不出端口"时**返回 null ⇒ `data:false`**（静默失败）；`name` 公式 `<protocol>-<name>-<i>` **小写**；两分支错误消息不同（A 分支带服务名的中文 `SystemException`）。
   - 同族的 `POST /{serviceName}/nodePort` 只读到头部，**未逐行读完**，实现时不要把两者混为一谈。
+- （**认证审计 + K1 剩余清单**）[findings/91](docs/findings/91-k1-remaining-and-auth-audit.md)：厂商只有 Role/User/Public 三个控制器要会话（`getCurrentUser` 读 **Cookie**）；**服务域全部端点都不需要会话**（所以我们那句"原型尚未实现认证"是对的，不是缺口）。
+  - 发现一处差异（B9，已入 deviations）：`GET /v1/role/software` 无 Cookie 时厂商 401、我们返回 `{list:[],total:0}`。
+  - **K1 剩余端点清单**：`/v1/user/list`、`/redirect`、`/access_permission`、`/tenx_user` + **文件类**（`recovery`/`backup`/`export`/`import/template`/`import`/`update_avatar`）+ **破坏性** `reset_user`。⇒ K1 剩下主要是文件传输类，值得单独一轮（牵动 `g_upload_store_record` 与 `gaop-fdfs`）。
 - （**K1 边界**）[GET /v1/role/{roleId}/software](docs/findings/90-role-software-list.md)：实现"管理员校验 + 分页 + `order by \`order\`` + `{list,total}`"；`appName` 的 i18n 与 `url` 两种拼法**未实现**（库里 0 行无法对拉那两段）。
   - **顺带修掉一个潜伏问题**：`g_role_software` 的查询原来**没有 ORDER BY**，而厂商是 `order by \`order\``——因为库里 0 行，`/v1/role`、`/v1/role/list`、`/v1/role/software` 三个已完成端点从未暴露该差异。**这是"零行数据下的假通过"**，已给该查询补上排序（同时修了那三个端点）。
   - **（第 84 轮更正）认证路径其实能对拉**：真因是**我把 token 发错了地方**——厂商 `getCurrentUser(req):883-903` 从 **Cookie** 取 `gateway-token`，我当时用的是 HTTP 头。改用 Cookie 后厂商 200，且四组用例（两个战位/带 keyword/不存在的战位）**响应完全相等**（含"不存在的战位 → `{list:[],total:0}`，不是错误"）。

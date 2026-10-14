@@ -45,6 +45,7 @@
 | # | 端点/能力 | 缺什么 | 我们的证据来源 |
 | --- | --- | --- | --- |
 | C1 | `GET /v1/service/{serviceName}` | 厂商自身 500（A1） | `/v1/service` 列表项的 `ServicesItem` 形状（**已对拉**） |
+| B9 | `GET /v1/role/software` 无 Cookie 时 | 厂商抛 `UnauthorizedException`（401），我们返回 `{list:[],total:0}` | 影响低（前端总带 Cookie），但按"任何输入都一致"的门槛**应当改**；下次动 K1 时处理 | `findings/91` |
 | C2c | 影像域 `repositories`/`tags`/`existRepositories`/`allProjectImageList` | 数据源是 **Docker Registry API**（`dockerRegistryApiService.getImageListByProject`）；参考环境不可达 | 未实现（依赖地图见 `findings/81`） | `findings/81` |
 | C2d | `imageStorage` | 通过 **SSH** 连 `sshConfig.host` 取磁盘信息；参考环境连不上 ⇒ 厂商自己返回 `{free:0,total:0}` | 未实现 | `findings/81` |
 | C2b | `GET /v1/image/projectList` 的实现数据源 | 参考环境实际生效的是 `K3sImageServiceImpl`（查库 `g_image_group`），而我第一版照着 `K8sImageServiceImpl`（Harbor）实现 | 待按 K3s 实现重写；Harbor 版保留并标注"K8s 变体、参考环境不生效" | `findings/79` |
