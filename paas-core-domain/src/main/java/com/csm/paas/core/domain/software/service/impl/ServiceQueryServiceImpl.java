@@ -280,6 +280,61 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
         return true;
     }
 
+    @Override
+    public boolean updateServiceDiscovery(String namespace,
+                                          com.csm.paas.core.domain.software.model.valobj.UpdateServiceDiscoveryVO form) {
+        String serviceName = form == null ? null : form.getServiceName();
+        if (!"Service".equals(form == null ? null : form.getType())) {
+            // 厂商的另一条分支（写 g_service_port + patch 工作负载容器端口 + 通知网关）**尚未实现**：
+            // 规格已齐（docs/findings/118 第 3 节）。这里明确抛错而不是静默成功——静默成功会让前端以为改好了。
+            // 注意**不能**新造 i18n 键：`i18n/` 是厂商只读契约数据。厂商自己也有"把消息当键传"的写法
+            // （如 `new SystemException("设置NodePort失败：service为空")`），解析失败回退成文本本身。
+            throw new com.csm.paas.core.types.exception.SystemException(
+                    "patchService 的 type != \"Service\" 分支尚未实现（见 docs/findings/118 第 3 节）");
+        }
+        try {
+            // 1) Service 必须存在。厂商 fabric8/openapi 的 `readNamespacedService` 对 404 **抛异常**（不是返回 null），
+            //    被外层 `catch (ApiException)` 接住 ⇒ 实际响应是 400 `k8s.call.api.failed`；
+            //    源码里那句「设置NodePort失败：service为空」是**死代码**（findings/118 §2.1）。
+            if (!serviceRuntimePort.serviceExists(namespace, serviceName)) {
+                throw new com.csm.paas.core.types.exception.K8sApiException(
+                        "service " + serviceName + " not found");
+            }
+            // 2) 工作负载（Deployment 优先，回退 StatefulSet）第一个容器的端口
+            var containerPorts = serviceRuntimePort.readWorkloadContainerPorts(namespace, serviceName);
+            if (containerPorts == null) {
+                // 厂商这里抛 SystemException，但它在外层 `catch (Exception)` 之内 ⇒ 被吞成 400
+                throw new com.csm.paas.core.types.exception.WrongArgumentException(
+                        "service.update.service.discovery.failed");
+            }
+            // 3) 用容器端口重建 Service 的 ports（name 小写拼接、nodePort 显式置 null）
+            List<com.csm.paas.core.domain.software.model.valobj.ServicePortSpecVO> specs = new ArrayList<>();
+            for (int i = 0; i < containerPorts.size(); i++) {
+                var cp = containerPorts.get(i);
+                specs.add(com.csm.paas.core.domain.software.model.valobj.ServicePortSpecVO.builder()
+                        .appProtocol(cp.getProtocol())
+                        .name((cp.getProtocol() + "-" + serviceName + "-" + i).toLowerCase())
+                        .nodePort(null)
+                        .port(cp.getContainerPort())
+                        .protocol(cp.getProtocol())
+                        .targetPort(cp.getContainerPort())
+                        .build());
+            }
+            // 4) type 写死 ClusterIP，整份 merge-patch
+            serviceRuntimePort.patchServicePorts(namespace, serviceName, "ClusterIP", specs);
+            return true;
+        } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+            log.error("修改服务发现配置失败（K8s API）: {}", e.getMessage());
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("k8s.call.api.failed");
+        } catch (com.csm.paas.core.types.exception.WrongArgumentException e) {
+            throw e;   // 上面显式抛的那条（工作负载不存在）
+        } catch (Exception e) {
+            log.error("修改服务发现配置失败", e);
+            throw new com.csm.paas.core.types.exception.WrongArgumentException(
+                    "service.update.service.discovery.failed");
+        }
+    }
+
     /** 厂商的随机端口分配：`rand.nextInt(65535) + 10000`，命中已用则重试，最多 10 次。 */
     private static int randomFreeNodePort(List<Integer> used) {
         java.security.SecureRandom rand = new java.security.SecureRandom();

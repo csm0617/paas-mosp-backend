@@ -120,6 +120,29 @@ public class ServiceController {
     }
 
     /**
+     * 厂商 `PUT /v1/service/patchService`：修改服务发现的配置信息（请求体 `UpdateServiceDiscoveryForm`）。
+     *
+     * <p>按 `type` 分两条路径：`"Service"` ⇒ 用容器端口重建 Service 的 ports 并把 type 写死 `ClusterIP`
+     * （已实现）；其它 ⇒ 写 `g_service_port` + patch 工作负载容器端口（**尚未实现**，规格见 `findings/118`）。
+     * <p>返回 `data:true`；错误语义见 `IServiceQueryService.updateServiceDiscovery`。
+     */
+    @org.springframework.web.bind.annotation.PutMapping("/v1/service/patchService")
+    public ResponseDTO<Boolean> patchService(
+            @org.springframework.web.bind.annotation.RequestBody com.csm.paas.core.api.dto.UpdateServiceDiscoveryDTO form) {
+        var vo = com.csm.paas.core.domain.software.model.valobj.UpdateServiceDiscoveryVO.builder()
+                .type(form == null ? null : form.getType())
+                .serviceName(form == null ? null : form.getServiceName())
+                .portList(form == null || form.getPortList() == null ? null
+                        : form.getPortList().stream()
+                        .map(p -> com.csm.paas.core.domain.software.model.valobj.UpdatePortItemVO.builder()
+                                .containerPort(p.getContainerPort()).protocol(p.getProtocol()).name(p.getName())
+                                .port(p.getPort()).targetPort(p.getTargetPort()).build())
+                        .toList())
+                .build();
+        return ResponseDTO.ok(serviceQueryService.updateServiceDiscovery(namespace, vo));
+    }
+
+    /**
      * 厂商 `PUT /v1/service/scale?serviceName&scale`：改副本数，返回**整份 patch 后的对象**。
      * <p>先 strategic-merge-patch Deployment；失败回退 StatefulSet；都失败 → 500/`code=-1`。
      */

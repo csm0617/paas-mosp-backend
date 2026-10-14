@@ -155,4 +155,27 @@ public interface IServiceQueryService {
      */
     boolean updateServiceNodePortsEndpoint(String namespace, String serviceName, String type,
                                            java.util.List<com.csm.paas.core.domain.software.model.valobj.NodePortConfigVO> nodePorts);
+
+    /**
+     * 修改服务发现的配置信息（厂商 `PUT /v1/service/patchService` → `ServiceController.updateServiceDiscovery:1014-1163`，
+     * 规格见 `docs/findings/118`）。
+     *
+     * <p>按 `type` 分两条路径：
+     * <ul>
+     *   <li><b>`type == "Service"`（本方法已实现）</b>：读 Service 与工作负载的第一个容器端口 →
+     *       用容器端口重建 `spec.ports`（`name` = `"<protocol>-<serviceName>-<i>"` 小写、`appProtocol` = protocol、
+     *       `nodePort` = null、`targetPort` = containerPort）→ `spec.type` **写死 `ClusterIP`** → 整份 merge-patch；</li>
+     *   <li>其它 `type`（**未实现**，规格已齐）：写 `g_service_port` + patch 工作负载容器端口 + 通知网关。</li>
+     * </ul>
+     *
+     * <p><b>错误语义（照抄厂商，注意它的 500 是发不出去的）</b>：
+     * Service 不存在 → 400 `k8s.call.api.failed`（厂商 fabric8/openapi 的 `readNamespacedService` 对 404 **抛异常**
+     * 而不是返回 null，被外层 `catch (ApiException)` 接住；源码里那句「设置NodePort失败：service为空」是死代码）；
+     * 工作负载不存在、以及其它任何异常 → 400 `service.update.service.discovery.failed`
+     * （厂商内层抛的 `SystemException` 被外层 `catch (Exception)` 吞掉）。
+     *
+     * @return 恒为 `true`（厂商 `Response.ok(true)`；成功路径）
+     */
+    boolean updateServiceDiscovery(String namespace,
+                                   com.csm.paas.core.domain.software.model.valobj.UpdateServiceDiscoveryVO form);
 }

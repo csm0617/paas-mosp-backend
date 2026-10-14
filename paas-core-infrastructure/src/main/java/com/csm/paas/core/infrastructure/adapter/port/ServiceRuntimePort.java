@@ -124,7 +124,13 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
     @Override
     public Map<String, Object> patchServicePorts(String namespace, String serviceName, String type,
                                                  List<com.csm.paas.core.domain.software.model.valobj.ServicePortSpecVO> ports) {
-        return serviceRuntimeGateway.patchServicePorts(namespace, serviceName, type, toK8sPorts(ports));
+        try {
+            return serviceRuntimeGateway.patchServicePorts(namespace, serviceName, type, toK8sPorts(ports));
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            // 分层：domain 不认识 fabric8（原来这里直接漏出去，与本类其它方法不一致）。
+            // 消息原样保留——`updateServiceNodePort` 靠 `msg.contains("422")` 判端口占用。
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
     }
 
     @Override
