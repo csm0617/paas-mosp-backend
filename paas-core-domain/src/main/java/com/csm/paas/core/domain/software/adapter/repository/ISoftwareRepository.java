@@ -121,4 +121,7 @@ public interface ISoftwareRepository {
 
     /** 写入授权（`active_create`/`active_code`/`active_expire`；**不动 `updated_at`**，照抄厂商）。 */
     void saveSoftwareAuth(String softwareId, long activeCreate, String activeCode, long activeExpire);
+
+    /** 某服务的 Pod 重启记录（厂商 `GET /v1/service/restartInfo`，按 `create_at` 倒序）。 */
+    List<com.csm.paas.core.domain.software.model.valobj.PodRestartInfoVO> queryPodRestartInfo(String serviceName);
 }

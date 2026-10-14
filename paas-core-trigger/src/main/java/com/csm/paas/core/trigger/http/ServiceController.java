@@ -143,6 +143,20 @@ public class ServiceController {
         return ResponseDTO.ok(null);
     }
 
+    /**
+     * 厂商 `GET /v1/service/restartInfo?serviceName=`：某服务的 Pod 重启记录（`{podName,createTime,restartCount}`）。
+     * <p>查 `g_pod_event`（`service_name` 等值、`create_at` 倒序）；**没有记录返回空数组**。
+     */
+    @GetMapping("/v1/service/restartInfo")
+    public ResponseDTO<java.util.List<com.csm.paas.core.api.dto.PodRestartInfoDTO>> restartInfo(
+            @org.springframework.web.bind.annotation.RequestParam String serviceName) {
+        return ResponseDTO.ok(serviceQueryService.queryRestartInfo(serviceName).stream()
+                .map(v -> com.csm.paas.core.api.dto.PodRestartInfoDTO.builder()
+                        .podName(v.getPodName()).createTime(v.getCreateTime()).restartCount(v.getRestartCount())
+                        .build())
+                .toList());
+    }
+
     @GetMapping("/v1/service/labels")
     public ResponseDTO<java.util.List<com.csm.paas.core.api.dto.LabelListDTO>> labels() {
         var merged = serviceQueryService.queryNodeLabels();

@@ -213,6 +213,15 @@ public class SoftwareRepository implements ISoftwareRepository {
         softwareDao.saveSoftwareAuth(softwareId, activeCreate, activeCode, activeExpire);
     }
 
+    @Override
+    public List<com.csm.paas.core.domain.software.model.valobj.PodRestartInfoVO> queryPodRestartInfo(String serviceName) {
+        return softwareDao.selectPodEvents(serviceName).stream()
+                .map(po -> com.csm.paas.core.domain.software.model.valobj.PodRestartInfoVO.builder()
+                        .podName(po.getPodName()).restartCount(po.getRestartCount()).createTime(po.getCreateAt())
+                        .build())
+                .toList();
+    }
+
     private SoftwarePO toPO(SoftwareEntity s) {
         SoftwarePO po = new SoftwarePO();
         po.setId(s.getId());

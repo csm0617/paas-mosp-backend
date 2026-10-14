@@ -321,6 +321,10 @@ Label: `wayfinder:map`
 - 当前：46 端点映射、38 测试类 **236 条全绿**、81 提交、63 篇 findings。
 - 下一步优先序：服务切片同模式推进 → K2 跨域（`/auth` 列表可对拉；CS 上传/导入导出需先定边界）→ K3 侧效应 → 把"不可验证项"整理成对外偏离清单。
 
+- （**服务切片 + 影像域依赖地图**）[GET /v1/service/restartInfo](docs/findings/81-service-restart-info.md)：三种情形**对拉完全相等**（`gaop-web`/`gaop-gateway-auth` 用库里已有真实数据、`no-such-svc` → 空数组）。
+  - 两处照抄点：键顺序 `podName → createTime → restartCount`（厂商声明顺序，我第一版后两个写反）；只取三列、无记录是**空数组**。**服务切片 11/33**。
+  - **影像域依赖地图（本轮顺带查清）**：只有 `projectList` 是**纯库读取**（已对拉）；`repositories`/`allProjectImageList`/`existRepositories`/`getImageTagList` 都走 **Docker Registry API**；`imageStorage` 走 **SSH** 取磁盘（厂商自己也连不上 ⇒ 0/0）。⇒ 影像域可验证部分**基本到 projectList 为止**，其余属"依赖外部设施"，**不要在没有对端时硬写**。
+  - 测试 266 → **268 条**全绿。
 - （**影像域落地**）[GET /v1/image/projectList 实现](docs/findings/78-image-projectlist-implemented.md)：三步照抄（Harbor 全量 → 过滤 `system_containers`/`system_store` → `creation_time` **字符串**倒序 → 分页），配置项与厂商同名（`server.host.harbor`/`docker.username`/`docker.password`，**仓库不写口令**）。
   - **最容易写错的一处**：契约键是 **snake_case**（厂商 `@JsonProperty`），域对象是 camelCase ⇒ 用 `ImageProjectAssembler` 显式 Map 固定 11 键名称与顺序，并写**回放测试**（从实测样本读键集合断言一致）。
   - 两处照抄：鉴权头是 URL-safe base64（厂商 `getUrlEncoder()`）；`creation_time` 是 String 且可能畸形（实测 `+58753-04-29…`），不解析成时间。

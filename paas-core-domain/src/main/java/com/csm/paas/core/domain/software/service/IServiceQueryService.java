@@ -94,4 +94,12 @@ public interface IServiceQueryService {
      */
     boolean updateServiceCommand(String namespace, String serviceName,
                                  java.util.List<String> command, java.util.List<String> args);
+
+    /**
+     * 某服务的 Pod 重启记录（厂商 `GET /v1/service/restartInfo?serviceName=`，
+     * `ServiceController:3950-3965`）：查 `g_pod_event`（`service_name` 等值、`create_at` 倒序），
+     * 映射成 `{podName, createTime, restartCount}`；**没有记录就返回空数组**（不报错）。
+     */
+    java.util.List<com.csm.paas.core.domain.software.model.valobj.PodRestartInfoVO> queryRestartInfo(
+            String serviceName);
 }

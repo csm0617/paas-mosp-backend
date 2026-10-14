@@ -145,6 +145,17 @@ public interface ISoftwareDao {
     int clearSoftwareAuth(@Param("id") String id, @Param("updatedAt") long updatedAt);
 
     /**
+     * 某服务的 Pod 重启记录（厂商 `GET /v1/service/restartInfo` → `podEventMapper.select(...)`）：
+     * `where service_name = ? order by create_at desc`——**不映射其它列**，只取三个字段。
+     */
+    @Select("""
+            SELECT pod_name, restart_count, create_at FROM g_pod_event
+            WHERE service_name = #{serviceName}
+            ORDER BY create_at DESC
+            """)
+    List<com.csm.paas.core.infrastructure.dao.po.PodEventPO> selectPodEvents(@Param("serviceName") String serviceName);
+
+    /**
      * 写入软件授权（厂商 `authSoftware:3264-3267`：设 `active_create`/`active_code`/`active_expire` 后整行更新；
      * **不设 `updated_at`**——照抄）。
      */

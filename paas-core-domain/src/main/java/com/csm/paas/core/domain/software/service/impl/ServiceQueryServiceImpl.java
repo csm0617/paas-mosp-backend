@@ -32,6 +32,10 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
     @Resource
     private IServiceAuthRepository serviceAuthRepository;
 
+    /** Pod 重启记录来自 `g_pod_event`（软件域仓储里已有的 dao 也能查，但归属放这里更清晰）。 */
+    @Resource
+    private com.csm.paas.core.domain.software.adapter.repository.ISoftwareRepository podEventRepository;
+
     /** i18n 自动名落在 `g_setting`（键形如 `i18n.service.<lang>.<serviceKey>`）。 */
     @Resource
     private com.csm.paas.core.domain.setting.adapter.repository.ISettingRepository i18nRepository;
@@ -103,6 +107,12 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
                     "service.service.name.not.found", serviceName);
         }
         return true;
+    }
+
+    @Override
+    public List<com.csm.paas.core.domain.software.model.valobj.PodRestartInfoVO> queryRestartInfo(String serviceName) {
+        // 厂商用 serviceName 作为**请求参数**（不是 body/路径）；查库在仓储里，这里只做归属
+        return podEventRepository.queryPodRestartInfo(serviceName);
     }
 
     @Override
