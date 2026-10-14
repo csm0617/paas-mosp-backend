@@ -56,6 +56,9 @@ public class UserController {
     private com.csm.paas.core.domain.user.service.IUserAccessService userAccessService;
 
     @Resource
+    private com.csm.paas.core.domain.user.service.IUserRolesQueryService userRolesQueryService;
+
+    @Resource
     private IUserRepository userRepository;
 
     @Resource
@@ -93,6 +96,21 @@ public class UserController {
             throw new com.csm.paas.core.types.exception.WrongArgumentException("user.not.logged.in.or.expired");
         }
         return ResponseDTO.ok(userAccessService.checkAccessPermission(session.get().getUsername(), path));
+    }
+
+    /**
+     * 厂商 `GET /v1/user/list?page&size&keyword`：用户列表（条目是 `UserRoles`，16 键）。
+     * <p>与 `/v1/user/info` 的三处不同见 `IUserRolesQueryService`；`roles` 复用 `/v1/role` 的装配。
+     */
+    @GetMapping("/v1/user/list")
+    public ResponseDTO<com.csm.paas.core.api.dto.UserRoleListResponseDTO> userRolesList(
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String keyword) {
+        return ResponseDTO.ok(com.csm.paas.core.trigger.assembler.UserRolesAssembler.toResponse(
+                userRolesQueryService.queryUserRolesPage(
+                        PageUtils.normalizePage(page), PageUtils.normalizeSize(size),
+                        keyword == null ? null : keyword.replaceAll(" +", ""))));
     }
 
     @GetMapping("/v1/user/info")

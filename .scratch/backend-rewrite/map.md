@@ -400,6 +400,10 @@ Label: `wayfinder:map`
 - （**node_port 规格**）[findings/85](docs/findings/85-node-port-spec.md)：把 120 行的 `patchServicePorts` 读到"可直接翻译"（两个分支 + 异常映射 + 三处易错点 + 下一轮的实现与验证计划）。
   - 关键：**返回布尔**（`Response.ok(v1Service != null)`），A 分支"推导不出端口"时**返回 null ⇒ `data:false`**（静默失败）；`name` 公式 `<protocol>-<name>-<i>` **小写**；两分支错误消息不同（A 分支带服务名的中文 `SystemException`）。
   - 同族的 `POST /{serviceName}/nodePort` 只读到头部，**未逐行读完**，实现时不要把两者混为一谈。
+- （**已实现**）[GET /v1/user/list](docs/findings/99-user-list-implemented.md)：**四组用例对拉完全相等**（分页/keyword/第二页/超长 keyword 400 文案逐字相同）。
+  - 结构：新建 `IUserRolesQueryService`/`UserRolesQueryService`（`roles` 要复用 `/v1/role` 装配，塞进 `UserQueryServiceImpl` 会牵连 4 处测试构造）；域实体 `UserRolesEntity` **故意不含 `nickname`**（厂商从不 set ⇒ 让"填错"在类型层面不可能）；装配器复用 `RoleListAssembler.toItemDTO`、空集合兜底 `List.of()`；查询**不过滤 root**。
+  - **如实标注**：`subRoles` 在本环境为 `[]`，非空形状**未对拉验证**（已映射全部标量字段，`userList`/`roleList` 未映射）⇒ 出现带子角色的用户时需按样本补齐。
+  - 端点映射 61 → **62**；测试 289 → **293 条**全绿。
 - （**user/list 规格**）[findings/98](docs/findings/98-user-list-spec.md)：与 `/v1/user/info` **同一个查询、不同条目形状**——`UserInfoList`(11 字段) vs `UserRoles`(16 字段)；字段差已逐项列出：去掉 `belongUsers`、加上 `email/birth/phone/avatar/uuid` 与布尔 `admin`。
   - 下一轮要改的点已定位：`UserInfoEntity` 缺 5 个字段（+ `IUserDao` 查询补列）→ 新增 `UserRolesDTO`/`UserRoleListResponseDTO`/装配器（`admin` 由 roles 是否含 `"admin"` 推出）→ 控制器加映射 → **关键字长度校验**（照抄"带 % 算长度 > 38"）。
   - 验证计划：分页/keyword/超长 keyword(400)/第二页 四例对拉。注意 `/v1/user/list` **不返回口令哈希**，无偏离。

@@ -14,6 +14,7 @@ public interface IUserQueryService {
      */
     UserInfoPageEntity queryUserInfoPage(int page, int size, String keyword);
 
+
     /**
      * 用户详情（厂商 `GET /v1/user/detailByUserId`）。
      * <p>不存在时抛 `user.missing.user`（厂商 `UserService.java:1753`——注意不是 `user.not.found`）。
