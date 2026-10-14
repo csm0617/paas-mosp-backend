@@ -279,6 +279,42 @@ public class ServiceRuntimeGateway {
         return true;
     }
 
+    /**
+     * 读 Deployment 第一个容器的端口声明（厂商 `patchServicePorts` A 分支用它推导 Service 端口）。
+     * <p>**返回 null 表示 Deployment 不存在**；返回空列表表示"存在但没有声明端口"——两者语义不同，不能混。
+     */
+    public List<io.fabric8.kubernetes.api.model.ContainerPort> readDeploymentContainerPorts(String namespace, String name) {
+        var d = kubernetesClient.apps().deployments().inNamespace(namespace).withName(name).get();
+        if (d == null) {
+            return null;
+        }
+        var containers = d.getSpec().getTemplate().getSpec().getContainers();
+        return containers == null || containers.isEmpty() || containers.get(0).getPorts() == null
+                ? java.util.List.of() : containers.get(0).getPorts();
+    }
+
+    public boolean serviceExists(String namespace, String name) {
+        return kubernetesClient.services().inNamespace(namespace).withName(name).get() != null;
+    }
+
+    /**
+     * 把 Service 的 `spec.ports` 与 `spec.type` 整份 merge-patch（厂商两个分支最后都做这件事），
+     * 返回 patch 后的 Service 快照；Service 不存在返回 null。
+     */
+    public Map<String, Object> patchServicePorts(String namespace, String name, String type,
+                                                 List<io.fabric8.kubernetes.api.model.ServicePort> ports) {
+        var svc = kubernetesClient.services().inNamespace(namespace).withName(name).get();
+        if (svc == null) {
+            return null;
+        }
+        svc.getSpec().setPorts(ports);
+        svc.getSpec().setType(type);
+        var patched = kubernetesClient.services().inNamespace(namespace).withName(name)
+                .patch(io.fabric8.kubernetes.client.dsl.base.PatchContext.of(
+                        io.fabric8.kubernetes.client.dsl.base.PatchType.JSON_MERGE), Serialization.asJson(svc));
+        return patched == null ? null : toSnapshot(patched);
+    }
+
     public List<StatefulSet> listStatefulSets(String namespace) {
         List<StatefulSet> items = kubernetesClient.apps().statefulSets().inNamespace(namespace).list().getItems();
         log.info("fabric8 读到 namespace:{} 的 StatefulSet {} 个", namespace, items.size());

@@ -392,6 +392,9 @@ Label: `wayfinder:map`
   - 同族第 4 例：`edit()`vs`patch`、`fixedName`vs`gaop/serviceLabel`、存在vs值为空、现在是"列表过滤"vs"授权列表过滤"——**复用相邻实现的代价，是在它们分叉的那一点静默出错**。
   - 反直觉但已确认：`active_expire = 0` → status **2**（第一分支先命中），`== 0 → 0` 那句在 now>0 时不可达；已用单测钉住。
   - 测试 236 → **240 条**全绿；探针已清、无残留。
+- （**服务切片 14/33**）[POST /v1/service/{serviceName}/node_port 实现](docs/findings/86-node-port-implemented.md)：独立 namespace（`paas-verify-np`）**四种情形全通过**——A 推导（名字 `tcp-np-svc-0` 小写公式、nodePort 自动分配）、**B 容器无端口 → `data:false` 静默路径**、C 不存在 → 500（消息带服务名）、D 显式 nodePorts 生效。
+  - **一轮写完、零返工**：因为上一轮已把 120 行读到可翻译（`findings/85`）。对照：`gaop` 边读边写连错两轮、影像域读错实现类整版返工——"先规格后实现"在本会话第二次零返工（第一次 `serviceAuth`）。
+  - 测试 273 → **278 条**全绿。
 - （**node_port 规格**）[findings/85](docs/findings/85-node-port-spec.md)：把 120 行的 `patchServicePorts` 读到"可直接翻译"（两个分支 + 异常映射 + 三处易错点 + 下一轮的实现与验证计划）。
   - 关键：**返回布尔**（`Response.ok(v1Service != null)`），A 分支"推导不出端口"时**返回 null ⇒ `data:false`**（静默失败）；`name` 公式 `<protocol>-<name>-<i>` **小写**；两分支错误消息不同（A 分支带服务名的中文 `SystemException`）。
   - 同族的 `POST /{serviceName}/nodePort` 只读到头部，**未逐行读完**，实现时不要把两者混为一谈。

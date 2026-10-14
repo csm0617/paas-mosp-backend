@@ -67,4 +67,16 @@ public interface IServiceRuntimePort {
     /** 设置延时启动（0 = 取消；>0 = 写注解 + 注入 initContainer）；Deployment 不存在返回 false。 */
     boolean setDeploymentStartup(String namespace, String serviceName, long delaySeconds,
                                  String harborHost, String initImage);
+
+    // ---------- node_port（厂商 POST /v1/service/{serviceName}/node_port）----------
+
+    /** Deployment 第一个容器的端口声明；**null = Deployment 不存在**，空列表 = 存在但没声明端口。 */
+    java.util.List<com.csm.paas.core.domain.software.model.valobj.ContainerPortVO> readDeploymentContainerPorts(
+            String namespace, String serviceName);
+
+    boolean serviceExists(String namespace, String serviceName);
+
+    /** 整份 merge-patch Service 的 `spec.ports`/`spec.type`；Service 不存在返回 null。 */
+    java.util.Map<String, Object> patchServicePorts(String namespace, String serviceName, String type,
+                                                    java.util.List<com.csm.paas.core.domain.software.model.valobj.ServicePortSpecVO> ports);
 }

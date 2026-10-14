@@ -123,4 +123,22 @@ public interface IServiceQueryService {
      */
     boolean setServiceStartup(String namespace, java.util.List<String> serviceNames, long time,
                               String harborHost, String initImage);
+
+    /**
+     * 设置服务的 NodePort（厂商 `POST /v1/service/{serviceName}/node_port` → `patchServicePorts:701-815`）。
+     *
+     * <p>两个分支（详见 `docs/findings/85`）：
+     * <ul>
+     *   <li>**A**：`type == "NodePort"` 且 `nodePorts` 为空 → 读 Deployment 的第一个容器端口**推导** Service 端口；
+     *       Deployment 不存在 → 500（消息里带服务名）；Service 不存在 → 500「设置NodePort失败：service为空」；
+     *       **容器没有声明端口时什么都不做，返回 false**（⇒ 响应 `data:false`，静默失败）；</li>
+     *   <li>**B**：其它 → 按 `nodePorts` 列表构建（`type == "NodePort"` 时才填 `nodePort`）。</li>
+     * </ul>
+     * 两分支最后都整份 merge-patch Service；端口被占用（K8s 422 + `provided port is already allocated`）→ 400
+     * `service.port.occupied`，其它 API 异常 → 500 `service.update.nodeport.failed`。
+     *
+     * @return 是否真的改动了 Service（对应厂商 `Response.ok(v1Service != null)`）
+     */
+    boolean updateServiceNodePort(String namespace, String serviceName, String type,
+                                  java.util.List<com.csm.paas.core.domain.software.model.valobj.NodePortConfigVO> nodePorts);
 }

@@ -106,6 +106,38 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
     }
 
     @Override
+    public List<com.csm.paas.core.domain.software.model.valobj.ContainerPortVO> readDeploymentContainerPorts(
+            String namespace, String serviceName) {
+        var ports = serviceRuntimeGateway.readDeploymentContainerPorts(namespace, serviceName);
+        if (ports == null) {
+            return null;   // Deployment 不存在——与"没有端口"区分开
+        }
+        return ports.stream().map(p -> com.csm.paas.core.domain.software.model.valobj.ContainerPortVO.builder()
+                .protocol(p.getProtocol()).containerPort(p.getContainerPort()).build()).toList();
+    }
+
+    @Override
+    public boolean serviceExists(String namespace, String serviceName) {
+        return serviceRuntimeGateway.serviceExists(namespace, serviceName);
+    }
+
+    @Override
+    public Map<String, Object> patchServicePorts(String namespace, String serviceName, String type,
+                                                 List<com.csm.paas.core.domain.software.model.valobj.ServicePortSpecVO> ports) {
+        List<io.fabric8.kubernetes.api.model.ServicePort> k8sPorts = ports.stream()
+                .map(p -> new io.fabric8.kubernetes.api.model.ServicePortBuilder()
+                        .withAppProtocol(p.getAppProtocol())
+                        .withName(p.getName())
+                        .withPort(p.getPort())
+                        .withProtocol(p.getProtocol())
+                        .withTargetPort(new io.fabric8.kubernetes.api.model.IntOrString(p.getTargetPort()))
+                        .withNodePort(p.getNodePort())
+                        .build())
+                .toList();
+        return serviceRuntimeGateway.patchServicePorts(namespace, serviceName, type, k8sPorts);
+    }
+
+    @Override
     public Map<String, List<String>> queryNodeLabels() {
         // 厂商：遍历每个节点的 metadata.labels，按 label 键把"值"塞进一个 set（HashMap 聚合，顺序不可依赖）
         Map<String, java.util.Set<String>> collected = new java.util.HashMap<>();

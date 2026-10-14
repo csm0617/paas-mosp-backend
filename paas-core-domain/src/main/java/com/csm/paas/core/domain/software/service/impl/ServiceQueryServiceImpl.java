@@ -12,6 +12,7 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -139,6 +140,66 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
             }
         }
         return true;
+    }
+
+    @Override
+    public boolean updateServiceNodePort(String namespace, String serviceName, String type,
+                                         List<com.csm.paas.core.domain.software.model.valobj.NodePortConfigVO> nodePorts) {
+        String effectiveType = (type == null || type.isBlank()) ? "ClusterIP" : type;   // 厂商默认值
+        List<com.csm.paas.core.domain.software.model.valobj.ServicePortSpecVO> specs = new ArrayList<>();
+
+        if ("NodePort".equals(effectiveType) && (nodePorts == null || nodePorts.isEmpty())) {
+            // A 分支：从 Deployment 的第一个容器端口推导
+            var containerPorts = serviceRuntimePort.readDeploymentContainerPorts(namespace, serviceName);
+            if (containerPorts == null) {
+                // 厂商：消息本身就是参数（带服务名的中文），走 SystemException（500/-1）
+                throw new com.csm.paas.core.types.exception.SystemException(
+                        "设置NodePort失败：该服务" + serviceName + "无法获取deployment信息");
+            }
+            if (!serviceRuntimePort.serviceExists(namespace, serviceName)) {
+                throw new com.csm.paas.core.types.exception.SystemException("设置NodePort失败：service为空");
+            }
+            if (containerPorts.isEmpty()) {
+                return false;   // 厂商：ports 为空 → 什么都不做，v1Service 为 null ⇒ data:false
+            }
+            for (int i = 0; i < containerPorts.size(); i++) {
+                var cp = containerPorts.get(i);
+                specs.add(com.csm.paas.core.domain.software.model.valobj.ServicePortSpecVO.builder()
+                        .appProtocol(cp.getProtocol())
+                        .name((cp.getProtocol() + "-" + serviceName + "-" + i).toLowerCase())
+                        .port(cp.getContainerPort())
+                        .protocol(cp.getProtocol())
+                        .targetPort(cp.getContainerPort())
+                        .build());
+            }
+        } else {
+            // B 分支：按入参构建
+            if (!serviceRuntimePort.serviceExists(namespace, serviceName)) {
+                throw new com.csm.paas.core.types.exception.SystemException("设置NodePort失败：service为空");
+            }
+            if ("NodePort".equals(effectiveType) && nodePorts != null) {
+                for (int i = 0; i < nodePorts.size(); i++) {
+                    var np = nodePorts.get(i);
+                    specs.add(com.csm.paas.core.domain.software.model.valobj.ServicePortSpecVO.builder()
+                            .appProtocol(np.getProtocol())
+                            .name((np.getProtocol() + "-" + serviceName + "-" + i).toLowerCase())
+                            .nodePort(np.getNodePort())
+                            .port(np.getPort())
+                            .protocol(np.getProtocol())
+                            .targetPort(np.getPort())
+                            .build());
+                }
+            }
+        }
+        try {
+            return serviceRuntimePort.patchServicePorts(namespace, serviceName, effectiveType, specs) != null;
+        } catch (Exception e) {
+            String msg = e.getMessage() == null ? "" : e.getMessage();
+            if (msg.contains("422") && msg.contains("provided port is already allocated")) {
+                throw new com.csm.paas.core.types.exception.WrongArgumentException("service.port.occupied");
+            }
+            throw new com.csm.paas.core.types.exception.SystemException("service.update.nodeport.failed");
+        }
     }
 
     @Override
