@@ -74,6 +74,12 @@ public class SoftwareQueryServiceImpl implements ISoftwareQueryService {
     }
 
     @Override
+    public java.util.List<com.csm.paas.core.domain.software.model.valobj.ServicePortVO> queryServicePorts(
+            String softwareId, String serviceName) {
+        return softwareRepository.queryServicePorts(softwareId, serviceName);
+    }
+
+    @Override
     public SoftwareListEntity querySoftwareList(int page, int size, String name, String type,
                                                 String order, String sort, String host) {
         String likeName = (name == null || name.isEmpty()) ? null : "%" + name + "%";

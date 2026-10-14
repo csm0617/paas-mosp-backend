@@ -162,6 +162,18 @@ public class SoftwareRepository implements ISoftwareRepository {
         return softwareDao.selectAuthCount(likeName, type);
     }
 
+    @Override
+    public List<com.csm.paas.core.domain.software.model.valobj.ServicePortVO> queryServicePorts(
+            String softwareId, String serviceName) {
+        return softwareDao.selectServicePorts(softwareId, serviceName).stream()
+                .map(po -> com.csm.paas.core.domain.software.model.valobj.ServicePortVO.builder()
+                        .id(po.getId()).softwareId(po.getSoftwareId()).serviceName(po.getServiceName())
+                        .port(po.getPort()).pathName(po.getPathName()).webEntry(po.getWebEntry())
+                        .allow(po.getAllow()).updatedAt(po.getUpdatedAt())
+                        .build())
+                .toList();
+    }
+
     private SoftwarePO toPO(SoftwareEntity s) {
         SoftwarePO po = new SoftwarePO();
         po.setId(s.getId());

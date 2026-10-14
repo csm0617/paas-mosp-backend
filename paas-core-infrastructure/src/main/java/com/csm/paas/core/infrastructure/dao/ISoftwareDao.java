@@ -92,6 +92,18 @@ public interface ISoftwareDao {
             """)
     long selectAuthCount(@Param("likeName") String likeName, @Param("type") String type);
 
+    /**
+     * 软件在某服务下的端口映射（厂商 `SoftwareService.servicePortList:2304-2306`）：
+     * `where software_id = ? and service_name = ?`——**不排序**（厂商没写 orderBy，照抄）。
+     */
+    @Select("""
+            SELECT id, software_id, service_name, port, path_name, web_entry, allow, updated_at
+            FROM g_service_port
+            WHERE software_id = #{softwareId} AND service_name = #{serviceName}
+            """)
+    List<com.csm.paas.core.infrastructure.dao.po.ServicePortPO> selectServicePorts(
+            @Param("softwareId") String softwareId, @Param("serviceName") String serviceName);
+
     /** 白名单里是否存在该路径（厂商 `softWareReleaseStatus`）。 */
     @Select("SELECT COUNT(*) FROM g_white_list WHERE path = #{path}")
     long countWhiteListPath(@Param("path") String path);

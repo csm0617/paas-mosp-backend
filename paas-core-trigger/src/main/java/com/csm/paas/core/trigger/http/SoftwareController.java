@@ -56,6 +56,23 @@ public class SoftwareController {
     }
 
     /**
+     * 厂商 `GET /v1/software/{softwareId}/service/{serviceName}`：软件在某服务下的**端口映射列表**。
+     * <p>`software_id` + `service_name` 等值查询、**不排序**；查不到返回**空数组**（不是 404/400）。
+     */
+    @GetMapping("/{softwareId}/service/{serviceName}")
+    public ResponseDTO<java.util.List<com.csm.paas.core.api.dto.ServicePortDTO>> softwareServicePorts(
+            @org.springframework.web.bind.annotation.PathVariable String softwareId,
+            @org.springframework.web.bind.annotation.PathVariable String serviceName) {
+        return ResponseDTO.ok(softwareQueryService.queryServicePorts(softwareId, serviceName).stream()
+                .map(v -> com.csm.paas.core.api.dto.ServicePortDTO.builder()
+                        .id(v.getId()).softwareId(v.getSoftwareId()).serviceName(v.getServiceName())
+                        .port(v.getPort()).pathName(v.getPathName()).webEntry(v.getWebEntry())
+                        .allow(v.getAllow()).updatedAt(v.getUpdatedAt())
+                        .build())
+                .toList());
+    }
+
+    /**
      * 厂商 `GET /v1/software/auth?page&size&name&type`：软件授权列表（`{list,total}`）。
      * <p>`name` 长度 > 36 → 400 `software.search.length.invalid`；`status` 三态见
      * `ISoftwareQueryService.queryAuthList`；排序**只按 `created_at DESC`**。

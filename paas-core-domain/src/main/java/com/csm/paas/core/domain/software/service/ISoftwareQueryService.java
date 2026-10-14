@@ -30,4 +30,12 @@ public interface ISoftwareQueryService {
 
     /** 授权列表总数（同一套 WHERE）。 */
     long countAuthList(String name, String type);
+
+    /**
+     * 软件在某服务下的端口映射（厂商 `GET /v1/software/{softwareId}/service/{serviceName}`
+     * → `SoftwareService.servicePortList:2304-2306`）：`software_id` + `service_name` 等值查询，**不排序**。
+     * <p>找不到就是**空数组**（不报 404/400）——照抄。
+     */
+    java.util.List<com.csm.paas.core.domain.software.model.valobj.ServicePortVO> queryServicePorts(
+            String softwareId, String serviceName);
 }

@@ -101,4 +101,8 @@ public interface ISoftwareRepository {
 
     /** 授权列表总数（**与 `queryAuthPage` 同一套 WHERE**，name 只打在 name 上）。 */
     long countAuth(String likeName, String type);
+
+    /** 软件在某服务下的端口映射（厂商 `servicePortList`，**不排序**）。 */
+    List<com.csm.paas.core.domain.software.model.valobj.ServicePortVO> queryServicePorts(
+            String softwareId, String serviceName);
 }

@@ -321,6 +321,10 @@ Label: `wayfinder:map`
 - 当前：46 端点映射、38 测试类 **236 条全绿**、81 提交、63 篇 findings。
 - 下一步优先序：服务切片同模式推进 → K2 跨域（`/auth` 列表可对拉；CS 上传/导入导出需先定边界）→ K3 侧效应 → 把"不可验证项"整理成对外偏离清单。
 
+- （**K2 跨域**）[GET /v1/software/{softwareId}/service/{serviceName}](docs/findings/71-software-service-ports.md)：端口映射列表，**三种情形对拉完全相等**（两条/一条/不存在→空数组）。
+  - 照抄点：只有 `software_id` + `service_name` 两个等值条件；**不排序**（厂商没写 orderBy，不"顺手加稳定排序"）；查不到返回**空数组**（不是 400）。
+  - **同一 `/v1/software/...` 前缀下"找不到"有四种表现**（详情 400 `software.software.id.not.found` / 删除 400 `software.not.exist.by.id` / 本端点空数组 / 战位下用户空列表）——只能逐个核对，不能按"同模块应该一致"推断。
+  - 测试 246 → **248 条**全绿。
 - （**服务切片**）[PUT /v1/service/patchCommand/{serviceName}](docs/findings/70-service-patch-command.md)：独立 namespace e2e——`command`/`args` 作用到**所有容器**且真的改上；服务不存在 → 400（与厂商同码同文案模式）。
   - 照抄点：厂商返回 `Response.ok()` **不带 body** ⇒ 响应 `data:null`（不是 `true`）；**无 StatefulSet 回退**（与 `hostName` 不同）。
   - fabric8 枚举名易错：`application/merge-patch+json` → **`PatchType.JSON_MERGE`**（不是 `MERGE`）；`strategic-merge-patch+json` → `STRATEGIC_MERGE`。**两种 merge patch 不要混用**（JSON_MERGE 整份合并、STRATEGIC_MERGE 按键合并列表）。
