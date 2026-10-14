@@ -230,7 +230,11 @@ Label: `wayfinder:map`
   - 第一道门：`existService` 按 **label selector `system/svcName=<name>`** 查，而本环境所有工作负载只有 `app=<name>` ⇒ 恒 false（8/8 全 400 的根因）。**验证方式**：临时给 `gaop-diagnostic` 加该 label（只动 metadata.labels、不触发滚动），门就过了——随后**字节级还原**并经核对。
   - 第二道门（终局）：过门后厂商返回 500/-1，trace 指向它自己：`TenxService.responseContainer:604` 的 `getLimits().get("cpu").getNumber()` —— **只判了 limits 非 null、没判键存在**，本环境工作负载没有完整 limits ⇒ NPE。**是厂商缺陷，不是数据缺失。**
   - 结论：这个端点**无法通过任何手段观测到成功响应**。下一轮取舍建议：**先做服务域里可对拉的端点（3），再照代码实现详情并注明"证据来自列表端点 `/v1/service` 的 `ServicesItem` 形状（已对拉），详情端点本身厂商恒 500"（1）**。
-  - 用例总数更正：我此前逐轮报的「162/174」是**数错了**（grep 只匹配到部分模块的汇总行，且 surefire 报告目录混有旧文件）。按模块汇总行精确求和：**33 个测试类、210 条用例全绿**。教训与「手抄不透明值」「只验形状不验值」同源——**计数也是要验证的量**，必须用可复算的命令。
+  - 用例总数更正
+- （**服务域分诊**）[10 个端点逐个探测，只有 4 个能拿 200](docs/findings/52-service-endpoint-observability-triage.md)：可对拉=`gaop`/`serviceAuth`（**与我们已对拉的 `/v1/service` 同形**）+ `imageStorage`/`baseComponent`（各有前置）。
+  - `hostName`/`priority`/`node` → 400（参数类）；`servicePods` → 400（与 `existService` 同源，见 findings/51）；`baseEvent`/`event` → **500 厂商内部异常**。
+  - **本轮零业务代码改动，理由写清了**：`gaop`/`serviceAuth` 差"过滤/排序规则"（不读码会形状对内容错）；`imageStorage` 的值来自 Harbor 而我们**没有 Harbor 客户端**，返回 0/0 属于"用 0 冒充数据"，拒绝；`baseComponent` 要先读全形状与那组 DaemonSet 名。
+  - 下一轮确定顺序：`gaop` → `serviceAuth` → `baseComponent` →（`imageStorage` 等 Harbor 域）。：我此前逐轮报的「162/174」是**数错了**（grep 只匹配到部分模块的汇总行，且 surefire 报告目录混有旧文件）。按模块汇总行精确求和：**33 个测试类、210 条用例全绿**。教训与「手抄不透明值」「只验形状不验值」同源——**计数也是要验证的量**，必须用可复算的命令。
 
 - （K3 预研结论）`LicenceInfo.expired(code)` = `{end:-1, endIso8601:null, code, expired:true}`，其中 `code = 机器码 + Base64(软件key)`；**"没有激活码"这一支不需要密码学**，可以在做 `GET /v1/software/{id}` 时一并实现（本轮没写，因为详情端点没做就没有调用方，写了是死代码）。
 
