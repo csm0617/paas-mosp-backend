@@ -21,6 +21,10 @@ public interface IUserDao {
     @Select("SELECT username, last_login_role, avatar FROM g_user ORDER BY created_at")
     java.util.List<UserPO> selectLoginList();
 
+    /** 只更新头像（厂商 `updateByPrimaryKeySelective` 里只 set 了 id 与 avatar）。 */
+    @org.apache.ibatis.annotations.Update("UPDATE g_user SET avatar = #{avatar} WHERE id = #{userId}")
+    int updateAvatar(@Param("userId") String userId, @Param("avatar") String avatar);
+
     @Select("SELECT COUNT(*) FROM g_user")
     long selectCount();
 

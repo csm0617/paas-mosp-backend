@@ -65,6 +65,11 @@ public class UserRepository implements IUserRepository {
     }
 
     @Override
+    public void updateAvatar(String userId, String avatar) {
+        userDao.updateAvatar(userId, avatar);
+    }
+
+    @Override
     public java.util.Optional<UserEntity> queryById(String id) {
         return java.util.Optional.ofNullable(userDao.selectById(id)).map(this::toEntity);
     }

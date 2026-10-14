@@ -174,6 +174,18 @@ userMapper.updateByPrimaryKeySelective(update);             // 只写 g_user.ava
 我们已实现的 `/v1/user/detailByUserId` 装配（能复用就省一大块）。
 **验证**：`>200KiB` → 400（对拉）；合法小文件 → 写库后**核对 `g_user.avatar` 变化并恢复原值**（可回滚探针）。
 
+## 3''''. `update_avatar` 的实现要素（第 108 轮补齐）
+
+- **DAO/仓储已加**：`IUserDao.updateAvatar(userId, avatar)`（`UPDATE g_user SET avatar = ? WHERE id = ?`，
+  照抄厂商"只 set id 与 avatar"）+ `IUserRepository.updateAvatar` 已实现（本轮落地、可编译、全量测试仍绿）；
+- **WebSocket 目的地已查明**：厂商 `WebSocket.sendUserInfo(text)` → `sendInfo(text, "userInfo")`
+  ⇒ 推的是名为 **`userInfo`** 的通道（我们现有的是 `K8sTopicBroadcaster`，是**另一个**通道，需要新增/复用）；
+- **`icon` 规则**：既有 avatar 与本次 md5 都非空时，比较"旧头像解码后的 md5"与"本次文件 md5" ⇒ 相同 `UN-CHANGE`、
+  否则 `CHANGE`；任一为空 ⇒ `CHANGE`；
+- 响应 = 用户详情（可复用 `/v1/user/detailByUserId` 的装配）。
+
+⇒ **剩余待做**：域服务（icon 计算 + 推送 + 更新）+ 控制器（multipart、大小校验、base64/md5）+ `userInfo` 通道推送。
+
 ## 4. 建议顺序
 
 1. `import/template`（**最简单**：无入参、纯产出、可解析比对单元格）；

@@ -53,6 +53,9 @@ public interface IUserRepository {
     /** 用户关联的子角色名（厂商 {@code SubRoleService.getSubRoleName(userId)}）。 */
     List<String> querySubRoleNamesByUserId(String userId);
 
+    /** 只更新头像（厂商 `UserService.updateAvatar:1589-1591` 的 `updateByPrimaryKeySelective`）。 */
+    void updateAvatar(String userId, String avatar);
+
     /** 用户关联的战位 key 列表（判定"是否有 admin 战位"，厂商 `RoleList.containAdminRole()`）。 */
     List<String> queryRoleKeysByUsername(String username);
 
