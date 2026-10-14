@@ -268,6 +268,13 @@ public interface ISoftwareDao {
     @Select("SELECT software_id FROM g_software_app WHERE app_name = #{appName}")
     List<String> selectSoftwareIdsByAppName(@Param("appName") String appName);
 
+    /**
+     * 某软件关联的全部 `app_name`（厂商 `softwareAllService:2219-2221` / `softwareRelationService:2223-2226`：
+     * `where software_id = ?`，**没有 orderBy** ⇒ 库返回顺序）。
+     */
+    @Select("SELECT app_name FROM g_software_app WHERE software_id = #{softwareId}")
+    List<String> selectAppNamesBySoftwareId(@Param("softwareId") String softwareId);
+
     /** 删某软件在某服务下的**全部**端口映射（厂商 `where software_id = ? and service_name = ?`）。 */
     @org.apache.ibatis.annotations.Delete("""
             DELETE FROM g_service_port WHERE software_id = #{softwareId} AND service_name = #{serviceName}

@@ -133,6 +133,12 @@ public interface ISoftwareRepository {
     /** `g_software_app` 里 `app_name` 命中的软件 id 列表（厂商 `where app_name = ?` 再取 `softwareId`）。 */
     List<String> querySoftwareIdsByAppName(String appName);
 
+    /**
+     * 某软件关联的全部 `app_name`（厂商 `softwareAllService:2219-2221`：`where software_id = ?`，**无 orderBy**）。
+     * <p>用于 `GET /v1/software/relationService/{id}` 过滤服务列表。
+     */
+    List<String> queryAppNamesBySoftwareId(String softwareId);
+
     /** 删某软件在某服务下的全部端口映射（厂商 `where software_id = ? and service_name = ?`）。 */
     void deleteServicePorts(String softwareId, String serviceName);
 

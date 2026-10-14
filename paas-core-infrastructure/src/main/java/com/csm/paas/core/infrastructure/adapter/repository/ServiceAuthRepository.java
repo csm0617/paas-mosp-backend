@@ -19,6 +19,23 @@ public class ServiceAuthRepository implements IServiceAuthRepository {
     private final IServiceAuthDao serviceAuthDao;
 
     @Override
+    public java.util.Optional<ServiceAuthEntity> queryByServiceId(String serviceId) {
+        ServiceAuthPO po = serviceAuthDao.selectByServiceId(serviceId);
+        return po == null ? java.util.Optional.empty() : java.util.Optional.of(ServiceAuthEntity.builder()
+                .serviceId(po.getServiceId())
+                .auth(po.getAuth())
+                .authType(po.getAuthType())
+                .authTime(po.getAuthTime())
+                .authInterval(po.getAuthInterval())
+                .build());
+    }
+
+    @Override
+    public void updateAuth(String serviceId, Integer auth) {
+        serviceAuthDao.updateAuth(serviceId, auth);
+    }
+
+    @Override
     public List<ServiceAuthEntity> queryAll() {
         List<ServiceAuthPO> rows = serviceAuthDao.selectAll();
         log.info("g_service_auth 读到 {} 行", rows.size());

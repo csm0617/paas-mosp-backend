@@ -202,6 +202,15 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
         }
     }
 
+    @Override
+    public java.util.Map<String, Object> readServiceSnapshot(String namespace, String serviceName) {
+        try {
+            return serviceRuntimeGateway.readService(namespace, serviceName);
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
     /** 一个探针的"改不改 + 改成什么"（`null` probe 表示清空）。 */
     private record ProbePatch(boolean changed, io.fabric8.kubernetes.api.model.Probe probe) {
     }

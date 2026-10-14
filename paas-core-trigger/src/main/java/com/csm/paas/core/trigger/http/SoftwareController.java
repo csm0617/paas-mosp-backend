@@ -42,6 +42,27 @@ public class SoftwareController {
     @Resource
     private com.csm.paas.core.domain.software.service.ISoftwareDetailService softwareDetailService;
 
+    /** `relationService` 复用服务域的读能力（厂商那边也是 `SoftwareController` 调 `softwareService`）。 */
+    @Resource
+    private com.csm.paas.core.domain.software.service.IServiceQueryService serviceQueryService;
+
+    @org.springframework.beans.factory.annotation.Value("${gaop.k8s.namespace:gaop-namespace}")
+    private String namespace;
+
+    /**
+     * 厂商 `GET /v1/software/relationService/{id}`：软件关联的服务列表（界面显示，单独接口请求）。
+     *
+     * <p>与 `GET /v1/service` 同一个 `ServiceItemDTO` 形状，但 `mappingInfo` **真的填**
+     * （`intranetInfo`/`nodePortInfo` 是数组、`ingressInfo` 恒空）；规则见
+     * `IServiceQueryService.querySoftwareRelationServices`（规格 `findings/120`）。
+     */
+    @org.springframework.web.bind.annotation.GetMapping("/relationService/{id}")
+    public ResponseDTO<java.util.List<com.csm.paas.core.api.dto.ServiceItemDTO>> softwareRelationService(
+            @org.springframework.web.bind.annotation.PathVariable String id) {
+        return ResponseDTO.ok(com.csm.paas.core.trigger.assembler.ServiceListAssembler.toRelationItems(
+                serviceQueryService.querySoftwareRelationServices(namespace, id)));
+    }
+
     /**
      * 厂商 `GET /v1/software/{id}`：软件详情（23 键聚合）。
      * <p>不存在 → 400 `software.software.id.not.found`（注意与删除用的 `software.not.exist.by.id` **不是同一个键**）。

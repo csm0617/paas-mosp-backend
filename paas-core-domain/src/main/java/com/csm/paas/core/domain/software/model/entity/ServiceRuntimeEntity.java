@@ -62,4 +62,10 @@ public class ServiceRuntimeEntity {
     private String serviceType;
     private Map<String, Object> serviceSnapshot;
     private Map<String, Object> deploymentSnapshot;
+
+    /**
+     * 服务映射信息；**只有 `GET /v1/software/relationService/{id}` 会填**，
+     * `GET /v1/service` 列表端点保持 null（列表端点恒返回三键全 null 的空对象，已 A/B 对拉通过）。
+     */
+    private com.csm.paas.core.domain.software.model.valobj.ServiceMappingInfoVO mappingInfo;
 }

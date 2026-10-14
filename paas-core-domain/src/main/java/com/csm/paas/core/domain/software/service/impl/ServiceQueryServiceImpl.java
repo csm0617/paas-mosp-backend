@@ -49,6 +49,14 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
     @Resource
     private com.csm.paas.core.domain.software.adapter.port.IGatewayRefreshPort gatewayRefreshPort;
 
+    /** `relationService` 要按当前语言查 i18n 自动名。 */
+    @Resource
+    private com.csm.paas.core.domain.language.service.ILanguageQueryService languageQueryService;
+
+    /** 厂商 `AuthServiceType` 的取值（`constant/AuthServiceType.java`）。 */
+    private static final Integer AUTH_AUTHORIZED = 1;
+    private static final Integer AUTH_EXPIRED = 2;
+
     @Override
     public boolean updateServiceName(String namespace, String serviceKey, String name, String nameUs, String nameFr) {
         try {
@@ -532,6 +540,173 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
         }
         // 注意：容器列表为空时端口抛的是 IndexOutOfBoundsException，**厂商也没兜** ⇒ 让它冒到全局
         // 兜底处理（500 `系统错误`/`code=-1`），所以这里**不**catch Exception。
+    }
+
+    /**
+     * 某软件关联的服务列表（厂商 `softwareRelationServiceList:3064-3158`，规格见 `docs/findings/120`）。
+     */
+    @Override
+    public List<ServiceRuntimeEntity> querySoftwareRelationServices(String namespace, String softwareId) {
+        if (softwareRepository.queryById(softwareId).isEmpty()) {
+            throw new com.csm.paas.core.types.exception.WrongArgumentException(
+                    "software.get.software.service.info.failed");
+        }
+        List<String> appNames = softwareRepository.queryAppNamesBySoftwareId(softwareId);
+        if (appNames == null || appNames.isEmpty()) {
+            return List.of();
+        }
+        Map<String, ServiceRuntimeEntity> byName = serviceRuntimePort.queryServices(namespace).stream()
+                .filter(s -> s.getName() != null)
+                .collect(Collectors.toMap(ServiceRuntimeEntity::getName, Function.identity(), (a, b) -> a));
+        long now = System.currentTimeMillis();
+        String language = languageQueryService.queryCurrent().getLanguage();
+        List<ServiceRuntimeEntity> result = new ArrayList<>();
+        for (String appName : appNames) {
+            ServiceRuntimeEntity item = byName.get(appName);
+            if (item == null) {
+                // 厂商：`serviceMap.get(appName)` 不判空 ⇒ 紧接着 setMappingInfo **NPE ⇒ 500**。
+                // 关联残留（服务删了、g_software_app 没清）在本环境很常见，整页 500 不可接受
+                // ⇒ 跳过该行（deviations B17）。
+                log.warn("关联服务 {} 在 k8s 里不存在，跳过（厂商此处会 NPE）", appName);
+                continue;
+            }
+            item.setMappingInfo(buildMappingInfo(namespace, appName, item));
+            applyServiceAuth(appName, item, now);
+            applyAutoServiceLabel(item, appName, language);
+            result.add(item);
+        }
+        return result;
+    }
+
+    /**
+     * 厂商 `getServiceMappingInfo:2974-3048`：`intranetInfo`/`nodePortInfo` 由 Service 与
+     * `<name>-nodeport` 的端口算出；`ingressInfo` 读的 `proxy` 恒 null ⇒ **恒空**。
+     * <p>Service 对象缺失 ⇒ 400 `service.get.service.info.error`（厂商 `:2997-3000` 就是这么抛的）。
+     */
+    private com.csm.paas.core.domain.software.model.valobj.ServiceMappingInfoVO buildMappingInfo(
+            String namespace, String serviceName, ServiceRuntimeEntity item) {
+        if (item.getServiceSnapshot() == null) {
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("service.get.service.info.error");
+        }
+        List<com.csm.paas.core.domain.software.model.valobj.ServiceMappingInfoVO.IntranetInfoVO> intranet = new ArrayList<>();
+        List<com.csm.paas.core.domain.software.model.valobj.ServiceMappingInfoVO.NodePortInfoVO> nodePorts = new ArrayList<>();
+        for (Map<String, Object> port : servicePortsOf(item.getServiceSnapshot())) {
+            Integer portNumber = intOf(port.get("port"));
+            intranet.add(com.csm.paas.core.domain.software.model.valobj.ServiceMappingInfoVO.IntranetInfoVO.builder()
+                    .containerPort(portNumber)
+                    .intranetPort(serviceName + ":" + portNumber)
+                    .build());
+            if (port.get("nodePort") == null) {
+                continue;
+            }
+            nodePorts.add(com.csm.paas.core.domain.software.model.valobj.ServiceMappingInfoVO.NodePortInfoVO.builder()
+                    .containerPort(portNumber)
+                    .nodePort(intOf(port.get("nodePort")))
+                    .protocol((String) port.get("protocol"))
+                    .build());
+        }
+        Map<String, Object> nodePortService = serviceRuntimePort.readServiceSnapshot(namespace, serviceName + "-nodeport");
+        if (nodePortService != null) {
+            for (Map<String, Object> port : servicePortsOf(nodePortService)) {
+                nodePorts.add(com.csm.paas.core.domain.software.model.valobj.ServiceMappingInfoVO.NodePortInfoVO.builder()
+                        .containerPort(intOf(port.get("port")))
+                        .nodePort(intOf(port.get("nodePort")))
+                        .protocol((String) port.get("protocol"))
+                        .build());
+            }
+        }
+        return com.csm.paas.core.domain.software.model.valobj.ServiceMappingInfoVO.builder()
+                .serviceName(serviceName)
+                .intranetInfo(intranet)
+                .nodePortInfo(nodePorts)
+                // 厂商 `servicesItem.getService().getProxy()` 恒 null（全仓库无 setProxy）⇒ 恒空
+                .ingressInfo(List.of())
+                .build();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> servicePortsOf(Map<String, Object> serviceSnapshot) {
+        Object spec = serviceSnapshot.get("spec");
+        if (!(spec instanceof Map<?, ?> specMap)) {
+            return List.of();
+        }
+        Object ports = ((Map<String, Object>) specMap).get("ports");
+        return ports instanceof List<?> list ? (List<Map<String, Object>>) list : List.of();
+    }
+
+    private static Integer intOf(Object value) {
+        return value instanceof Number number ? number.intValue() : null;
+    }
+
+    /**
+     * 厂商 `:3124-3143`：没有授权行且 `gaop/serviceType == "前台服务"` ⇒ 造一个 `{auth:1, authType:1, serviceId}`；
+     * 有行且 `now > authTime` ⇒ 改成 `EXPIRED(2)` 并**写库**（读接口带副作用，照抄）。
+     */
+    private void applyServiceAuth(String serviceName, ServiceRuntimeEntity item, long now) {
+        var existing = serviceAuthRepository.queryByServiceId(serviceName);
+        if (existing.isEmpty()) {
+            if ("前台服务".equals(item.getServiceType())) {
+                item.setServiceAuth(com.csm.paas.core.domain.software.model.entity.ServiceAuthEntity.builder()
+                        .serviceId(serviceName)
+                        .auth(AUTH_AUTHORIZED)
+                        .authType(1)
+                        .build());
+            } else {
+                item.setServiceAuth(null);
+            }
+            return;
+        }
+        var auth = existing.get();
+        if (auth.getAuthTime() != null && now > auth.getAuthTime()) {
+            auth.setAuth(AUTH_EXPIRED);
+            serviceAuthRepository.updateAuth(serviceName, AUTH_EXPIRED);
+        }
+        item.setServiceAuth(auth);
+    }
+
+    /**
+     * 厂商 `:3144-3147`：把 `deployment` 快照里注解 `gaop/serviceLabel` 换成当前语言的自动名
+     * （`getAutoNameMessageByCurrent("service", key, name)`——**只有 en_US/fr_FR 才查覆盖表**，其它语言返回原值）。
+     * <p>注意厂商改的是**响应里的快照对象**，不写集群。
+     */
+    @SuppressWarnings("unchecked")
+    private void applyAutoServiceLabel(ServiceRuntimeEntity item, String serviceName, String language) {
+        Map<String, Object> deployment = item.getDeploymentSnapshot();
+        if (deployment == null) {
+            return;
+        }
+        Object spec = deployment.get("spec");
+        if (!(spec instanceof Map<?, ?> specMap)) {
+            return;
+        }
+        Object template = ((Map<String, Object>) specMap).get("template");
+        if (!(template instanceof Map<?, ?> templateMap)) {
+            return;
+        }
+        Object metadata = ((Map<String, Object>) templateMap).get("metadata");
+        if (!(metadata instanceof Map<?, ?> metadataMap)) {
+            return;
+        }
+        Object annotations = ((Map<String, Object>) metadataMap).get("annotations");
+        if (!(annotations instanceof Map<?, ?> annotationMap)) {
+            return;
+        }
+        Map<String, Object> mutable = (Map<String, Object>) annotationMap;
+        String current = (String) mutable.get("gaop/serviceLabel");
+        String auto = autoName(serviceName, language, current);
+        if (auto != null) {
+            mutable.put("gaop/serviceLabel", auto);
+        }
+    }
+
+    /** 厂商 `I18nUtil.getAutoNameMessageByCurrent:130-142`：只对 en_US / fr_FR 查 `g_setting`。 */
+    private String autoName(String serviceName, String language, String fallback) {
+        if (!"en_US".equals(language) && !"fr_FR".equals(language)) {
+            return fallback;
+        }
+        return i18nRepository.queryValue("i18n.service." + language + "." + serviceName)
+                .filter(v -> v != null && !v.isBlank())
+                .orElse(fallback);
     }
 
     /** 厂商 `getStringRandom(length)`：每位 `SecureRandom.nextInt(2)%2==0` 取 `a-z`，否则取 `0-9`。 */

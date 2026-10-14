@@ -233,6 +233,11 @@ public class SoftwareRepository implements ISoftwareRepository {
     }
 
     @Override
+    public List<String> queryAppNamesBySoftwareId(String softwareId) {
+        return softwareDao.selectAppNamesBySoftwareId(softwareId);
+    }
+
+    @Override
     public void deleteServicePorts(String softwareId, String serviceName) {
         softwareDao.deleteServicePortsBySoftwareIdAndServiceName(softwareId, serviceName);
     }

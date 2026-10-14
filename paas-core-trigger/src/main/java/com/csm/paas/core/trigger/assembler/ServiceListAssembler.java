@@ -47,6 +47,40 @@ public final class ServiceListAssembler {
                 .build();
     }
 
+    /**
+     * `GET /v1/software/relationService/{id}` 的装配：与列表端点同一套 `ServiceItemDTO`，
+     * 但 `mappingInfo` **真的填**（三键是**数组**；列表端点那边是三键全 null 的空对象，两者不同）。
+     * <p>`ingressInfo` 恒空数组（厂商读的 `proxy` 字段全仓库无赋值 ⇒ 恒 null）。
+     */
+    public static List<ServiceItemDTO> toRelationItems(List<ServiceRuntimeEntity> services) {
+        List<ServiceItemDTO> items = new ArrayList<>();
+        for (ServiceRuntimeEntity s : services) {
+            items.add(ServiceItemDTO.builder()
+                    .service(s.getServiceSnapshot())
+                    .deployment(s.getDeploymentSnapshot())
+                    .serviceAuth(toAuthDTO(s.getServiceAuth()))
+                    .mappingInfo(toMappingInfo(s))
+                    .hostIP(s.getHostIP())
+                    .imageInfo(s.getImage())
+                    .restartCount(s.getRestartCount())
+                    .fixedName(s.getFixedName() != null ? s.getFixedName() : s.getName())
+                    .build());
+        }
+        return items;
+    }
+
+    private static MappingInfoDTO toMappingInfo(ServiceRuntimeEntity s) {
+        var mapping = s.getMappingInfo();
+        if (mapping == null) {
+            return MappingInfoDTO.builder().build();
+        }
+        return MappingInfoDTO.builder()
+                .intranetInfo(mapping.getIntranetInfo())
+                .nodePortInfo(mapping.getNodePortInfo())
+                .ingressInfo(mapping.getIngressInfo())
+                .build();
+    }
+
     private static ServiceAuthDTO toAuthDTO(ServiceAuthEntity auth) {
         if (auth == null) {
             return null;

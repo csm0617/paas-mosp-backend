@@ -143,4 +143,17 @@ public interface IServiceRuntimePort {
     void patchDeploymentProbes(String namespace, String serviceName,
                                com.csm.paas.core.domain.software.model.valobj.HealthCheckVO.HealthSetVO readiness,
                                com.csm.paas.core.domain.software.model.valobj.HealthCheckVO.HealthSetVO liveness);
+
+    // ---------- relationService（厂商 GET /v1/software/relationService/{id}）----------
+
+    /**
+     * 读**任意一个 Service** 的原始快照（厂商 `getServiceByName`：按 `metadata.name=` 列，
+     * 命中则取第 0 条，出错返回 null）。
+     *
+     * <p>用途：`mappingInfo.nodePortInfo` 还要合并 `<serviceName>-nodeport` 这个 Service 的端口，
+     * 而它是"另一个 Service"，不在工作负载驱动的服务列表里。
+     *
+     * @return K8s Service 快照；不存在返回 null
+     */
+    java.util.Map<String, Object> readServiceSnapshot(String namespace, String serviceName);
 }

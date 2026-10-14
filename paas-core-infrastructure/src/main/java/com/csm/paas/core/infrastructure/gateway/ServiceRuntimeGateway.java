@@ -435,6 +435,15 @@ public class ServiceRuntimeGateway {
     }
 
     /** 该命名空间**所有** Service 已占用的 nodePort（厂商 `getNodePortUsed()`）。 */
+    /**
+     * 读**任意一个 Service** 的快照（厂商 `getServiceByName`：按 `metadata.name=` 列，取第 0 条，
+     * 出错返回 null）。`relationService` 的 `nodePortInfo` 要合并 `<name>-nodeport` 这个 Service 的端口。
+     */
+    public Map<String, Object> readService(String namespace, String name) {
+        var svc = kubernetesClient.services().inNamespace(namespace).withName(name).get();
+        return svc == null ? null : toSnapshot(svc);
+    }
+
     public List<Integer> listUsedNodePorts(String namespace) {
         List<Integer> used = new java.util.ArrayList<>();
         for (var svc : listServices(namespace)) {

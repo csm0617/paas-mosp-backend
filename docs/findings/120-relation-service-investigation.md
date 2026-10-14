@@ -100,4 +100,56 @@ if (servicesItem.getService() == null) throw new WrongArgumentException("service
 ## 5. 状态
 
 第 125 轮：只做了调查、无代码改动。
-**第 127 轮：更正本文结论**（无代码改动，只修文档）；全量 **374** 条用例全绿，工作树干净。
+**第 127 轮：更正本文结论**（无代码改动，只修文档）。
+**第 128 轮：实现 + 真集群实测**（见第 6 节）。
+
+## 6. 第 128 轮：实现与实测
+
+### 6.1 落地的四件事（与 §4 的"实现前置"对应）
+
+| 需要的东西 | 落地 |
+| --- | --- |
+| 软件的 `app_name` 列表 | `ISoftwareDao.selectAppNamesBySoftwareId` + 仓储 `queryAppNamesBySoftwareId`（厂商 `softwareAllService` 同款、**无 orderBy**） |
+| 按 service_id 取授权 + 过期写回 | `IServiceAuthDao.selectByServiceId` / `updateAuth` + 仓储 `queryByServiceId` / `updateAuth` |
+| 读 `<name>-nodeport` 这个 Service | `IServiceRuntimePort.readServiceSnapshot`（新） |
+| 当前语言下的 i18n 自动名 | `ILanguageQueryService.queryCurrent()` + `ISettingRepository.queryValue("i18n.service.<lang>.<key>")` |
+
+装配复用 `ServiceListAssembler.toRelationItems`（同一套 `ServiceItemDTO`，只有 `mappingInfo` 真的填）。
+
+### 6.2 离线：`SoftwareRelationServiceTest` 9 例，全量 **383** 条 0 失败
+
+覆盖：软件不存在 ⇒ 400；`app_name` 为空 ⇒ 空列表；按 `app_name` 过滤 + `mappingInfo` 三键形状
+（`intranetInfo` 每 port 一条 `"<name>:<port>"`；`nodePortInfo` = 主 Service 里 `nodePort` 非空的 + `<name>-nodeport` 的全部；
+`ingressInfo` 恒空）；**关联残留 ⇒ 跳过该行**；工作负载在但**没有同名 Service** ⇒ 400 `service.get.service.info.error`；
+授权的三种情形（造 `{auth:1,authType:1}` / 已过期 ⇒ 改 2 并**写库** / 未过期 ⇒ 不动）；
+i18n 自动名**只对 en_US/fr_FR 生效**（zh_CN 原值不变）。
+
+### 6.3 在线：独立命名空间 `paas-verify-rel` + 真库（造 `g_software`/`g_software_app` 行，验完删）
+
+前置：Deployment `nps-svc`（注解 `gaop/serviceLabel=中文名`）+ Service `nps-svc`（NodePort，8080/9090）
++ Service `nps-svc-nodeport`（NodePort，7070）+ 无关的 `other-svc` + **只有工作负载没有 Service 的 `nosvcobj`**；
+`g_software{id=sw-probe}` + `g_software_app{nps-svc, ghost-svc}`。
+
+| 例 | 实测 |
+| --- | --- |
+| ① 正常路径 | `200 {"code":0}`，**items=1**（只留 `nps-svc`；`ghost-svc` 被**跳过**而不是 500 ⇒ B17 生效）；`intranetInfo=[{8080,"nps-svc:8080"},{9090,"nps-svc:9090"}]`；`nodePortInfo` **3 条**（主 Service 的 `30522`/`31772` + `<name>-nodeport` 的 `32334`）；`ingressInfo=[]`；`serviceAuth=null`；`gaop/serviceLabel=中文名`（zh_CN 不查覆盖表） |
+| ② 软件不存在 | `400 获取软件关联的服务信息失败，该软件不存在` |
+| ③ 过期授权（库里 `auth=1`、`auth_time` 已过） | `200`，响应 `serviceAuth.auth=2`，**库里该行也变成 `auth=2`** ⇒ "读接口带副作用"实测确认 |
+| ④ `app_name=nosvcobj`（工作负载在、同名 Service 不在） | `400 获取服务信息异常`（`service.get.service.info.error`，与厂商 `:2997-3000` 一致） |
+
+### 6.4 一处主动收紧（`deviations.md` B17）
+
+厂商 `serviceMap.get(appName)` **不判空** ⇒ 紧接着 `setMappingInfo` **NPE ⇒ 500**。
+"服务删了但 `g_software_app` 没清"在本环境很常见，整页 500 不可接受 ⇒ 我们**跳过该行**（并打 warn 日志），
+其余行照常返回（实测 ① 就是"1 个命中 + 1 个残留"的组合）。
+
+### 6.5 收尾（含一条环境事故记录）
+
+实验室数据已还原（`g_software`=0、`g_software_app`=0、`g_service_auth`=0、`g_user`=1）；验证命名空间、临时 NodePort、后端进程全部回收。
+
+**环境事故**：本轮验证期间集群 API 出现过两次约 30s 的不可达（`6443 connection refused` / TLS handshake timeout），
+其中一次让 `kubectl exec mysql` 的 UPDATE **静默失败**（我按"没生效"重跑了一遍才发现——教训：`2>/dev/null` 会吞掉整条命令的失败）。
+另外 `kubectl delete namespace` 卡在 `Terminating`：原因是集群里 **Calico 的聚合 API discovery 陈旧**
+（`projectcalico.org/v3: stale GroupVersion discovery`），**与本次验证无关**；命名空间内容已被确认清空
+（`All content successfully removed`），最终清掉 finalizer 完成删除。
+

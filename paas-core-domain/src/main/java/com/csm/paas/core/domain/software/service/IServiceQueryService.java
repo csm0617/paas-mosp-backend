@@ -225,4 +225,28 @@ public interface IServiceQueryService {
      */
     boolean updateHealthCheck(String namespace,
                               com.csm.paas.core.domain.software.model.valobj.HealthCheckVO form);
+
+    /**
+     * 某软件**关联的服务**列表（厂商 `GET /v1/software/relationService/{id}` →
+     * `SoftwareService.softwareRelationServiceList:3064-3158`，规格见 `docs/findings/120`）。
+     *
+     * <p>与 {@link #queryServiceList} 的区别（四处）：
+     * <ol>
+     *   <li>按该软件的 `g_software_app.app_name` **过滤**（只留 `deployment.metadata.name` 命中的）；</li>
+     *   <li>`mappingInfo` **真的填**：`intranetInfo`/`nodePortInfo` 由 Service 与 `<name>-nodeport` 的端口算出，
+     *       `ingressInfo` **恒空**（厂商读的 `IoK8sApiCoreV1Service.proxy` 全仓库无赋值 ⇒ 恒 null）；</li>
+     *   <li>授权：没有 `g_service_auth` 行且 `gaop/serviceType == "前台服务"` ⇒ 造 `{auth:1, authType:1}`；
+     *       有行且 `now > authTime` ⇒ 改成 `EXPIRED(2)` 并**写库**（厂商的读接口带副作用）；</li>
+     *   <li>把 `deployment` 快照里注解 `gaop/serviceLabel` 换成当前语言的自动名
+     *       （厂商 `getAutoNameMessageByCurrent("service", key, name)`：**只有 en_US/fr_FR 会查覆盖表**，
+     *       其它语言直接返回原值）。</li>
+     * </ol>
+     *
+     * <p><b>一处主动收紧</b>（`deviations.md` B17）：厂商对"`app_name` 在 k8s 里找不到对应服务"**不判空**
+     * ⇒ 立刻 NPE ⇒ 500。我们**跳过该行**（关联残留是常见状态，照抄等于让整页 500）。
+     *
+     * <p>软件不存在 ⇒ 400 `software.get.software.service.info.failed`。
+     */
+    java.util.List<com.csm.paas.core.domain.software.model.entity.ServiceRuntimeEntity>
+    querySoftwareRelationServices(String namespace, String softwareId);
 }
