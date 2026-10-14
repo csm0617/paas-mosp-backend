@@ -33,11 +33,28 @@ getServicesItems: 列 Pod（nodeName 非空时按 spec.nodeName 过滤）
                   …（后续按 masterNodeName 排除 master 上的 Pod）
 ```
 
-**两者合起来就解释了 0**：这个端点回答的是"**某个工作节点上跑着哪些服务**"，
-而本集群**只有一个节点，且它就是 master**；所有 Pod 都在 master 上 ⇒ 排除 master 之后**一条不剩**。
+**当时的推断**（**已被下面的第 79 轮更正取代**）：这个端点回答的是"某个工作节点上跑着哪些服务"，
+而本集群只有一个节点且它就是 master，所以排除 master 后一条不剩。
 
-⇒ `total=0` **不是"没数据"，而是"正确地没有工作节点可归属"**。这满足我上一轮定的标准：
-**能解释「为什么是 0」，这个 0 才算证据。**
+### 第 79 轮更正：真因是**注解**，不是 master 节点
+
+把 `getServicesItems` 读全之后，过滤器是：
+
+```java
+serviceNamed.contains(deployment.metadata.name)
+  && annotations != null
+  && annotations.get("gaop/serviceLabel") != null && !label.trim().isEmpty()
+```
+
+- `serviceNamed` 来自 **Pod 的容器名**（`serviceBelongPodList` 的键；例如 `gaop-redis` 的容器名是 `redis`）；
+- 实测：**没有任何 Deployment 带 `gaop/serviceLabel`**（只有部分带 `kubectl.kubernetes.io/restartedAt`）
+  ⇒ 第二个条件**恒不成立** ⇒ `serviceInfoByNode` 恒为空。
+
+**master 节点那件事与本端点的空结果无关**——我第 55 轮的推断是错的（好在当时标了"待确认"，
+并在 §4 写了"必须读 `getServicesItems` 才能定论"）。
+
+⇒ 该端点在本环境**可以拿到"可解释的 0"对拉**，但前提是先把 `ServicesItem` 的装配
+（`podInfoList` / `belongNodeList` / `mappingInfo`）读完——那部分**仍未读**。
 
 ## 3. 顺带发现一个实现关键点（容易漏）
 
