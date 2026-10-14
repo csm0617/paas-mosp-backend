@@ -15,4 +15,14 @@ public interface ILanguageVersionRepository {
 
     /** 同一条 where 的总数。 */
     long countLanguageVersions(String likeKeyword);
+
+    /** 某语言+某版本的版本行（取第 0 条）。 */
+    java.util.Optional<com.csm.paas.core.domain.language.model.entity.LanguageVersionEntity>
+    queryByLangAndVersion(String lang, String version);
+
+    /** 按主键删版本行，返回受影响行数。 */
+    int deleteVersionById(Long id);
+
+    /** 删某语言+某版本下的全部词条。 */
+    void deleteLanguageEntries(String lang, String version);
 }

@@ -39,4 +39,28 @@ public interface ILanguageVersionDao {
             </script>
             """)
     long countLanguageVersions(@org.apache.ibatis.annotations.Param("likeKeyword") String likeKeyword);
+
+    /**
+     * 某语言+某版本的版本行（厂商 `deleteLangVersion:354` 的
+     * `where lang = ? and lang_version = ?`，取第 0 条）。
+     */
+    @Select("""
+            SELECT id, lang, lang_version, used, create_time FROM g_language_version
+            WHERE lang = #{lang} AND lang_version = #{version}
+            LIMIT 1
+            """)
+    com.csm.paas.core.infrastructure.dao.po.LanguageVersionPO selectByLangAndVersion(
+            @org.apache.ibatis.annotations.Param("lang") String lang,
+            @org.apache.ibatis.annotations.Param("version") String version);
+
+    /** 按主键删版本行（厂商 `deleteByPrimaryKey`）。 */
+    @org.apache.ibatis.annotations.Delete("DELETE FROM g_language_version WHERE id = #{id}")
+    int deleteVersionById(@org.apache.ibatis.annotations.Param("id") Long id);
+
+    /** 删某语言+某版本下的**全部词条**（厂商 `languageMapper.delete(where lang = ? and lang_version = ?)`）。 */
+    @org.apache.ibatis.annotations.Delete("""
+            DELETE FROM g_language WHERE lang = #{lang} AND lang_version = #{version}
+            """)
+    int deleteLanguageEntries(@org.apache.ibatis.annotations.Param("lang") String lang,
+                              @org.apache.ibatis.annotations.Param("version") String version);
 }

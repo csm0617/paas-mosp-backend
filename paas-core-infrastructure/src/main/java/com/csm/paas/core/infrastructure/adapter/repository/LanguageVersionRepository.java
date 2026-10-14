@@ -42,4 +42,27 @@ public class LanguageVersionRepository implements ILanguageVersionRepository {
     public long countLanguageVersions(String likeKeyword) {
         return languageVersionDao.countLanguageVersions(likeKeyword);
     }
+
+    @Override
+    public Optional<com.csm.paas.core.domain.language.model.entity.LanguageVersionEntity>
+    queryByLangAndVersion(String lang, String version) {
+        var po = languageVersionDao.selectByLangAndVersion(lang, version);
+        if (po == null) {
+            return Optional.empty();
+        }
+        return Optional.of(com.csm.paas.core.domain.language.model.entity.LanguageVersionEntity.builder()
+                .id(po.getId()).lang(po.getLang()).langVersion(po.getLangVersion())
+                .used(po.getUsed()).createTime(po.getCreateTime())
+                .build());
+    }
+
+    @Override
+    public int deleteVersionById(Long id) {
+        return languageVersionDao.deleteVersionById(id);
+    }
+
+    @Override
+    public void deleteLanguageEntries(String lang, String version) {
+        languageVersionDao.deleteLanguageEntries(lang, version);
+    }
 }
