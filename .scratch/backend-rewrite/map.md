@@ -231,7 +231,9 @@ Label: `wayfinder:map`
   - 第二道门（终局）：过门后厂商返回 500/-1，trace 指向它自己：`TenxService.responseContainer:604` 的 `getLimits().get("cpu").getNumber()` —— **只判了 limits 非 null、没判键存在**，本环境工作负载没有完整 limits ⇒ NPE。**是厂商缺陷，不是数据缺失。**
   - 结论：这个端点**无法通过任何手段观测到成功响应**。下一轮取舍建议：**先做服务域里可对拉的端点（3），再照代码实现详情并注明"证据来自列表端点 `/v1/service` 的 `ServicesItem` 形状（已对拉），详情端点本身厂商恒 500"（1）**。
   - 用例总数更正
+- （**方法感知分诊 + 3 个新可观测读端点**）[findings/61](docs/findings/61-service-triage-method-aware.md)：新发现 `serviceInfoByNode`（**与 `/v1/service` 同形，下一轮首选**）、`otherPlugin`（`{daemonSetList,deploymentList,statefulSetList}`）、`restartInfo`（本环境空）。剩余端点性质已归纳：已对拉 5 / 可观测读待做 3 / 依赖 Harbor 1 / 内容退化 1 / 厂商自身坏 3 / 破坏性写若干 / 非破坏性写（需独立 namespace）。
 - （**服务域分诊**）[10 个端点逐个探测，只有 4 个能拿 200](docs/findings/52-service-endpoint-observability-triage.md)：可对拉=`gaop`/`serviceAuth`（**与我们已对拉的 `/v1/service` 同形**）+ `imageStorage`/`baseComponent`（各有前置）。
+  - ⚠️ **本文 §2 的"400（参数类）"已被 [findings/61](docs/findings/61-service-triage-method-aware.md) 修正**：`hostName`/`priority`/`node` 根本不是 GET（是 `PUT`/`POST`/`DELETE`；`node` 是**删节点**、`servicePods` 是**删 Pod**，破坏性写）。**分诊要先看 HTTP 方法再看返回码。**
   - `hostName`/`priority`/`node` → 400（参数类）；`servicePods` → 400（与 `existService` 同源，见 findings/51）；`baseEvent`/`event` → **500 厂商内部异常**。
   - **本轮零业务代码改动，理由写清了**：`gaop`/`serviceAuth` 差"过滤/排序规则"（不读码会形状对内容错）；`imageStorage` 的值来自 Harbor 而我们**没有 Harbor 客户端**，返回 0/0 属于"用 0 冒充数据"，拒绝；`baseComponent` 要先读全形状与那组 DaemonSet 名。
   - 下一轮确定顺序：`gaop` → `serviceAuth` → `baseComponent` →（`imageStorage` 等 Harbor 域）。
