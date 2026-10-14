@@ -44,12 +44,15 @@ public class RoleQueryServiceImpl implements IRoleQueryService {
 
     private static final String ADMIN_KEY = "admin";
     private static final String DEV_KEY = "dev";
+    /** 内置战位 `user`：导出时会连同 admin/dev 一起被排除（厂商 `generateExportExcel:790-793`）。 */
+    private static final String USER_KEY = "user";
     private static final String ADMIN_PORTAL_NAME = "运维管理员门户";
     private static final String DEV_PORTAL_NAME = "开发管理员门户";
 
     private final IRoleRepository roleRepository;
     private final IRoleOnlineUserRepository onlineUserRepository;
     private final ISubRoleRepository subRoleRepository;
+    private final com.csm.paas.core.domain.language.adapter.port.ILanguageAutoNamePort autoNamePort;
 
     @Override
     public RoleListEntity queryRoleList() {
@@ -163,6 +166,43 @@ public class RoleQueryServiceImpl implements IRoleQueryService {
     @Override
     public List<RoleSoftwareEntity> querySoftwareByRoleId(String roleId) {
         return roleRepository.querySoftwareByRoleId(roleId);
+    }
+
+    @Override
+    public List<com.csm.paas.core.domain.role.model.valobj.RoleExportRowVO> queryExportRows(List<String> ids) {
+        List<com.csm.paas.core.domain.role.model.valobj.RoleExportRowVO> rows = new ArrayList<>();
+        for (RoleEntity role : roleRepository.queryByIdsOrderByCreatedAtDesc(ids)) {
+            String key = role.getKey();
+            // 厂商：`filter(u -> !key.equals("admin") && !key.equals("dev") && !key.equals("user"))`
+            if (ADMIN_KEY.equals(key) || DEV_KEY.equals(key) || USER_KEY.equals(key)) {
+                continue;
+            }
+            rows.add(com.csm.paas.core.domain.role.model.valobj.RoleExportRowVO.builder()
+                    .name(role.getName())
+                    .key(key)
+                    .softwareKeys(roleRepository.querySoftwareKeysByRoleId(role.getId()))
+                    .subRoleKeys(subRoleKeys(role.getId()))
+                    .desc(role.getDesc())
+                    .usernames(roleRepository.queryUsersByRoleId(role.getId()).stream()
+                            .map(com.csm.paas.core.domain.role.model.valobj.RoleUserVO::getUserName)
+                            .toList())
+                    .nameUs(autoNamePort.queryAutoName("role", "en_US", key).orElse(null))
+                    .nameFr(autoNamePort.queryAutoName("role", "fr_FR", key).orElse(null))
+                    .build());
+        }
+        log.info("导出战位 {} 行（请求 ids={}）", rows.size(), ids);
+        return rows;
+    }
+
+    /** 关联子角色的 `key` 列表（厂商 `getSubRoleListByRoleId` + `map(SubRole::getKey)`）。 */
+    private List<String> subRoleKeys(String roleId) {
+        List<String> subRoleIds = roleRepository.querySubRoleIdsByRoleId(roleId);
+        if (subRoleIds.isEmpty()) {
+            return List.of();
+        }
+        return subRoleRepository.queryByIds(subRoleIds).stream()
+                .map(com.csm.paas.core.domain.subrole.model.entity.SubRoleEntity::getKey)
+                .toList();
     }
 
     /** 按战位 key 归组在线用户（厂商 `RoleService.java:206-237`）。 */

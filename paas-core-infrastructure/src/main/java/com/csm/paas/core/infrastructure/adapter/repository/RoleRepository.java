@@ -259,6 +259,16 @@ public class RoleRepository implements IRoleRepository {
     }
 
     @Override
+    public List<RoleEntity> queryByIdsOrderByCreatedAtDesc(List<String> ids) {
+        return roleDao.selectByIdsOrderByCreatedAtDesc(ids).stream().map(this::toEntity).toList();
+    }
+
+    @Override
+    public List<String> querySoftwareKeysByRoleId(String roleId) {
+        return roleDao.selectSoftwareKeysByRoleId(roleId);
+    }
+
+    @Override
     @Transactional
     public void replaceSubRoleRelationsTouchingCreatedAt(String roleId, List<String> subRoleIds) {
         roleDao.deleteSubRoleRoleByRoleId(roleId);

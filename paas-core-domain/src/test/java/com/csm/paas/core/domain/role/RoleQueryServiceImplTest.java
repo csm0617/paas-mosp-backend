@@ -38,7 +38,8 @@ class RoleQueryServiceImplTest {
     private final ISubRoleRepository subRoleRepository = mock(ISubRoleRepository.class);
 
     private RoleQueryServiceImpl service() {
-        return new RoleQueryServiceImpl(roleRepository, onlineUserRepository, subRoleRepository);
+        return new RoleQueryServiceImpl(roleRepository, onlineUserRepository, subRoleRepository,
+                mock(com.csm.paas.core.domain.language.adapter.port.ILanguageAutoNamePort.class));
     }
 
     @Test

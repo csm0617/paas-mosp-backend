@@ -8,6 +8,7 @@ import com.csm.paas.core.api.dto.SubRoleIdsDTO;
 import com.csm.paas.core.api.dto.SubRoleItemDTO;
 import com.csm.paas.core.domain.subrole.service.ISubRoleCommandService;
 import com.csm.paas.core.domain.subrole.service.ISubRoleQueryService;
+import com.csm.paas.core.trigger.assembler.ExcelResponseWriter;
 import com.csm.paas.core.trigger.assembler.SubRoleExcelWriter;
 import com.csm.paas.core.trigger.assembler.SubRoleListAssembler;
 import com.csm.paas.core.trigger.i18n.MessageResolver;
@@ -48,8 +49,8 @@ public class SubRoleController {
             @org.springframework.web.bind.annotation.RequestBody(required = false) java.util.List<String> subroleIdList,
             jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
         var rows = subRoleQueryService.queryExportRows(subroleIdList);
-        writeExcel(response, SubRoleExcelWriter.buildExport(messageResolver, rows),
-                "export.file.name.subrole.export", false);
+        ExcelResponseWriter.write(response, SubRoleExcelWriter.buildExport(messageResolver, rows),
+                messageResolver, "export.file.name.subrole.export", false);
     }
 
     /**
@@ -60,25 +61,8 @@ public class SubRoleController {
      */
     @GetMapping("/import/template")
     public void roleImportTemplate(jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
-        writeExcel(response, SubRoleExcelWriter.buildTemplate(messageResolver),
-                "export.file.name.sub.role.import.template", true);
-    }
-
-    /** 厂商：`Content-Type: application/vnd.ms-excel` + `filename*=UTF-8''<urlencoded>`。 */
-    private void writeExcel(jakarta.servlet.http.HttpServletResponse response, byte[] bytes, String filenameKey,
-                            boolean withCors) throws java.io.IOException {
-        response.reset();
-        response.setCharacterEncoding("UTF-8");
-        response.setContentType("application/vnd.ms-excel");
-        response.setHeader("Content-Disposition", "attachment; filename*=UTF-8''"
-                + java.net.URLEncoder.encode(messageResolver.resolve(filenameKey),
-                        java.nio.charset.StandardCharsets.UTF_8));
-        if (withCors) {
-            response.setHeader("Access-Control-Allow-Origin", "*");
-            response.setHeader("Access-Control-Expose-Headers", "Content-Disposition");
-        }
-        response.getOutputStream().write(bytes);
-        response.flushBuffer();
+        ExcelResponseWriter.write(response, SubRoleExcelWriter.buildTemplate(messageResolver),
+                messageResolver, "export.file.name.sub.role.import.template", true);
     }
 
     /**

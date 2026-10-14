@@ -118,6 +118,15 @@ public interface IRoleRepository {
     void replaceSubRoleRelationsByRoleId(String roleId, List<String> subRoleIds);
 
     /**
+     * 导出用：按 id 集合取战位、`created_at` 倒序；**空集合/null ⇒ 全量**
+     * （厂商 `generateExportExcel:786` 的 `isInWhenPresent` 语义）。
+     */
+    List<RoleEntity> queryByIdsOrderByCreatedAtDesc(List<String> ids);
+
+    /** 战位关联软件的 **`key`** 列表（厂商 `generateExportExcel:805-812`，无 `ORDER BY`）。 */
+    List<String> querySoftwareKeysByRoleId(String roleId);
+
+    /**
      * 同上，但**额外把每个被关联子角色的 `created_at` 覆盖成 now**——厂商两个入口行为不同：
      * `POST /v1/role/{roleId}/suRoles` 走 `SubRoleServiceImpl.roleRelateSubRoles:401-424`
      * （`subRoles.setCreatedAt(now); subRoleMapper.updateByPrimaryKey(subRoles)`），

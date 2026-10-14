@@ -10,11 +10,15 @@ import com.csm.paas.core.api.dto.RoleUsersDTO;
 import com.csm.paas.core.cases.role.IRoleDeleteCase;
 import com.csm.paas.core.cases.role.IRoleWriteCase;
 import com.csm.paas.core.domain.role.service.IRoleQueryService;
+import com.csm.paas.core.trigger.assembler.ExcelResponseWriter;
+import com.csm.paas.core.trigger.i18n.MessageResolver;
+import com.csm.paas.core.trigger.assembler.RoleExcelWriter;
 import com.csm.paas.core.trigger.assembler.RoleListAssembler;
 import com.csm.paas.core.types.exception.WrongArgumentException;
 import com.csm.paas.core.types.util.PageUtils;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -25,6 +29,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -58,6 +63,9 @@ public class RoleController {
 
     @Resource
     private AuthSupport authSupport;
+
+    @Resource
+    private MessageResolver messageResolver;
 
     /** 厂商 `GET /v1/role?page&size&username`：username 非空时按该用户关联的战位过滤（且不分页）。 */
     @GetMapping
@@ -255,5 +263,42 @@ public class RoleController {
     public ResponseDTO<Void> deleteRoleApp(@PathVariable String roleId, @PathVariable String appId) {
         roleWriteCase.removeAppFromRole(roleId, appId);
         return ResponseDTO.ok(null);
+    }
+
+    // ---------- Excel（厂商 RoleController:263-305）----------
+
+    /**
+     * 厂商 `POST /v1/role/backup`：导出战位名单（**xls 附件**，body 是战位 id 数组，可为空 ⇒ 全量）。
+     *
+     * <p>8 列：名称/唯一标识/关联应用(JSON)/关联子角色(JSON)/描述/关联用户(JSON)/英文名/法文名；
+     * **排除 `admin`/`dev`/`user` 三个内置战位**；`created_at` 倒序；**不设列宽**。
+     * <p>与 `POST /v1/role/export` 是同一段实现（厂商两个方法体逐字相同，只有审计 opType 不同）。
+     * 规则见 `IRoleQueryService.queryExportRows`（规格 `findings/157`）。
+     */
+    @PostMapping("/backup")
+    public void backUpRole(@RequestBody(required = false) List<String> roleIdList,
+                           HttpServletResponse response) throws IOException {
+        var rows = roleQueryService.queryExportRows(roleIdList);
+        ExcelResponseWriter.write(response, RoleExcelWriter.buildExport(messageResolver, rows),
+                messageResolver, "export.file.name.role.export", false);
+    }
+
+    /** 厂商 `POST /v1/role/export`：与 {@link #backUpRole} **逐字相同**（前端不调，但厂商 API 面上有）。 */
+    @PostMapping("/export")
+    public void exportRole(@RequestBody(required = false) List<String> roleIdList,
+                           HttpServletResponse response) throws IOException {
+        var rows = roleQueryService.queryExportRows(roleIdList);
+        ExcelResponseWriter.write(response, RoleExcelWriter.buildExport(messageResolver, rows),
+                messageResolver, "export.file.name.role.export", false);
+    }
+
+    /**
+     * 厂商 `GET /v1/role/import/template`：战位导入模板下载（xls 附件）。
+     * <p>8 列表头 + **6** 个示例单元格；与子角色的模板不同，**这里厂商没有设 CORS 头**。
+     */
+    @GetMapping("/import/template")
+    public void roleImportTemplate(HttpServletResponse response) throws IOException {
+        ExcelResponseWriter.write(response, RoleExcelWriter.buildTemplate(messageResolver),
+                messageResolver, "export.file.name.role.import.template", false);
     }
 }

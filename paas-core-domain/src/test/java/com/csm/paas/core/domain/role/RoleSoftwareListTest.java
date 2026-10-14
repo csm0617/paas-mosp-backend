@@ -26,7 +26,8 @@ class RoleSoftwareListTest {
     private RoleQueryServiceImpl service() {
         return new RoleQueryServiceImpl(repository,
                 mock(com.csm.paas.core.domain.role.adapter.repository.IRoleOnlineUserRepository.class),
-                mock(com.csm.paas.core.domain.subrole.adapter.repository.ISubRoleRepository.class));
+                mock(com.csm.paas.core.domain.subrole.adapter.repository.ISubRoleRepository.class),
+                mock(com.csm.paas.core.domain.language.adapter.port.ILanguageAutoNamePort.class));
     }
 
     @Test

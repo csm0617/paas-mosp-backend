@@ -162,6 +162,34 @@ public interface IRoleDao {
     long countSoftwareByRoleId(@Param("roleId") String roleId);
 
     /**
+     * 战位关联软件的 **`key`** 列表（厂商 `generateExportExcel:805-812` 的
+     * `softwareMapper.select(leftJoin g_role_software ... where role_id = ?)` 再 `.map(Software::getKey)`）。
+     * <p>**没有 `ORDER BY`**——与厂商一致（顺序由 MySQL 决定）。
+     */
+    @Select("""
+            SELECT s.`key`
+            FROM g_software s
+            LEFT JOIN g_role_software rs ON rs.app_id = s.id
+            WHERE rs.role_id = #{roleId}
+            """)
+    List<String> selectSoftwareKeysByRoleId(@Param("roleId") String roleId);
+
+    /**
+     * 按 id 集合取战位，`created_at` 倒序；**空集合 ⇒ 全量**（厂商 `isInWhenPresent` 的等价语义）。
+     * <p>厂商出处：`RoleService.generateExportExcel:786`。
+     */
+    @Select("""
+            <script>
+            SELECT id, `key`, name, `desc`, type, updated_at, created_at FROM g_role
+            <if test="ids != null and ids.size() > 0">
+              WHERE id IN <foreach collection="ids" item="it" open="(" separator="," close=")">#{it}</foreach>
+            </if>
+            ORDER BY created_at DESC
+            </script>
+            """)
+    List<RolePO> selectByIdsOrderByCreatedAtDesc(@Param("ids") List<String> ids);
+
+    /**
      * 用户名关联的战位/角色名，按 {@code g_role.type} 过滤、按 {@code g_role.created_at} 倒序。
      * <p>厂商出处：{@code RoleService.java:181}（三表 left join 的等价写法）。
      */

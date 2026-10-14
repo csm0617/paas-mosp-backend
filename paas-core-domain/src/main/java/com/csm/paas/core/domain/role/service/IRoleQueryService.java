@@ -45,4 +45,18 @@ public interface IRoleQueryService {
      */
     com.csm.paas.core.domain.role.model.entity.RoleSoftwareListEntity querySoftwareList(
             String roleId, int page, int size);
+
+    /**
+     * 导出/备份用行数据（厂商 `RoleService.generateExportExcel:784-830`，规格 `findings/157`）。
+     *
+     * <ul>
+     *   <li>`ids` 为空/null ⇒ **全量**（厂商 `isInWhenPresent` 空集合不加 where）；按 `created_at DESC`；</li>
+     *   <li>**排除 `admin`/`dev`/`user` 三个内置战位**（厂商 stream filter）；</li>
+     *   <li>三个列表列（关联应用/子角色/用户）是各自的 **`key`/用户名** 列表，由调用方序列化成 JSON 写单元格；
+     *       空列表 ⇒ 调用方写空单元格（厂商只有非空才 `gson.toJson`）；</li>
+     *   <li>`nameUs`/`nameFr` 来自 `g_setting` 自动名（键 `i18n.role.<lang>.<key>`），取不到就是 **null**。</li>
+     * </ul>
+     */
+    java.util.List<com.csm.paas.core.domain.role.model.valobj.RoleExportRowVO> queryExportRows(
+            java.util.List<String> ids);
 }
