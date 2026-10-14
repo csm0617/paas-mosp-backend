@@ -44,6 +44,7 @@
 | B15 | `POST /v1/service/{service}/updateVolumes` 的 `hostPathList[].readOnly` 为 null 时按"非只读"处理 | 厂商写的是 `getReadOnly() == 2`（`Integer` **拆箱**）⇒ null 时 **NPE** ⇒ 500 `service.file.mapping.or.mount.failed`。前端必传该字段 ⇒ 照抄等于故意留一个 NPE | `findings/119` §4、§6.4 |
 | B16 | `PUT /v1/service/healthCheck` 的 `HealthSetInfo.type` 为 null 时按"不改该探针"处理 | 厂商写的是 `getType() == 0`（`Integer` **拆箱**）⇒ null 时 **NPE** ⇒ 500 `系统错误`。同上 | `findings/121` §4、§6.3 |
 | B17 | `GET /v1/software/relationService/{id}`：`g_software_app.app_name` 在 k8s 里找不到对应服务时**跳过该行** | 厂商 `serviceMap.get(appName)` **不判空**，紧接着 `setMappingInfo` **NPE ⇒ 500**；"服务删了但关联没清"在本环境很常见，整页 500 不可接受 | `findings/120` §6.4 |
+| B18 | `GET /v1/service/event`：pod 的 `metadata.generateName` 为 null 时**跳过该 pod** | 厂商直接 `generateName.substring(0, len-1)` ⇒ **NPE ⇒ 500**；裸 Pod（非控制器创建）没有 `generateName` | `findings/123` §4 |
 
 ## C. 参考环境限制导致无法对拉（按代码实现 + 标注证据来源）
 

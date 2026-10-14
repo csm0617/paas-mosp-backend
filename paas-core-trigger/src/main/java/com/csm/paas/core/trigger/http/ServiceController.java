@@ -143,6 +143,18 @@ public class ServiceController {
     }
 
     /**
+     * 厂商 `GET /v1/service/event?name=`：某服务的 Event 事件列表。
+     *
+     * <p>取第一个 pod 的 `generateName` 去末位字符当 ReplicaSet 名，分别查 ReplicaSet 与每个 Pod 的事件，
+     * 按 `lastTimestamp` 降序（空值排最前）。规则见 `IServiceQueryService.queryServiceEvents`（规格 `findings/123`）。
+     */
+    @GetMapping("/v1/service/event")
+    public ResponseDTO<java.util.List<java.util.Map<String, Object>>> serviceEvent(
+            @org.springframework.web.bind.annotation.RequestParam String name) {
+        return ResponseDTO.ok(serviceQueryService.queryServiceEvents(namespace, name));
+    }
+
+    /**
      * 厂商 `PUT /v1/service/rollingUpdate`：滚动更新 / 更新镜像版本（请求体 `ServiceImageForm`）。
      *
      * <p>`type` 1 ⇒ `maxSurge=1/maxUnavailable=0`、2 ⇒ `0/1`、其它值不改策略；另外写

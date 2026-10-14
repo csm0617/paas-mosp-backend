@@ -484,6 +484,36 @@ public class ServiceRuntimeGateway {
         return true;
     }
 
+    /**
+     * 按标签选择器列 pod，返回 `{name, generateName}`（厂商 `getServiceEvent` 是列全部 pod 再按
+     * `system/svcName` 过滤，用选择器等价）。
+     */
+    public List<Map<String, Object>> listPodsByLabel(String namespace, String labelKey, String labelValue) {
+        return kubernetesClient.pods().inNamespace(namespace).withLabel(labelKey, labelValue).list().getItems().stream()
+                .map(p -> {
+                    Map<String, Object> row = new java.util.HashMap<>();
+                    row.put("name", p.getMetadata() == null ? null : p.getMetadata().getName());
+                    row.put("generateName", p.getMetadata() == null ? null : p.getMetadata().getGenerateName());
+                    return row;
+                })
+                .toList();
+    }
+
+    /**
+     * 列 Event 的原样快照，按 `involvedObject.name` + `involvedObject.kind` 过滤。
+     * <p>厂商用的是服务端 `fieldSelector`；fabric8 7 的 events DSL 在 `inNamespace` 之后没有
+     * `withFieldSelector`，所以在客户端做同一件事（**结果集等价**，见 `findings/123`）。
+     */
+    public List<Map<String, Object>> listEvents(String namespace, String involvedObjectName,
+                                               String involvedObjectKind) {
+        return kubernetesClient.v1().events().inNamespace(namespace).list().getItems().stream()
+                .filter(e -> e.getInvolvedObject() != null
+                        && involvedObjectName.equals(e.getInvolvedObject().getName())
+                        && involvedObjectKind.equals(e.getInvolvedObject().getKind()))
+                .map(this::toSnapshot)
+                .toList();
+    }
+
     public List<Integer> listUsedNodePorts(String namespace) {
         List<Integer> used = new java.util.ArrayList<>();
         for (var svc : listServices(namespace)) {

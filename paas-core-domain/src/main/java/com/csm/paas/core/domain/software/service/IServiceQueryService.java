@@ -267,4 +267,22 @@ public interface IServiceQueryService {
      */
     boolean updateServiceImageRollingUpdate(String namespace,
                                             com.csm.paas.core.domain.software.model.valobj.ServiceImageVO form);
+
+    /**
+     * 某服务的 Event 事件列表（厂商 `GET /v1/service/event?name=` →
+     * `ServiceController.getServiceEvent:2821-2859`，规格见 `docs/findings/123`）。
+     *
+     * <p>流程：按标签 `system/svcName=<name>` 找 pod → 取第一个 pod 的 `generateName` **去掉末位字符**
+     * 作为 ReplicaSet 名 → 查 `involvedObject.name=<rs>,involvedObject.kind=ReplicaSet` 的事件 →
+     * 再对每个 pod 查 `involvedObject.name=<pod>,involvedObject.kind=Pod` 的事件 →
+     * 按 `lastTimestamp` **降序**（且**空值排最前**，照抄厂商 `nullsLast(...).reversed()` 的实际效果）。
+     *
+     * <p>没有匹配的 pod ⇒ 直接返回空列表（200）。
+     * <p>K8s 调用异常 ⇒ 400 `service.get.service.event.info.exception`。
+     * <p><b>一处主动收紧</b>（`deviations.md` B18）：pod 的 `generateName` 为 null 时**跳过该 pod**
+     * （厂商直接 `substring` ⇒ NPE ⇒ 500）。
+     *
+     * @return 原样 Event 快照列表（字段名即 K8s 事件 schema）
+     */
+    java.util.List<java.util.Map<String, Object>> queryServiceEvents(String namespace, String serviceName);
 }

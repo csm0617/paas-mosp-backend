@@ -58,8 +58,70 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
     private static final Integer AUTH_EXPIRED = 2;
 
     /**
-     * 滚动更新 / 更新镜像版本（厂商 `rollingUpdate:2599-2644`，规格见 `docs/findings/122`）。
+     * 某服务的 Event 列表（厂商 `getServiceEvent:2821-2859`，规格见 `docs/findings/123`）。
      */
+    @Override
+    public List<Map<String, Object>> queryServiceEvents(String namespace, String serviceName) {
+        try {
+            List<com.csm.paas.core.domain.software.model.valobj.ServicePodRefVO> pods =
+                    serviceRuntimePort.listPodsByLabel(namespace, "system/svcName", serviceName);
+            List<String> podPreNames = new ArrayList<>();
+            List<String> podNames = new ArrayList<>();
+            for (var pod : pods) {
+                // 厂商：`generateName.substring(0, len-1)`——没有判空 ⇒ null 时 NPE ⇒ 500。
+                // 非控制器创建的 pod 没有 generateName，所以这里跳过它（deviations B18）。
+                if (pod.getGenerateName() == null || pod.getGenerateName().isEmpty()) {
+                    log.warn("pod {} 没有 generateName，跳过（厂商此处会 NPE）", pod.getName());
+                    continue;
+                }
+                podPreNames.add(pod.getGenerateName().substring(0, pod.getGenerateName().length() - 1));
+                podNames.add(pod.getName());
+            }
+            if (podPreNames.isEmpty()) {
+                return List.of();
+            }
+            List<Map<String, Object>> events = new ArrayList<>(
+                    serviceRuntimePort.listEvents(namespace, podPreNames.get(0), "ReplicaSet"));
+            for (String podName : podNames) {
+                events.addAll(serviceRuntimePort.listEvents(namespace, podName, "Pod"));
+            }
+            // 厂商 `Comparator.comparing(lastTimestamp, nullsLast(natural)).reversed()`
+            // ⇒ 非空按时间**降序**，而 `.reversed()` 把"空值最后"也翻了 ⇒ **空值排最前**（照抄）
+            events.sort((a, b) -> {
+                var ta = eventTimestamp(a);
+                var tb = eventTimestamp(b);
+                if (ta == null && tb == null) {
+                    return 0;
+                }
+                if (ta == null) {
+                    return -1;
+                }
+                if (tb == null) {
+                    return 1;
+                }
+                return tb.compareTo(ta);
+            });
+            return events;
+        } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+            log.error("出现异常", e);
+            throw new com.csm.paas.core.types.exception.WrongArgumentException(
+                    "service.get.service.event.info.exception");
+        }
+    }
+
+    /** 事件快照里的 `lastTimestamp`（ISO 串）→ 可比较的瞬时；缺失或解析不了按 null（排最前）。 */
+    private static java.time.OffsetDateTime eventTimestamp(Map<String, Object> event) {
+        Object value = event.get("lastTimestamp");
+        if (!(value instanceof String str) || str.isBlank()) {
+            return null;
+        }
+        try {
+            return java.time.OffsetDateTime.parse(str);
+        } catch (java.time.format.DateTimeParseException e) {
+            return null;
+        }
+    }
+
     @Override
     public boolean updateServiceImageRollingUpdate(String namespace,
                                                    com.csm.paas.core.domain.software.model.valobj.ServiceImageVO form) {

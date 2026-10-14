@@ -168,4 +168,23 @@ public interface IServiceRuntimePort {
      */
     boolean patchDeploymentRollingUpdate(String namespace, String serviceName, Integer type, String version,
                                          long updateTimestamp);
+
+    // ---------- event（厂商 GET /v1/service/event）----------
+
+    /**
+     * 按标签选 pod（厂商 `getServiceEvent:2829-2837` 是"列出全部 pod 再在 Java 里按
+     * `system/svcName == name` 过滤"，用标签选择器等价且更省）。
+     *
+     * @return 每个 pod 的 `{name, generateName}`（`generateName` 可能为 null——厂商在那里会 NPE）
+     */
+    java.util.List<com.csm.paas.core.domain.software.model.valobj.ServicePodRefVO> listPodsByLabel(
+            String namespace, String labelKey, String labelValue);
+
+    /**
+     * 列 Event（厂商 `listNamespacedEvent` 的服务端 `fieldSelector`），返回原样快照。
+     * <p>两处用法：`involvedObject.name=<rs>,involvedObject.kind=ReplicaSet` 与
+     * `involvedObject.name=<pod>,involvedObject.kind=Pod`。
+     */
+    java.util.List<java.util.Map<String, Object>> listEvents(String namespace, String involvedObjectName,
+                                                            String involvedObjectKind);
 }

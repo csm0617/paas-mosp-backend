@@ -203,6 +203,31 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
     }
 
     @Override
+    public java.util.List<com.csm.paas.core.domain.software.model.valobj.ServicePodRefVO> listPodsByLabel(
+            String namespace, String labelKey, String labelValue) {
+        try {
+            return serviceRuntimeGateway.listPodsByLabel(namespace, labelKey, labelValue).stream()
+                    .map(row -> com.csm.paas.core.domain.software.model.valobj.ServicePodRefVO.builder()
+                            .name((String) row.get("name"))
+                            .generateName((String) row.get("generateName"))
+                            .build())
+                    .toList();
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    @Override
+    public java.util.List<java.util.Map<String, Object>> listEvents(String namespace, String involvedObjectName,
+                                                                   String involvedObjectKind) {
+        try {
+            return serviceRuntimeGateway.listEvents(namespace, involvedObjectName, involvedObjectKind);
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    @Override
     public boolean patchDeploymentRollingUpdate(String namespace, String serviceName, Integer type, String version,
                                                 long updateTimestamp) {
         try {
