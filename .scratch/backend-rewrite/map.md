@@ -430,6 +430,10 @@ Label: `wayfinder:map`
 - （**认证审计 + K1 剩余清单**）[findings/91](docs/findings/91-k1-remaining-and-auth-audit.md)：厂商只有 Role/User/Public 三个控制器要会话（`getCurrentUser` 读 **Cookie**）；**服务域全部端点都不需要会话**（所以我们那句"原型尚未实现认证"是对的，不是缺口）。
   - 发现一处差异（B9，已入 deviations）：`GET /v1/role/software` 无 Cookie 时厂商 401、我们返回 `{list:[],total:0}`。
   - **K1 剩余端点清单**：`/v1/user/list`、`/redirect`、`/access_permission`、`/tenx_user` + **文件类**（`recovery`/`backup`/`export`/`import/template`/`import`/`update_avatar`）+ **破坏性** `reset_user`。⇒ K1 剩下主要是文件传输类，值得单独一轮（牵动 `g_upload_store_record` 与 `gaop-fdfs`）。
+- （**K1 文件类端点规格**）[findings/100](docs/findings/100-k1-file-endpoints-spec.md)：6 个端点逐个读清——`export`/`backup` 共用 `generateExportExcel`（HSSFWorkbook）、`import/template` 纯产出、`import`/`recovery`/`update_avatar` 会写库；错误键 `global.import.supported.file.type`、`global.avatar.size.limit`（>204800）。
+  - **前提已确认**：**POI 在本机离线仓可用**（`poi 4.1.2/5.2.5/5.3.0` + `poi-ooxml`/`scratchpad`）⇒ 不需要外部下载。
+  - **验证方式与 JSON 端点不同**：二进制响应 ⇒ 建议**解析后逐格比对**（纯字节会因 xls 元数据/生成时间不同而失败）+ 比对响应头 + 错误路径对拉 + 写库路径用可回滚探针。
+  - 建议顺序：`import/template`（最简单）→ `export`/`backup` → 错误路径 + `update_avatar` → `import`/`recovery`。
 - （**K1 边界**）[GET /v1/role/{roleId}/software](docs/findings/90-role-software-list.md)：实现"管理员校验 + 分页 + `order by \`order\`` + `{list,total}`"；`appName` 的 i18n 与 `url` 两种拼法**未实现**（库里 0 行无法对拉那两段）。
   - **顺带修掉一个潜伏问题**：`g_role_software` 的查询原来**没有 ORDER BY**，而厂商是 `order by \`order\``——因为库里 0 行，`/v1/role`、`/v1/role/list`、`/v1/role/software` 三个已完成端点从未暴露该差异。**这是"零行数据下的假通过"**，已给该查询补上排序（同时修了那三个端点）。
   - **（第 84 轮更正）认证路径其实能对拉**：真因是**我把 token 发错了地方**——厂商 `getCurrentUser(req):883-903` 从 **Cookie** 取 `gateway-token`，我当时用的是 HTTP 头。改用 Cookie 后厂商 200，且四组用例（两个战位/带 keyword/不存在的战位）**响应完全相等**（含"不存在的战位 → `{list:[],total:0}`，不是错误"）。
