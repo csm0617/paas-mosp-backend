@@ -203,6 +203,41 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
     }
 
     @Override
+    public com.csm.paas.core.domain.software.model.valobj.WorkloadStateVO readWorkloadState(String namespace,
+                                                                                           String serviceName) {
+        try {
+            java.util.Map<String, Object> row = serviceRuntimeGateway.readWorkloadState(namespace, serviceName);
+            if (row == null) {
+                return null;
+            }
+            return com.csm.paas.core.domain.software.model.valobj.WorkloadStateVO.builder()
+                    .deployment(Boolean.TRUE.equals(row.get("deployment")))
+                    .specReplicas(intOf(row.get("specReplicas")))
+                    .replicas(intOf(row.get("replicas")))
+                    .readyReplicas(intOf(row.get("readyReplicas")))
+                    .availableReplicas(intOf(row.get("availableReplicas")))
+                    .updatedReplicas(intOf(row.get("updatedReplicas")))
+                    .unavailableReplicas(intOf(row.get("unavailableReplicas")))
+                    .build();
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    @Override
+    public boolean replaceWorkloadReplicas(String namespace, String serviceName, boolean deployment, int replicas) {
+        try {
+            return serviceRuntimeGateway.replaceWorkloadReplicas(namespace, serviceName, deployment, replicas);
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    private static Integer intOf(Object value) {
+        return value instanceof Number number ? number.intValue() : null;
+    }
+
+    @Override
     public java.util.List<com.csm.paas.core.domain.software.model.valobj.TolerationVO> readDeploymentTolerations(
             String namespace, String serviceName) {
         try {

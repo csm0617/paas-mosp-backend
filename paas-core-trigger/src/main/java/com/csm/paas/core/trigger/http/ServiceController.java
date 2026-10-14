@@ -143,6 +143,30 @@ public class ServiceController {
     }
 
     /**
+     * 厂商 `PUT /v1/service/batch-stop`：批量停止服务（body 是**服务名数组**）。
+     *
+     * <p>逐个：读 Deployment（回退 StatefulSet，都没有则跳过）；`spec.replicas == 0` 也跳过；
+     * 否则整份 replace 把副本数设成 0。规则见 `IServiceQueryService.batchStopServices`（规格 `findings/126`）。
+     */
+    @org.springframework.web.bind.annotation.PutMapping("/v1/service/batch-stop")
+    public ResponseDTO<Boolean> batchStop(
+            @org.springframework.web.bind.annotation.RequestBody java.util.List<String> serviceNames) {
+        return ResponseDTO.ok(serviceQueryService.batchStopServices(namespace, serviceNames));
+    }
+
+    /**
+     * 厂商 `PUT /v1/service/batch-start`：批量启动服务（body 是**服务名数组**）。
+     *
+     * <p>与批量停止不同：不看 `spec.replicas`，而是按 `status` 推状态串，**只有 `STOP` 才启动**。
+     * 规则见 `IServiceQueryService.batchStartServices`（规格 `findings/126`）。
+     */
+    @org.springframework.web.bind.annotation.PutMapping("/v1/service/batch-start")
+    public ResponseDTO<Boolean> batchStart(
+            @org.springframework.web.bind.annotation.RequestBody java.util.List<String> serviceNames) {
+        return ResponseDTO.ok(serviceQueryService.batchStartServices(namespace, serviceNames));
+    }
+
+    /**
      * 厂商 `GET /v1/service/baseEvent?baseServiceName=`：基础服务（kube-system 组件）的 Event 列表。
      *
      * <p>命名空间写死 `kube-system`；`kube-proxy` 用 `k8s-app` 选择器、其它用 `name`；ReplicaSet 名直接用

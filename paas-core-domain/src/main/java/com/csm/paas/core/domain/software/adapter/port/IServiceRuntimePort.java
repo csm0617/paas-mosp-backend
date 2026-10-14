@@ -200,4 +200,21 @@ public interface IServiceRuntimePort {
      */
     void patchDeploymentTolerations(String namespace, String serviceName,
                                     java.util.List<com.csm.paas.core.domain.software.model.valobj.TolerationVO> tolerations);
+
+    // ---------- batch-start / batch-stop（厂商 PUT /v1/service/batch-start|batch-stop）----------
+
+    /**
+     * 读工作负载的副本与状态读数（Deployment 优先，读不到回退 StatefulSet）；
+     * **两者都不存在返回 null**（厂商此时只记日志并跳过该服务）。
+     */
+    com.csm.paas.core.domain.software.model.valobj.WorkloadStateVO readWorkloadState(String namespace,
+                                                                                    String serviceName);
+
+    /**
+     * 把工作负载的 `spec.replicas` 设成给定值并**整份 replace**
+     * （厂商 `scaleDeployment`/`scaleStatefulSet:3794-3824` 用的是 `replaceNamespaced*`，不是 patch）。
+     *
+     * @return false = 工作负载不存在
+     */
+    boolean replaceWorkloadReplicas(String namespace, String serviceName, boolean deployment, int replicas);
 }

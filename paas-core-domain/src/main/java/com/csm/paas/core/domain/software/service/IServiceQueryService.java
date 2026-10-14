@@ -323,4 +323,30 @@ public interface IServiceQueryService {
      * **没有空值保护** ⇒ 事件缺 `lastTimestamp` 时比较器抛 NPE ⇒ 500。我们把空值**排到最后**。
      */
     java.util.List<java.util.Map<String, Object>> queryBaseServiceEvents(String baseServiceName);
+
+    /**
+     * 批量**停止**服务（厂商 `PUT /v1/service/batch-stop`，body 是服务名数组 →
+     * `ServiceController.serviceStop:3649-3685`，规格见 `docs/findings/126`）。
+     *
+     * <p>逐个服务：读 Deployment（读不到回退 StatefulSet；都没有则**跳过**）→
+     * `spec.replicas == 0` 也跳过 → 否则整份 replace 把副本数设成 **0**。
+     * replace 失败 ⇒ 400 `service.operation.failed`（`{0}` 是 `"停止"`）。
+     *
+     * <p>入参为空 ⇒ 直接返回 true（不碰集群）。
+     *
+     * @return 恒为 `true`（厂商 `Response.ok(true)`）
+     */
+    boolean batchStopServices(String namespace, java.util.List<String> serviceNames);
+
+    /**
+     * 批量**启动**服务（厂商 `PUT /v1/service/batch-start` → `serviceStart:3689-3740`）。
+     *
+     * <p>与 {@link #batchStopServices} 不同：它**不看 `spec.replicas`**，而是按 `status` 推一个状态串
+     * （`getServiceStatusByServicesItem` 的两个重载，Deployment 与 StatefulSet 的判断条件**不同**）：
+     * 只有 `"STOP"` 才把副本数设成 1；`"RUNNING"` / `" ROLLING_UPDATE"`（**注意前导空格**）/ `"STARING"`
+     * （厂商的拼写）都只记日志不动作。
+     *
+     * <p>入参为空 ⇒ 直接返回 true。
+     */
+    boolean batchStartServices(String namespace, java.util.List<String> serviceNames);
 }

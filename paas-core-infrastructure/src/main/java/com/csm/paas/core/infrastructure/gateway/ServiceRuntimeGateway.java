@@ -484,6 +484,65 @@ public class ServiceRuntimeGateway {
         return true;
     }
 
+    /**
+     * 读工作负载的副本与状态读数（Deployment 优先，回退 StatefulSet）；**两者都不存在返回 null**。
+     * <p>厂商出处：`batch-start`/`batch-stop` 用 `spec.replicas` 判"已停"，用 `status` 推状态。
+     */
+    public Map<String, Object> readWorkloadState(String namespace, String name) {
+        var d = kubernetesClient.apps().deployments().inNamespace(namespace).withName(name).get();
+        if (d != null) {
+            Map<String, Object> row = new java.util.HashMap<>();
+            row.put("deployment", true);
+            row.put("specReplicas", d.getSpec() == null ? null : d.getSpec().getReplicas());
+            var st = d.getStatus();
+            row.put("replicas", st == null ? null : st.getReplicas());
+            row.put("readyReplicas", st == null ? null : st.getReadyReplicas());
+            row.put("availableReplicas", st == null ? null : st.getAvailableReplicas());
+            row.put("updatedReplicas", st == null ? null : st.getUpdatedReplicas());
+            row.put("unavailableReplicas", st == null ? null : st.getUnavailableReplicas());
+            return row;
+        }
+        var s = kubernetesClient.apps().statefulSets().inNamespace(namespace).withName(name).get();
+        if (s != null) {
+            Map<String, Object> row = new java.util.HashMap<>();
+            row.put("deployment", false);
+            row.put("specReplicas", s.getSpec() == null ? null : s.getSpec().getReplicas());
+            var st = s.getStatus();
+            row.put("replicas", st == null ? null : st.getReplicas());
+            row.put("readyReplicas", st == null ? null : st.getReadyReplicas());
+            row.put("availableReplicas", st == null ? null : st.getAvailableReplicas());
+            row.put("updatedReplicas", st == null ? null : st.getUpdatedReplicas());
+            // 注意：StatefulSetStatus **没有** unavailableReplicas 字段（厂商那份推导也没用它）
+            return row;
+        }
+        return null;
+    }
+
+    /**
+     * 把 `spec.replicas` 设成给定值并**整份 replace**（厂商 `scaleDeployment`/`scaleStatefulSet:3794-3824`
+     * 用的是 `replaceNamespaced*`，不是 patch）。
+     *
+     * @return false = 工作负载不存在
+     */
+    public boolean replaceWorkloadReplicas(String namespace, String name, boolean deployment, int replicas) {
+        if (deployment) {
+            var d = kubernetesClient.apps().deployments().inNamespace(namespace).withName(name).get();
+            if (d == null) {
+                return false;
+            }
+            d.getSpec().setReplicas(replicas);
+            kubernetesClient.apps().deployments().inNamespace(namespace).withName(name).replace(d);
+            return true;
+        }
+        var s = kubernetesClient.apps().statefulSets().inNamespace(namespace).withName(name).get();
+        if (s == null) {
+            return false;
+        }
+        s.getSpec().setReplicas(replicas);
+        kubernetesClient.apps().statefulSets().inNamespace(namespace).withName(name).replace(s);
+        return true;
+    }
+
     /** 读 Deployment 的 `spec.template.spec.tolerations`（没有则空列表）。 */
     public List<Map<String, Object>> readDeploymentTolerations(String namespace, String name) {
         var d = kubernetesClient.apps().deployments().inNamespace(namespace).withName(name).get();

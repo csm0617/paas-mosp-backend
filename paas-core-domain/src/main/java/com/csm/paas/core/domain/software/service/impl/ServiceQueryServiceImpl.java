@@ -900,6 +900,120 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
         return events;
     }
 
+    /**
+     * 批量停止（厂商 `serviceStop:3649-3685`，规格见 `docs/findings/126`）。
+     */
+    @Override
+    public boolean batchStopServices(String namespace, List<String> serviceNames) {
+        if (serviceNames == null || serviceNames.isEmpty()) {
+            return true;
+        }
+        for (String serviceName : serviceNames) {
+            var state = serviceRuntimePort.readWorkloadState(namespace, serviceName);
+            if (state == null) {
+                log.info("找不到服务名称:{},跳过停止服务", serviceName);
+                continue;
+            }
+            // 厂商：`Integer replicas = ...getReplicas(); if (replicas == 0)` —— null 会拆箱 NPE（不可达，见 B20）
+            if (Integer.valueOf(0).equals(state.getSpecReplicas())) {
+                log.info("服务名称:{}已经停止，跳过停止操作", serviceName);
+                continue;
+            }
+            scaleWorkload(namespace, serviceName, state.isDeployment(), 0, "停止");
+        }
+        return true;
+    }
+
+    /**
+     * 批量启动（厂商 `serviceStart:3689-3740`，规格见 `docs/findings/126`）。
+     */
+    @Override
+    public boolean batchStartServices(String namespace, List<String> serviceNames) {
+        if (serviceNames == null || serviceNames.isEmpty()) {
+            return true;
+        }
+        for (String serviceName : serviceNames) {
+            var state = serviceRuntimePort.readWorkloadState(namespace, serviceName);
+            if (state == null) {
+                log.info("找不到服务名称:{},跳过启动服务", serviceName);
+                continue;
+            }
+            String status = serviceStatusOf(state);
+            if ("STOP".equals(status)) {
+                scaleWorkload(namespace, serviceName, state.isDeployment(), 1, "启动");
+                continue;
+            }
+            if ("RUNNING".equals(status)) {
+                log.info("服务名称:{}处于运行中，不进行启动操作", serviceName);
+                continue;
+            }
+            if (" ROLLING_UPDATE".equals(status)) {
+                log.info("服务名称:{}处于滚动中，不进行启动操作", serviceName);
+                continue;
+            }
+            if ("STARING".equals(status)) {
+                log.info("服务名称:{}处于启动中，不进行启动操作", serviceName);
+            }
+        }
+        return true;
+    }
+
+    private void scaleWorkload(String namespace, String serviceName, boolean deployment, int replicas,
+                               String operation) {
+        try {
+            serviceRuntimePort.replaceWorkloadReplicas(namespace, serviceName, deployment, replicas);
+        } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+            log.info("{}服务:{}时出现异常,异常为:{}", operation, serviceName, e.getMessage());
+            throw new com.csm.paas.core.types.exception.WrongArgumentException(
+                    "service.operation.failed", operation);
+        }
+    }
+
+    /**
+     * 厂商 `getServiceStatusByServicesItem` 的**两个重载**（`:3742-3792`）：字段集一样，
+     * 但 Deployment 那份多要求 `unavailableReplicas != null`（StatefulSet 根本没有这个字段）。
+     * <p>返回串照抄：`"STOP"` / `"RUNNING"` / `" ROLLING_UPDATE"`（**前导空格**）/ `"STARING"`（厂商拼写）。
+     */
+    private static String serviceStatusOf(com.csm.paas.core.domain.software.model.valobj.WorkloadStateVO s) {
+        if (s.isDeployment()) {
+            if (s.getAvailableReplicas() != null) {
+                if (s.getReadyReplicas() != null && s.getReplicas() != null && s.getUpdatedReplicas() != null) {
+                    if (s.getUnavailableReplicas() != null
+                            && s.getReadyReplicas() > s.getAvailableReplicas()) {
+                        return " ROLLING_UPDATE";
+                    }
+                    return "RUNNING";
+                }
+            } else {
+                if (s.getReadyReplicas() != null && s.getReplicas() != null && s.getUpdatedReplicas() != null
+                        && s.getUnavailableReplicas() != null) {
+                    return "RUNNING";
+                }
+                if (s.getReplicas() != null && s.getUpdatedReplicas() != null
+                        && s.getUnavailableReplicas() != null) {
+                    return "STARING";
+                }
+            }
+            return "STOP";
+        }
+        if (s.getAvailableReplicas() != null) {
+            if (s.getReadyReplicas() != null && s.getReplicas() != null && s.getUpdatedReplicas() != null) {
+                if (s.getReadyReplicas() > s.getAvailableReplicas()) {
+                    return " ROLLING_UPDATE";
+                }
+                return "RUNNING";
+            }
+        } else {
+            if (s.getReadyReplicas() != null && s.getReplicas() != null && s.getUpdatedReplicas() != null) {
+                return "RUNNING";
+            }
+            if (s.getReplicas() != null && s.getUpdatedReplicas() != null) {
+                return "STARING";
+            }
+        }
+        return "STOP";
+    }
+
     /** 厂商 `getStringRandom(length)`：每位 `SecureRandom.nextInt(2)%2==0` 取 `a-z`，否则取 `0-9`。 */
     private static String randomString(int length) {
         java.security.SecureRandom random = new java.security.SecureRandom();
