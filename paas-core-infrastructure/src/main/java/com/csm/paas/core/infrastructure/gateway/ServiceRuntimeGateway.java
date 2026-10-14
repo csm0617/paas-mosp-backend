@@ -490,6 +490,12 @@ public class ServiceRuntimeGateway {
         return ds == null ? null : toSnapshot(ds);
     }
 
+    /** 列命名空间里全部 pod 的原样快照。 */
+    public List<Map<String, Object>> listAllPods(String namespace) {
+        return kubernetesClient.pods().inNamespace(namespace).list().getItems().stream()
+                .map(this::toSnapshot).toList();
+    }
+
     /** 按"标签 + `spec.nodeName`"列 pod 的原样快照（厂商 `listNamespacedPod` 的两个 selector）。 */
     public List<Map<String, Object>> listPodsByLabelAndNode(String namespace, String labelKey, String labelValue,
                                                            String nodeName) {

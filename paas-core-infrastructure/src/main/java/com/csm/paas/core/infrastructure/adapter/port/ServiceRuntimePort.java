@@ -244,6 +244,15 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
     }
 
     @Override
+    public java.util.List<java.util.Map<String, Object>> listAllPods(String namespace) {
+        try {
+            return serviceRuntimeGateway.listAllPods(namespace);
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    @Override
     public boolean replaceWorkloadRestartedAt(String namespace, String serviceName, boolean deployment,
                                               String restartedAt) {
         try {

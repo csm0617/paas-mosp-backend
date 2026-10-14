@@ -1121,6 +1121,156 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
         return "STOP";
     }
 
+    /**
+     * 软件总览（厂商 `getOverViewInfo:1631-1720`，规格见 `docs/findings/129`）。
+     */
+    @Override
+    public com.csm.paas.core.domain.software.model.entity.SoftwareOverviewEntity querySoftwareOverview(
+            String namespace) {
+        var result = com.csm.paas.core.domain.software.model.entity.SoftwareOverviewEntity.builder()
+                .software(newSoftwareStatus())
+                .service(newSoftwareStatus())
+                .pod(newSoftwareStatus())
+                .build();
+        List<ServiceRuntimeEntity> services = serviceRuntimePort.queryServices(namespace);
+        Map<String, ServiceRuntimeEntity> byName = services.stream()
+                .filter(s -> s.getName() != null)
+                .collect(Collectors.toMap(ServiceRuntimeEntity::getName, Function.identity(), (a, b) -> a));
+
+        // ---- software：遍历全部软件，每行按"关联服务的状态"汇总 ----
+        for (var software : softwareRepository.queryAllSoftware()) {
+            List<String> appNames = softwareRepository.queryAppNamesBySoftwareId(software.getId());
+            List<String> statuses = new ArrayList<>();
+            for (String appName : appNames) {
+                ServiceRuntimeEntity item = byName.get(appName);
+                // 厂商：找不到就按 "STOP" 算（不是跳过）
+                statuses.add(item == null ? "STOP" : serviceStatusOf(stateOf(item)));
+            }
+            String softwareStatus = softwareStatusOf(statuses);
+            if ("STOP".equals(softwareStatus)) {
+                result.getSoftware().setStop(result.getSoftware().getStop() + 1);
+            } else if ("RUNNING".equals(softwareStatus)) {
+                result.getSoftware().setRunning(result.getSoftware().getRunning() + 1);
+            } else {
+                // PART_RUN（含空列表）⇒ pending
+                result.getSoftware().setPending(result.getSoftware().getPending() + 1);
+            }
+        }
+
+        // ---- service：遍历 k8s 服务列表，按标签过滤 ----
+        for (ServiceRuntimeEntity item : services) {
+            if (item.getDeploymentSnapshot() == null) {
+                continue;
+            }
+            String appType = item.getAppType();
+            if (appType != null) {
+                if (appType.startsWith("gaop")) {
+                    continue;
+                }
+            } else {
+                String appName = item.getAppName();
+                if ("gis-server".equals(appName) || "gis-jb".equals(appName) || "gaop".equals(appName)) {
+                    continue;
+                }
+            }
+            String status = serviceStatusOf(stateOf(item));
+            if ("STOP".equals(status)) {
+                result.getService().setStop(result.getService().getStop() + 1);
+            } else if ("RUNNING".equals(status)) {
+                result.getService().setRunning(result.getService().getRunning() + 1);
+            } else {
+                result.getService().setPending(result.getService().getPending() + 1);
+            }
+        }
+
+        // ---- pod：遍历全部 pod，按 system/appName 过滤；列 pod 失败只记日志 ----
+        try {
+            for (Map<String, Object> pod : serviceRuntimePort.listAllPods(namespace)) {
+                String appName = labelOfPod(pod, "system/appName");
+                if ("gaop".equals(appName)) {
+                    continue;
+                }
+                String phase = podPhaseOf(pod);
+                if ("Pending".equals(phase) || "Terminating".equals(phase)) {
+                    result.getPod().setPending(result.getPod().getPending() + 1);
+                } else if ("Running".equals(phase)) {
+                    result.getPod().setRunning(result.getPod().getRunning() + 1);
+                } else {
+                    result.getPod().setStop(result.getPod().getStop() + 1);
+                }
+            }
+        } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+            log.error("获取pod容器列表失败,异常为:{}", e.getMessage());
+        }
+        return result;
+    }
+
+    private static com.csm.paas.core.domain.software.model.entity.SoftwareOverviewEntity.StatusInfo
+    newSoftwareStatus() {
+        return com.csm.paas.core.domain.software.model.entity.SoftwareOverviewEntity.StatusInfo.builder()
+                .running(0).stop(0).pending(0).build();
+    }
+
+    /** 厂商 `getSoftwareStatus:2073-2089`：空列表 ⇒ STOP；RUNNING 计数为 0 ⇒ STOP；等于总数 ⇒ RUNNING；否则 PART_RUN。 */
+    private static String softwareStatusOf(List<String> statuses) {
+        if (statuses == null || statuses.isEmpty()) {
+            return "STOP";
+        }
+        long countRun = statuses.stream().filter("RUNNING"::equals).count();
+        if (countRun == 0) {
+            return "STOP";
+        }
+        if (countRun == statuses.size()) {
+            return "RUNNING";
+        }
+        return "PART_RUN";
+    }
+
+    /** 把工作负载快照里的 `status` 读成状态推导需要的字段（厂商直接读 `deployment.getStatus()`）。 */
+    @SuppressWarnings("unchecked")
+    private static com.csm.paas.core.domain.software.model.valobj.WorkloadStateVO stateOf(
+            ServiceRuntimeEntity item) {
+        Map<String, Object> status = null;
+        Object raw = item.getDeploymentSnapshot() == null ? null : item.getDeploymentSnapshot().get("status");
+        if (raw instanceof Map<?, ?> map) {
+            status = (Map<String, Object>) map;
+        }
+        return com.csm.paas.core.domain.software.model.valobj.WorkloadStateVO.builder()
+                .deployment(true)
+                .replicas(statusInt(status, "replicas"))
+                .readyReplicas(statusInt(status, "readyReplicas"))
+                .availableReplicas(statusInt(status, "availableReplicas"))
+                .updatedReplicas(statusInt(status, "updatedReplicas"))
+                .unavailableReplicas(statusInt(status, "unavailableReplicas"))
+                .build();
+    }
+
+    private static Integer statusInt(Map<String, Object> status, String key) {
+        if (status == null) {
+            return null;
+        }
+        Object value = status.get(key);
+        return value instanceof Number number ? number.intValue() : null;
+    }
+
+    /** pod 快照的 `metadata.labels[<key>]`。 */
+    @SuppressWarnings("unchecked")
+    private static String labelOfPod(Map<String, Object> pod, String key) {
+        Object metadata = pod.get("metadata");
+        if (!(metadata instanceof Map<?, ?> metadataMap)) {
+            return null;
+        }
+        Object labels = ((Map<String, Object>) metadataMap).get("labels");
+        return labels instanceof Map<?, ?> labelMap ? (String) ((Map<String, Object>) labelMap).get(key) : null;
+    }
+
+    /** pod 快照的 `status.phase`。 */
+    @SuppressWarnings("unchecked")
+    private static String podPhaseOf(Map<String, Object> pod) {
+        Object status = pod.get("status");
+        return status instanceof Map<?, ?> statusMap ? (String) ((Map<String, Object>) statusMap).get("phase") : null;
+    }
+
     /** 厂商 `getStringRandom(length)`：每位 `SecureRandom.nextInt(2)%2==0` 取 `a-z`，否则取 `0-9`。 */
     private static String randomString(int length) {
         java.security.SecureRandom random = new java.security.SecureRandom();

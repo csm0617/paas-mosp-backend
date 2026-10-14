@@ -50,6 +50,30 @@ public class SoftwareController {
     private String namespace;
 
     /**
+     * 厂商 `POST /v1/software/overView`：软件总览（三组计数 `running/stop/pending`）。
+     *
+     * <p>三组口径不同：`software` 按"该软件关联服务的状态汇总"（关联服务找不到算 STOP，部分运行归 pending）、
+     * `service` 按标签过滤后的工作负载状态、`pod` 按 pod phase。规则见
+     * `IServiceQueryService.querySoftwareOverview`（规格 `findings/129`）。
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/overView")
+    public ResponseDTO<com.csm.paas.core.api.dto.OverviewInfoDTO> overView() {
+        var overview = serviceQueryService.querySoftwareOverview(namespace);
+        return ResponseDTO.ok(com.csm.paas.core.api.dto.OverviewInfoDTO.builder()
+                .software(toStatusDTO(overview.getSoftware()))
+                .service(toStatusDTO(overview.getService()))
+                .pod(toStatusDTO(overview.getPod()))
+                .build());
+    }
+
+    private static com.csm.paas.core.api.dto.OverviewInfoDTO.StatusInfoDTO toStatusDTO(
+            com.csm.paas.core.domain.software.model.entity.SoftwareOverviewEntity.StatusInfo status) {
+        return com.csm.paas.core.api.dto.OverviewInfoDTO.StatusInfoDTO.builder()
+                .running(status.getRunning()).stop(status.getStop()).pending(status.getPending())
+                .build();
+    }
+
+    /**
      * 厂商 `GET /v1/software/relationService/{id}`：软件关联的服务列表（界面显示，单独接口请求）。
      *
      * <p>与 `GET /v1/service` 同一个 `ServiceItemDTO` 形状，但 `mappingInfo` **真的填**

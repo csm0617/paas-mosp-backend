@@ -243,6 +243,11 @@ public class SoftwareRepository implements ISoftwareRepository {
     }
 
     @Override
+    public List<SoftwareEntity> queryAllSoftware() {
+        return softwareDao.selectAllSoftware().stream().map(this::toEntity).toList();
+    }
+
+    @Override
     public List<Integer> queryPodEventRestartCounts(String serviceName, String podName) {
         return softwareDao.selectPodEventsByServiceAndPod(serviceName, podName).stream()
                 .map(com.csm.paas.core.infrastructure.dao.po.PodEventPO::getRestartCount)

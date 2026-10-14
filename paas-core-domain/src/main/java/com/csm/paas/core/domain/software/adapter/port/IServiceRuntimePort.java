@@ -239,4 +239,7 @@ public interface IServiceRuntimePort {
      */
     java.util.List<java.util.Map<String, Object>> listPodsByLabelAndNode(String namespace, String labelKey,
                                                                         String labelValue, String nodeName);
+
+    /** 列命名空间里**全部** pod 的原样快照（厂商 `overView` 的 pod 统计用 `listNamespacedPod` 无选择器）。 */
+    java.util.List<java.util.Map<String, Object>> listAllPods(String namespace);
 }

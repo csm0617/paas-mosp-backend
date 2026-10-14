@@ -148,6 +148,9 @@ public interface ISoftwareRepository {
 
     // ---------- batch-restart（厂商 serviceRestart:3826-3912）----------
 
+    /** 全部软件行（厂商 `getOverViewInfo` 里的 `select(allRows())`）。 */
+    List<SoftwareEntity> queryAllSoftware();
+
     /** 某服务+某 pod 已有的重启次数（厂商用它算 `restartNum = max(1, 历史最大值)`）。 */
     List<Integer> queryPodEventRestartCounts(String serviceName, String podName);
 

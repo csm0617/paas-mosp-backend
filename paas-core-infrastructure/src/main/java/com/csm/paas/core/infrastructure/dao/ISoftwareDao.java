@@ -288,6 +288,17 @@ public interface ISoftwareDao {
     List<String> selectSoftwareIdsByAppName(@Param("appName") String appName);
 
     /**
+     * 全部软件行（厂商 `getOverViewInfo` 里的 `softwareMapper.select(allRows())`）。
+     */
+    @Select("""
+            SELECT id, `key`, name, app_name, router_key, type, version, created_at, updated_at,
+                   framework, exec_name, location, remote_ip, remote_name, remote_password,
+                   active_create, active_expire, order_top, order_time, `desc`, active_code, screenshot, icon
+            FROM g_software
+            """)
+    List<com.csm.paas.core.infrastructure.dao.po.SoftwarePO> selectAllSoftware();
+
+    /**
      * 某软件关联的全部 `app_name`（厂商 `softwareAllService:2219-2221` / `softwareRelationService:2223-2226`：
      * `where software_id = ?`，**没有 orderBy** ⇒ 库返回顺序）。
      */

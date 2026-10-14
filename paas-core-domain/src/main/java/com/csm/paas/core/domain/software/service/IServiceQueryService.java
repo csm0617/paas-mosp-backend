@@ -386,4 +386,22 @@ public interface IServiceQueryService {
      * @param nodeName 节点名（用于 `spec.nodeName` 过滤 pod）
      */
     java.util.List<java.util.Map<String, Object>> queryBaseComponents(String nodeName);
+
+    /**
+     * 软件总览（厂商 `POST /v1/software/overView` → `SoftwareService.getOverViewInfo:1631-1720`，
+     * 规格见 `docs/findings/129`）。
+     *
+     * <p>三组计数，规则**各不相同**：
+     * <ol>
+     *   <li><b>software</b>：遍历全部 `g_software` 行 → 每行取其 `g_software_app` 的 app_name →
+     *       逐个在 k8s 服务列表里找同名 Deployment：找到就用其 `status` 推状态串，**找不到算 `"STOP"`** →
+     *       再按 `getSoftwareStatus` 汇总成 `STOP`/`RUNNING`/`PART_RUN` → `PART_RUN` 归到 **pending**；</li>
+     *   <li><b>service</b>：遍历 k8s 服务列表，**过滤掉** `labels["system/appType"]` 以 `gaop` 开头的、
+     *       以及（appType 为 null 时）`system/appName` 为 `gis-server`/`gis-jb`/`gaop` 的；其余按 status 计数；</li>
+     *   <li><b>pod</b>：遍历命名空间全部 pod，**过滤** `labels["system/appName"] == "gaop"` 的；
+     *       `phase` 为 `Pending`/`Terminating` ⇒ pending，`Running` ⇒ running，其它 ⇒ stop。
+     *       列 pod 失败**只记日志**（pod 全 0，不影响另外两组）。</li>
+     * </ol>
+     */
+    com.csm.paas.core.domain.software.model.entity.SoftwareOverviewEntity querySoftwareOverview(String namespace);
 }
