@@ -1,10 +1,6 @@
 server:
   # 与厂商 gaop-be 同端口，便于后续整体替换时直接换 Deployment 镜像
   port: ${SERVER_PORT:8080}
-  host:
-    # Harbor 地址（厂商同名配置项；厂商环境为 192.168.1.52:30002）。
-    # 本机到不了该地址，见 docs/findings/78；部署在集群内时用环境变量注入。
-    harbor: ${SERVER_HOST_HARBOR:}
 
 spring:
   application:
@@ -56,12 +52,3 @@ logging:
   level:
     root: INFO
     com.csm.paas.core: INFO
-
-# ---- Harbor（镜像管理的数据源）----
-# 与厂商**同名**的配置项，便于在真实环境复用同一份配置：
-#   server.host.harbor = <host>:<port>（厂商环境为 192.168.1.52:30002）
-#   docker.username / docker.password = Harbor 账号
-# **不写默认口令**：部署时用环境变量注入（SERVER_HOST_HARBOR / DOCKER_USERNAME / DOCKER_PASSWORD）。
-docker:
-  username: ${DOCKER_USERNAME:}
-  password: ${DOCKER_PASSWORD:}

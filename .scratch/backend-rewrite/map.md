@@ -331,6 +331,10 @@ Label: `wayfinder:map`
     - 顺带解释畸形值：`Instant.ofEpochSecond(createDate)` 把**毫秒**当**秒** ⇒ 年份爆到 58753（厂商缺陷，照抄勿修）。
     - **教训**：不是读错了代码行，而是**读错了类**——凡有多实现/多策略，先找"选择逻辑"再读被选中的实现。
     - 待办：按 K3s 实现重写该端点（**注意它会在表为空时写库**，对拉后要处理/清理）。
+  - **已按 K3s 重写并在线对拉：整个响应体逐字节相同**（[findings/80](docs/findings/80-image-projectlist-k3s-verified.md)）。六步照抄：查 `g_group`(create_date 倒序/分页) → 空则取/建三个内置项目(写库) → 库行追加 → **只过滤 `system_containers`** → 只设 3 个字段其余 null → `total=过滤后条数`。
+    - 实测：`?page=1&size=20` 与 `&keyword=gaop` 两种入参**整个响应体完全相等**（含 `+58753-04-29…` 畸形时间与 project_id）。
+    - **顺带清理**：删掉上一轮那套 Harbor 实现（gateway/port/端口接口/yml 配置）——参考环境里 Harbor 路径不可达，留着是死代码。
+    - **副作用**：表为空时该端点**写库**（建 3 个内置项目）。本环境 `g_group` 已被厂商写入 3 行，本次对拉未触发写入（清理时核对仍是 3 行）。
 - （**顺着 e2e 线索找到真实缺口**）[GET /v1/image/projectList](docs/findings/77-image-projectlist-divergence.md)：A/B 共享端点后定位到它——**vendor 返回 2 个 Harbor 项目（library/gaop），我们返回空列表（stub）**。其余共享端点（quickStart/mode/lang/settings/switchRole）全部相等。
   - 线索链：HTML 大小差异 → 可见文本**完全相同**（否掉"多导航条目"的猜测）→ `data:image` 5 vs 15（导航图标）→ **前端调用的端点集合两侧完全相同** → 逐个 A/B → 命中 `projectList`。
   - 实现路径：`K8sImageServiceImpl.projectList:107-119` = `harbor.allPageProjects` → 过滤 `system_containers`/`system_store` → 按 `creation_time` 倒序 → 分页。
