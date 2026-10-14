@@ -570,4 +570,16 @@ public interface IServiceQueryService {
      * 就分别填到 `tcpListen`/`udpListen`。`ingressList` **恒为 null**。
      */
     com.csm.paas.core.domain.software.model.entity.ListenBackInfoEntity exportListenConfigs(String namespace);
+
+    /**
+     * 导入配置组（厂商 `POST /v1/config_map/import` → `SoftwareService.importConfigMap:3363-3403`）。
+     *
+     * <p>逐个对象：先读同名 ConfigMap 判断是否存在 ⇒ 存在用 **replace**、不存在用 **create**；
+     * 两种失败**都只记日志**（继续下一个）；替换/创建前把 `metadata.resourceVersion` 与
+     * `metadata.uid` **置 null**。**恒返回 true**。
+     *
+     * <p>厂商在失败时还会写"恢复日志"（`BackupLogService.sendRecoveryLog`），但那受静态开关
+     * `RECOVERY` 控制、**默认为 false**，且只往内存列表追加 + 推 `/topic/recoveryLog`；我们不做。
+     */
+    boolean importConfigMaps(String namespace, java.util.List<java.util.Map<String, Object>> configMaps);
 }

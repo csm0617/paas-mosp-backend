@@ -20,8 +20,8 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>已实现：`GET /`（列表）、`GET /{name}`、`GET /{name}/exist`、`GET /relationService`、
  * `POST /`（创建）、`POST /{name}/config`、`DELETE /{name}/config/{configName}`、`DELETE /?names=`。
- * 已实现：`POST /backup`、`POST /listenBackup`。未实现：`POST /import`、`POST /importListen`
- * （两者都要写"恢复日志"并推 `/topic/recoveryLog`，需先决定是否引入该日志机制）。
+ * 已实现：`POST /backup`、`POST /listenBackup`、`POST /import`。
+ * 未实现：`POST /importListen`（它会**改 ingress Service 的端口**，风险高，另行评估）。
  */
 @RestController
 @RequestMapping("/v1/config_map")
@@ -42,6 +42,34 @@ public class ConfigMapController {
      * **`total` 恒为关键字过滤之前的数量**。规则见
      * `IServiceQueryService.queryConfigMapList`（规格 `findings/142`）。
      */
+    /**
+     * 厂商 `POST /v1/config_map/import`（multipart）：导入配置组（JSON 是 ConfigMap 数组）。
+     *
+     * <p>逐条：存在 ⇒ replace、不存在 ⇒ create；**失败只记日志**；**恒返回 true**。规则见
+     * `IServiceQueryService.importConfigMaps`（规格 `findings/146`）。
+     *
+     * <p>部件名兼容两种写法：厂商的参数名是 `json`（未注解，靠编译参数名绑定），前端用 FormData 上传；
+     * 我们优先取名为 `json` 的部件，取不到则取**第一个**文件部件。
+     */
+    @org.springframework.web.bind.annotation.PostMapping(value = "/import",
+            consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseDTO<Boolean> importConfigMap(
+            @org.springframework.web.bind.annotation.RequestPart(value = "json", required = false)
+            org.springframework.web.multipart.MultipartFile json,
+            jakarta.servlet.http.HttpServletRequest request) throws java.io.IOException {
+        org.springframework.web.multipart.MultipartFile file = json;
+        if (file == null && request instanceof org.springframework.web.multipart.MultipartHttpServletRequest multi) {
+            file = multi.getFileMap().values().stream().findFirst().orElse(null);
+        }
+        java.util.List<java.util.Map<String, Object>> configMaps = file == null
+                ? java.util.List.of()
+                : new com.fasterxml.jackson.databind.ObjectMapper().readValue(
+                        file.getInputStream(),
+                        new com.fasterxml.jackson.core.type.TypeReference<>() {
+                        });
+        return ResponseDTO.ok(serviceQueryService.importConfigMaps(namespace, configMaps));
+    }
+
     /**
      * 厂商 `POST /v1/config_map/backup`：导出配置组（**JSON 附件**，不是 JSON 信封）。
      *

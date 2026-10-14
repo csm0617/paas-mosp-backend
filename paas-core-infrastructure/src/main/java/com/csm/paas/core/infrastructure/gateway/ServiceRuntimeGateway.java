@@ -582,6 +582,21 @@ public class ServiceRuntimeGateway {
                 .map(this::toSnapshot).toList();
     }
 
+    /** 用整份对象创建 ConfigMap（Map → fabric8 模型 → create）。 */
+    public void createConfigMapObject(String namespace, Map<String, Object> configMap) {
+        kubernetesClient.configMaps().inNamespace(namespace).resource(toConfigMap(configMap)).create();
+    }
+
+    /** 用整份对象替换 ConfigMap（Map → fabric8 模型 → replace/PUT）。 */
+    public void replaceConfigMapObject(String namespace, Map<String, Object> configMap) {
+        kubernetesClient.configMaps().inNamespace(namespace).resource(toConfigMap(configMap)).replace();
+    }
+
+    private static io.fabric8.kubernetes.api.model.ConfigMap toConfigMap(Map<String, Object> snapshot) {
+        return new com.fasterxml.jackson.databind.ObjectMapper()
+                .convertValue(snapshot, io.fabric8.kubernetes.api.model.ConfigMap.class);
+    }
+
     /** 全部 Deployment 的原样快照。 */
     public List<Map<String, Object>> listDeploymentSnapshots(String namespace) {
         return kubernetesClient.apps().deployments().inNamespace(namespace).list().getItems().stream()

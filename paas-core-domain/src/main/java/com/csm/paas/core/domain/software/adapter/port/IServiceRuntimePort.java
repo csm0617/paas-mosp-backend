@@ -313,4 +313,10 @@ public interface IServiceRuntimePort {
      * `labelSelector = "ingress-lb"`）。
      */
     java.util.List<java.util.Map<String, Object>> listConfigMapsWithIngressLb(String namespace);
+
+    /** 用整份对象**创建** ConfigMap（厂商 `importConfigMap:3394` 的 `createNamespacedConfigMap`）。 */
+    void createConfigMapObject(String namespace, java.util.Map<String, Object> configMap);
+
+    /** 用整份对象**替换** ConfigMap（厂商 `importConfigMap:3383` 的 `replaceNamespacedConfigMap`）。 */
+    void replaceConfigMapObject(String namespace, java.util.Map<String, Object> configMap);
 }

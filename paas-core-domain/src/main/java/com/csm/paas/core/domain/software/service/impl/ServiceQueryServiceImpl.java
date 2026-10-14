@@ -1747,6 +1747,41 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
                 .build();
     }
 
+    @Override
+    public boolean importConfigMaps(String namespace, List<Map<String, Object>> configMaps) {
+        if (configMaps == null || configMaps.isEmpty()) {
+            return true;
+        }
+        for (Map<String, Object> configMap : configMaps) {
+            String name = configMapName(configMap);
+            boolean exist;
+            try {
+                exist = serviceRuntimePort.findConfigMap(namespace, name).isPresent();
+            } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+                log.error("该configMap名称:{}不存在,异常为:{}", name, e.getMessage());
+                exist = false;
+            }
+            // 厂商：替换/创建前清掉这两个字段
+            Map<String, Object> metadata = asMap(configMap.get("metadata"));
+            if (metadata != null) {
+                metadata.remove("resourceVersion");
+                metadata.remove("uid");
+            }
+            try {
+                if (exist) {
+                    serviceRuntimePort.replaceConfigMapObject(namespace, configMap);
+                    log.info("更新服务配置组名称:{}成功", name);
+                } else {
+                    serviceRuntimePort.createConfigMapObject(namespace, configMap);
+                    log.info("新增服务配置组名称:{}成功", name);
+                }
+            } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+                log.info("导入configmap配置名称:{}失败，导入下一个,异常为:{}", name, e.getMessage());
+            }
+        }
+        return true;
+    }
+
     /** 厂商 `getStringRandom(length)`：每位 `SecureRandom.nextInt(2)%2==0` 取 `a-z`，否则取 `0-9`。 */
     private static String randomString(int length) {
         java.security.SecureRandom random = new java.security.SecureRandom();
