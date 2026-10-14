@@ -41,4 +41,16 @@ public interface ISubRoleRepository {
      * 查不到 ⇒ 调用方跳过）。
      */
     java.util.Optional<SubRoleEntity> queryByKey(String key);
+
+    /** 按主键取子角色（厂商 `SubRoleServiceImpl.detail:341-344`）。 */
+    java.util.Optional<SubRoleEntity> queryById(String id);
+
+    /** 删子角色（厂商 `deleteByIds` 的 `deleteByPrimaryKey`）。 */
+    void deleteById(String id);
+
+    /** 删该子角色的"子角色-战位"关联。 */
+    void deleteSubRoleRolesBySubRoleId(String subRoleId);
+
+    /** 删该子角色的"用户-子角色"关联。 */
+    void deleteUserSubRolesBySubRoleId(String subRoleId);
 }

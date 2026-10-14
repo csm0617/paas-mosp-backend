@@ -62,6 +62,26 @@ public class SubRoleRepository implements ISubRoleRepository {
     }
 
     @Override
+    public java.util.Optional<SubRoleEntity> queryById(String id) {
+        return java.util.Optional.ofNullable(subRoleDao.selectById(id)).map(this::toEntity);
+    }
+
+    @Override
+    public void deleteById(String id) {
+        subRoleDao.deleteById(id);
+    }
+
+    @Override
+    public void deleteSubRoleRolesBySubRoleId(String subRoleId) {
+        subRoleDao.deleteSubRoleRolesBySubRoleId(subRoleId);
+    }
+
+    @Override
+    public void deleteUserSubRolesBySubRoleId(String subRoleId) {
+        subRoleDao.deleteUserSubRolesBySubRoleId(subRoleId);
+    }
+
+    @Override
     public java.util.Optional<SubRoleEntity> queryByKey(String key) {
         return java.util.Optional.ofNullable(subRoleDao.selectByKey(key)).map(this::toEntity);
     }

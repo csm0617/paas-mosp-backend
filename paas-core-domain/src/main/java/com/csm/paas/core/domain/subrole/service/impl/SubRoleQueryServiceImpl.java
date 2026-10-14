@@ -55,4 +55,15 @@ public class SubRoleQueryServiceImpl implements ISubRoleQueryService {
         entity.setUserList(subRoleRepository.queryUsersBySubRoleId(entity.getId()));
         entity.setRoleList(subRoleRepository.queryRolesBySubRoleId(entity.getId()));
     }
+    @Override
+    public com.csm.paas.core.domain.subrole.model.entity.SubRoleEntity querySubRoleDetail(String id) {
+        return subRoleRepository.queryById(id)
+                .map(role -> {
+                    // 厂商：i18n 自动名取不到 ⇒ 兜底成 name（本环境无覆盖数据）
+                    role.setNameUs(role.getName());
+                    role.setNameFr(role.getName());
+                    return role;
+                })
+                .orElse(null);
+    }
 }

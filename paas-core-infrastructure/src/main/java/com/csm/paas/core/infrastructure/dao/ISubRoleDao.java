@@ -43,6 +43,24 @@ public interface ISubRoleDao {
     @Select("SELECT COUNT(*) FROM g_sub_role")
     long selectCount();
 
+    /** 按主键取子角色（厂商 `SubRoleServiceImpl.detail:341-344`）。 */
+    @Select("""
+            SELECT id, `key`, name, `desc`, updated_at, created_at FROM g_sub_role WHERE id = #{id}
+            """)
+    SubRolePO selectById(@Param("id") String id);
+
+    /** 删子角色（厂商 `deleteByIds:288` 的 `deleteByPrimaryKey`）。 */
+    @org.apache.ibatis.annotations.Delete("DELETE FROM g_sub_role WHERE id = #{id}")
+    int deleteById(@Param("id") String id);
+
+    /** 删"子角色-战位"关联（厂商 `deleteSubRoleInRoleBySubRoleId:454-456`）。 */
+    @org.apache.ibatis.annotations.Delete("DELETE FROM g_sub_role_role WHERE sub_role_id = #{subRoleId}")
+    int deleteSubRoleRolesBySubRoleId(@Param("subRoleId") String subRoleId);
+
+    /** 删"用户-子角色"关联（厂商 `deleteByIds:289` 的 `userSubRoleMapper.delete`）。 */
+    @org.apache.ibatis.annotations.Delete("DELETE FROM g_user_sub_role WHERE sub_role_id = #{subRoleId}")
+    int deleteUserSubRolesBySubRoleId(@Param("subRoleId") String subRoleId);
+
     /**
      * 按名称模糊（厂商 `SubRoleServiceImpl.java:194`）。
      * <p>厂商该分支**不分页**（漏了 `startPage`），这里同样不加 LIMIT。
