@@ -169,6 +169,25 @@ public interface ISoftwareDao {
     List<com.csm.paas.core.infrastructure.dao.po.PodEventPO> selectPodEvents(@Param("serviceName") String serviceName);
 
     /**
+     * 某服务+某 pod 的重启记录（厂商 `batch-restart` 里算 `restartNum` 用的
+     * `where service_name = ? and pod_name = ?`，**无 orderBy**）。
+     */
+    @Select("""
+            SELECT pod_name, restart_count, create_at FROM g_pod_event
+            WHERE service_name = #{serviceName} AND pod_name = #{podName}
+            """)
+    List<com.csm.paas.core.infrastructure.dao.po.PodEventPO> selectPodEventsByServiceAndPod(
+            @Param("serviceName") String serviceName, @Param("podName") String podName);
+
+    /** 插一条重启记录（厂商 `podEventMapper.insertSelective`：只设四列，`id` 自增）。 */
+    @org.apache.ibatis.annotations.Insert("""
+            INSERT INTO g_pod_event (service_name, pod_name, create_at, restart_count)
+            VALUES (#{serviceName}, #{podName}, #{createAt}, #{restartCount})
+            """)
+    int insertPodEvent(@Param("serviceName") String serviceName, @Param("podName") String podName,
+                       @Param("createAt") long createAt, @Param("restartCount") int restartCount);
+
+    /**
      * 写入软件授权（厂商 `authSoftware:3264-3267`：设 `active_create`/`active_code`/`active_expire` 后整行更新；
      * **不设 `updated_at`**——照抄）。
      */

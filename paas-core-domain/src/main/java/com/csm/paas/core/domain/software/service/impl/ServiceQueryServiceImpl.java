@@ -901,6 +901,71 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
     }
 
     /**
+     * 批量重启（厂商 `serviceRestart:3826-3912`，规格见 `docs/findings/127`）。
+     */
+    @Override
+    public boolean batchRestartServices(String namespace, List<String> serviceNames) {
+        if (serviceNames == null || serviceNames.isEmpty()) {
+            return true;
+        }
+        for (String serviceName : serviceNames) {
+            var state = serviceRuntimePort.readWorkloadState(namespace, serviceName);
+            if (state == null) {
+                log.info("未找到服务:{}跳过该服务重启", serviceName);
+                continue;
+            }
+            if (!state.isDeployment()) {
+                // StatefulSet 分支：只打注解 + replace，**不写 g_pod_event**
+                restartWorkload(namespace, serviceName, false);
+                continue;
+            }
+            String podName = firstPodNameByServiceLabel(namespace, serviceName);
+            if (podName != null) {
+                // 厂商：`restartNum` 初值 1，再取历史最大值（两处 set(1) 的写法照抄成 max(1, …)）
+                int restartNum = 1;
+                for (Integer count : softwareRepository.queryPodEventRestartCounts(serviceName, podName)) {
+                    if (count != null && count > restartNum) {
+                        restartNum = count;
+                    }
+                }
+                softwareRepository.insertPodEvent(serviceName, podName, System.currentTimeMillis(), restartNum);
+                log.info("将容器重启信息入库成功");
+            }
+            restartWorkload(namespace, serviceName, true);
+        }
+        return true;
+    }
+
+    /** 厂商：给 pod 模板打 `kubectl.kubernetes.io/restartedAt`（值是 `LocalDateTime.now().toString()`）后 replace。 */
+    private void restartWorkload(String namespace, String serviceName, boolean deployment) {
+        try {
+            serviceRuntimePort.replaceWorkloadRestartedAt(namespace, serviceName, deployment,
+                    java.time.LocalDateTime.now().toString());
+        } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+            log.info("重启服务:{}失败,异常为:{}", serviceName, e.getMessage());
+            throw new com.csm.paas.core.types.exception.WrongArgumentException(
+                    "service.restart.name.failed", serviceName);
+        }
+    }
+
+    /** 厂商 `getPodNameByDeploymentName`：按标签 `system/svcName` 找**第一个** pod；找不到返回 null。 */
+    private String firstPodNameByServiceLabel(String namespace, String serviceName) {
+        List<com.csm.paas.core.domain.software.model.valobj.ServicePodRefVO> pods;
+        try {
+            pods = serviceRuntimePort.listPodsByLabel(namespace, "system/svcName", serviceName);
+        } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+            log.error("出现异常", e);
+            throw new com.csm.paas.core.types.exception.WrongArgumentException(
+                    "service.get.service.info.exception");
+        }
+        return pods.stream()
+                .map(com.csm.paas.core.domain.software.model.valobj.ServicePodRefVO::getName)
+                .filter(java.util.Objects::nonNull)
+                .findFirst()
+                .orElse(null);
+    }
+
+    /**
      * 批量停止（厂商 `serviceStop:3649-3685`，规格见 `docs/findings/126`）。
      */
     @Override

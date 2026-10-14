@@ -349,4 +349,24 @@ public interface IServiceQueryService {
      * <p>入参为空 ⇒ 直接返回 true。
      */
     boolean batchStartServices(String namespace, java.util.List<String> serviceNames);
+
+    /**
+     * 批量**重启**服务（厂商 `PUT /v1/service/batch-restart`，body 是服务名数组 →
+     * `ServiceController.serviceRestart:3826-3912`，规格见 `docs/findings/127`）。
+     *
+     * <p>逐个服务：
+     * <ol>
+     *   <li>读 Deployment（读不到回退 StatefulSet；都没有 ⇒ 跳过）；</li>
+     *   <li>**StatefulSet 分支**：给 pod 模板打注解 `kubectl.kubernetes.io/restartedAt` 后整份 replace，结束该服务；</li>
+     *   <li>**Deployment 分支**：先按标签 `system/svcName` 找**第一个** pod 名（找不到就跳过"写记录"这步）→
+     *       查 `g_pod_event` 里该 (服务, pod) 的历史重启次数，取 `max(1, 历史最大值)` →
+     *       **先插一条 `g_pod_event`**，再打注解并整份 replace（厂商就是这个顺序：写库在前、replace 在后）；</li>
+     *   <li>找 pod 名失败 ⇒ 400 `service.get.service.info.exception`；
+     *       replace 失败 ⇒ 400 `service.restart.name.failed`（带服务名）。</li>
+     * </ol>
+     *
+     * <p>注解值照抄厂商：**`LocalDateTime.now().toString()`**（不是毫秒）。
+     * <p>入参为空 ⇒ 直接返回 true。
+     */
+    boolean batchRestartServices(String namespace, java.util.List<String> serviceNames);
 }

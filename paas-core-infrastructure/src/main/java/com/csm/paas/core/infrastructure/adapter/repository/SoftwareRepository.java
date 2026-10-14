@@ -243,6 +243,18 @@ public class SoftwareRepository implements ISoftwareRepository {
     }
 
     @Override
+    public List<Integer> queryPodEventRestartCounts(String serviceName, String podName) {
+        return softwareDao.selectPodEventsByServiceAndPod(serviceName, podName).stream()
+                .map(com.csm.paas.core.infrastructure.dao.po.PodEventPO::getRestartCount)
+                .toList();
+    }
+
+    @Override
+    public void insertPodEvent(String serviceName, String podName, long createAt, int restartCount) {
+        softwareDao.insertPodEvent(serviceName, podName, createAt, restartCount);
+    }
+
+    @Override
     public void deleteServicePorts(String softwareId, String serviceName) {
         softwareDao.deleteServicePortsBySoftwareIdAndServiceName(softwareId, serviceName);
     }

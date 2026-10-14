@@ -146,6 +146,14 @@ public interface ISoftwareRepository {
      */
     void updateSoftwareUpdatedAt(String softwareId, long updatedAt);
 
+    // ---------- batch-restart（厂商 serviceRestart:3826-3912）----------
+
+    /** 某服务+某 pod 已有的重启次数（厂商用它算 `restartNum = max(1, 历史最大值)`）。 */
+    List<Integer> queryPodEventRestartCounts(String serviceName, String podName);
+
+    /** 写一条重启记录（厂商 `podEventMapper.insertSelective`）。 */
+    void insertPodEvent(String serviceName, String podName, long createAt, int restartCount);
+
     /** 删某软件在某服务下的全部端口映射（厂商 `where software_id = ? and service_name = ?`）。 */
     void deleteServicePorts(String softwareId, String serviceName);
 

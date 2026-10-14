@@ -143,6 +143,19 @@ public class ServiceController {
     }
 
     /**
+     * 厂商 `PUT /v1/service/batch-restart`：批量重启服务（body 是**服务名数组**）。
+     *
+     * <p>Deployment：先按 `system/svcName` 找第一个 pod 名写一条 `g_pod_event`（`restartNum = max(1, 历史最大值)`），
+     * 再给 pod 模板打 `kubectl.kubernetes.io/restartedAt` 注解并整份 replace；StatefulSet 只做后者。
+     * 规则见 `IServiceQueryService.batchRestartServices`（规格 `findings/127`）。
+     */
+    @org.springframework.web.bind.annotation.PutMapping("/v1/service/batch-restart")
+    public ResponseDTO<Boolean> batchRestart(
+            @org.springframework.web.bind.annotation.RequestBody java.util.List<String> serviceNames) {
+        return ResponseDTO.ok(serviceQueryService.batchRestartServices(namespace, serviceNames));
+    }
+
+    /**
      * 厂商 `PUT /v1/service/batch-stop`：批量停止服务（body 是**服务名数组**）。
      *
      * <p>逐个：读 Deployment（回退 StatefulSet，都没有则跳过）；`spec.replicas == 0` 也跳过；

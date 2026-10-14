@@ -225,6 +225,16 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
     }
 
     @Override
+    public boolean replaceWorkloadRestartedAt(String namespace, String serviceName, boolean deployment,
+                                              String restartedAt) {
+        try {
+            return serviceRuntimeGateway.replaceWorkloadRestartedAt(namespace, serviceName, deployment, restartedAt);
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    @Override
     public boolean replaceWorkloadReplicas(String namespace, String serviceName, boolean deployment, int replicas) {
         try {
             return serviceRuntimeGateway.replaceWorkloadReplicas(namespace, serviceName, deployment, replicas);

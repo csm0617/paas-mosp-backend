@@ -217,4 +217,14 @@ public interface IServiceRuntimePort {
      * @return false = 工作负载不存在
      */
     boolean replaceWorkloadReplicas(String namespace, String serviceName, boolean deployment, int replicas);
+
+    // ---------- batch-restart（厂商 PUT /v1/service/batch-restart）----------
+
+    /**
+     * 给工作负载的 pod 模板打上注解 `kubectl.kubernetes.io/restartedAt` 并**整份 replace**
+     * （厂商 `serviceRestart:3826-3912` 的滚动重启手法；注解值是 `LocalDateTime.now().toString()`）。
+     *
+     * @return false = 工作负载不存在
+     */
+    boolean replaceWorkloadRestartedAt(String namespace, String serviceName, boolean deployment, String restartedAt);
 }

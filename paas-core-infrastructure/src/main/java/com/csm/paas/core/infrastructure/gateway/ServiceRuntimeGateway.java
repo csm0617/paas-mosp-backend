@@ -485,6 +485,45 @@ public class ServiceRuntimeGateway {
     }
 
     /**
+     * 给 pod 模板打注解 `kubectl.kubernetes.io/restartedAt` 并整份 replace
+     * （厂商 `serviceRestart:3826-3912` 的滚动重启手法）。
+     *
+     * @return false = 工作负载不存在
+     */
+    public boolean replaceWorkloadRestartedAt(String namespace, String name, boolean deployment, String restartedAt) {
+        if (deployment) {
+            var d = kubernetesClient.apps().deployments().inNamespace(namespace).withName(name).get();
+            if (d == null) {
+                return false;
+            }
+            if (d.getSpec().getTemplate() == null) {
+                d.getSpec().setTemplate(new io.fabric8.kubernetes.api.model.PodTemplateSpec());
+            }
+            if (d.getSpec().getTemplate().getMetadata().getAnnotations() == null) {
+                d.getSpec().getTemplate().getMetadata().setAnnotations(new java.util.HashMap<>());
+            }
+            d.getSpec().getTemplate().getMetadata().getAnnotations().put("kubectl.kubernetes.io/restartedAt",
+                    restartedAt);
+            kubernetesClient.apps().deployments().inNamespace(namespace).withName(name).replace(d);
+            return true;
+        }
+        var s = kubernetesClient.apps().statefulSets().inNamespace(namespace).withName(name).get();
+        if (s == null) {
+            return false;
+        }
+        if (s.getSpec().getTemplate() == null) {
+            s.getSpec().setTemplate(new io.fabric8.kubernetes.api.model.PodTemplateSpec());
+        }
+        if (s.getSpec().getTemplate().getMetadata().getAnnotations() == null) {
+            s.getSpec().getTemplate().getMetadata().setAnnotations(new java.util.HashMap<>());
+        }
+        s.getSpec().getTemplate().getMetadata().getAnnotations().put("kubectl.kubernetes.io/restartedAt",
+                restartedAt);
+        kubernetesClient.apps().statefulSets().inNamespace(namespace).withName(name).replace(s);
+        return true;
+    }
+
+    /**
      * 读工作负载的副本与状态读数（Deployment 优先，回退 StatefulSet）；**两者都不存在返回 null**。
      * <p>厂商出处：`batch-start`/`batch-stop` 用 `spec.replicas` 判"已停"，用 `status` 推状态。
      */
