@@ -65,6 +65,16 @@ public class UserSessionRepository implements IUserSessionRepository {
         redisSessionService.removeFromList(listKey(session), tokenKey(token));
     }
 
+    @Override
+    public void deleteAllSessions() {
+        // 厂商 `deleteAllRedisKey`：只删这两类键（不是 FLUSHALL）
+        for (String prefix : java.util.List.of(TOKEN_PREFIX, LOGIN_LIST_PREFIX)) {
+            for (String key : redisSessionService.scan(prefix + ":*")) {
+                redisSessionService.delete(key);
+            }
+        }
+    }
+
     private String tokenKey(String token) {
         return TOKEN_PREFIX + ":" + token;
     }

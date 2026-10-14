@@ -5,6 +5,7 @@ import com.csm.paas.core.api.dto.LicenceInfoDTO;
 import com.csm.paas.core.api.dto.MachineInfoDTO;
 import com.csm.paas.core.api.dto.ResponseDTO;
 import com.csm.paas.core.domain.licence.model.entity.LicenceInfoEntity;
+import com.csm.paas.core.domain.licence.service.ILicenceCommandService;
 import com.csm.paas.core.domain.licence.service.ILicenceQueryService;
 import jakarta.annotation.Resource;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,6 +20,20 @@ public class LicenceController {
 
     @Resource
     private ILicenceQueryService licenceQueryService;
+
+    @Resource
+    private ILicenceCommandService licenceCommandService;
+
+    /**
+     * 厂商 `GET /v1/licence/loginOutAllUser`：清理所有在线用户（试用期到期时踢回登录页）。
+     *
+     * <p>只删 Redis 里 `gateway-token:*` 与 `login-list:*` 两类键（**不是 FLUSHALL**），恒返回 true。
+     * 规则见 `ILicenceCommandService.loginOutAllUsers`（规格 `findings/150`）。
+     */
+    @GetMapping("/v1/licence/loginOutAllUser")
+    public ResponseDTO<Boolean> loginOutAllUser() {
+        return ResponseDTO.ok(licenceCommandService.loginOutAllUsers());
+    }
 
     /** 厂商 GET /v1/licence：机器码 + 是否有 GIS 授权。 */
     @GetMapping("/v1/licence")

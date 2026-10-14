@@ -19,4 +19,11 @@ public interface IUserSessionRepository {
     Optional<SessionVO> find(String token);
 
     void delete(String token, SessionVO session);
+
+    /**
+     * 清空**全部**会话（厂商 `RedisService.deleteAllRedisKey:53-57`：逐个删
+     * `gateway-token:*` 与 `login-list:*` 两类键；**不是 FLUSHALL**）。
+     * <p>用途：试用期到期时把所有在线用户踢回登录页（`GET /v1/licence/loginOutAllUser`）。
+     */
+    void deleteAllSessions();
 }
