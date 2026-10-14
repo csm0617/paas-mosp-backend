@@ -417,6 +417,8 @@ Label: `wayfinder:map`
 - （**工具修正**）[contract-check 增加易变字段模式](docs/findings/96-contract-check-volatile.md)：`/v1/user/info` 的 `createdAt`/`updatedAt` 标为 `mode: volatile`——**只比存在与类型**，不再因样本陈旧误报（**不用 `allowDeviation`**：那是"允许的偏离"会永久豁免，而"易变"只是字段性质）。
   - 用**上一次会误报的那份实时响应**重跑验证 ⇒ 现在 `L1+L2 全部通过 ✅`。
   - 顺带发现工具自带**镜像一致性自检**（`docs/findings/read-paths.json` 与 `paas-core-trigger/src/test/resources/vendor/read-paths.json` 必须一致），已同步。
+- （**验证覆盖面地图**）[findings/116](docs/findings/116-verification-coverage-map.md)：把"门槛工具覆盖到哪里、哪里靠别的证据"写清——`read-paths.json` 新增 **`_verifiedByDirectAB`** 登记 9 条**已 A/B 对拉验证但不在 L2 清单里**的端点（user/list、role/{roleId}/software、access_permission、image/projectList、restartInfo、software/active、import/template、export/backup、update_avatar）。
+  - 三类证据的边界：**L1/L2**（前端读取路径内，7 条全绿）≠ **e2e**（页面不白屏）≠ **独立 namespace/可回滚探针**（写端点真实效果）。**没有一种能替代另一种**（第 68 轮"L1/L2 绿但页面差图标"、第 114 轮"日志打了但没送达"都是反例）。
 - （**WS 推送端到端验证**）[findings/114](docs/findings/114-ws-push-verified.md)：补上第 109 轮的验证缺口——当时只验到"日志打了 `广播 userInfo`"（**证明不了订阅端收到**）。本轮用真实 STOMP 订阅（`tools/ws-userinfo-probe.js` 连 SockJS 裸 WS `/ws/websocket` → CONNECT/SUBSCRIBE `/topic/userInfo` → HTTP 触发 update_avatar）**收到 MESSAGE 帧**，载荷与厂商 `UserStatus` 形状一致；探针写库后已恢复。
   - 顺带确认：SockJS 裸 WS 端点 `/ws/websocket` 可用；目的地 `/topic/userInfo` 与厂商 `sendInfo(text,"userInfo")` 对齐。
   - 方法点：**"代码走到推送那一行"≠"订阅端收到"**——`convertAndSend` 到不存在的目的地也会打日志。

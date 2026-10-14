@@ -527,5 +527,57 @@
     "disposition": "记录在案"
    }
   ]
+ },
+ "_verifiedByDirectAB": {
+  "_note": "这些端点**没有**前端读取路径清单（不在 read-paths 的 L2 覆盖内），但已经用 A/B 对拉逐字节/逐字段验证过；列在这里是为了让'门槛覆盖到哪里'一目了然。",
+  "entries": [
+   {
+    "endpoint": "GET /v1/user/list",
+    "evidence": "docs/findings/99-user-list-implemented.md",
+    "sample": "runtime-samples/v1_user_list.json",
+    "note": "四例对拉完全相等（分页/keyword/第二页/超长 keyword 400）"
+   },
+   {
+    "endpoint": "GET /v1/role/{roleId}/software",
+    "evidence": "docs/findings/90-role-software-list.md",
+    "note": "四例对拉完全相等（两个战位/带 keyword/不存在的战位）；需 Cookie"
+   },
+   {
+    "endpoint": "GET /v1/user/access_permission",
+    "evidence": "docs/findings/93-access-permission-implemented.md",
+    "note": "六组 path 对拉完全相等（含厂商正则的'怪行为'）"
+   },
+   {
+    "endpoint": "GET /v1/image/projectList",
+    "evidence": "docs/findings/80-image-projectlist-k3s-verified.md",
+    "sample": "runtime-samples/v1_image_projectList.json",
+    "note": "整个响应体逐字节相等（含 keyword）"
+   },
+   {
+    "endpoint": "GET /v1/service/restartInfo",
+    "evidence": "docs/findings/81-service-restart-info.md",
+    "note": "三种情形完全相等"
+   },
+   {
+    "endpoint": "POST /v1/software/software/active",
+    "evidence": "docs/findings/75-software-activate.md",
+    "note": "五种情形一致（自造 RSA 密钥对 + 临时 g_auth 行）"
+   },
+   {
+    "endpoint": "GET /v1/user/import/template",
+    "evidence": "docs/findings/101-import-template-implemented.md",
+    "note": "内容一致（唯一字节差异 = xls 文档属性里的 OS 用户名）"
+   },
+   {
+    "endpoint": "POST /v1/user/export、/backup",
+    "evidence": "docs/findings/105-export-backup-implemented.md",
+    "note": "离线单测（POI 读回逐格）+ 厂商侧因 Metaspace 打满无法在线对拉"
+   },
+   {
+    "endpoint": "POST /v1/user/update_avatar/{userId}",
+    "evidence": "docs/findings/109-update-avatar-implemented.md",
+    "note": "可回滚探针 + WS 推送端到端（findings/114）"
+   }
+  ]
  }
 }
