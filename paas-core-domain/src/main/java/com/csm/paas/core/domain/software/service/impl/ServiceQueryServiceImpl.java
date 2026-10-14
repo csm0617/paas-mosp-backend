@@ -53,6 +53,9 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
     @Resource
     private com.csm.paas.core.domain.language.service.ILanguageQueryService languageQueryService;
 
+    /** 基础服务组件所在的命名空间（厂商在多处**写死** `kube-system`）。 */
+    private static final String KUBE_SYSTEM_NAMESPACE = "kube-system";
+
     /** 厂商 `AuthServiceType` 的取值（`constant/AuthServiceType.java`）。 */
     private static final Integer AUTH_AUTHORIZED = 1;
     private static final Integer AUTH_EXPIRED = 2;
@@ -840,6 +843,61 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
         return i18nRepository.queryValue("i18n.service." + language + "." + serviceName)
                 .filter(v -> v != null && !v.isBlank())
                 .orElse(fallback);
+    }
+
+    /**
+     * 基础服务的 Event 列表（厂商 `getBaseServiceEvent:3377-3421`，规格见 `docs/findings/125`）。
+     */
+    @Override
+    public List<Map<String, Object>> queryBaseServiceEvents(String baseServiceName) {
+        // 厂商：只有 kube-proxy 用 `k8s-app` 选择器，其它基础服务用 `name`
+        String labelKey = "kube-proxy".equals(baseServiceName) ? "k8s-app" : "name";
+        List<com.csm.paas.core.domain.software.model.valobj.ServicePodRefVO> pods;
+        try {
+            pods = serviceRuntimePort.listPodsByLabel(KUBE_SYSTEM_NAMESPACE, labelKey, baseServiceName);
+        } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+            log.error("获取基础服务容器信息异常:{}", e.getMessage());
+            throw new com.csm.paas.core.types.exception.WrongArgumentException(
+                    "service.get.basic.service.container.info.failed");
+        }
+        List<String> podNames = pods.stream()
+                .map(com.csm.paas.core.domain.software.model.valobj.ServicePodRefVO::getName)
+                .toList();
+        // 厂商：ReplicaSet 名**直接**用 `<baseServiceName>-`（与 /event 从 generateName 推不同）
+        List<Map<String, Object>> events = new ArrayList<>();
+        try {
+            events.addAll(serviceRuntimePort.listEvents(KUBE_SYSTEM_NAMESPACE, baseServiceName + "-", "ReplicaSet"));
+        } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+            log.error("事件异常:{}", e.getMessage());
+            throw new com.csm.paas.core.types.exception.WrongArgumentException(
+                    "service.get.container.event.info.failed");
+        }
+        for (String podName : podNames) {
+            try {
+                events.addAll(serviceRuntimePort.listEvents(KUBE_SYSTEM_NAMESPACE, podName, "Pod"));
+            } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+                log.error("pod事件异常:{}", e.getMessage());
+                throw new com.csm.paas.core.types.exception.WrongArgumentException(
+                        "service.get.container.pod.event.info.failed");
+            }
+        }
+        // 厂商：`Comparator.comparing(lastTimestamp).reversed()` —— **没有空值保护** ⇒ 缺 lastTimestamp 时 NPE ⇒ 500。
+        // 我们按"时间降序、空值排最后"处理（deviations B19）。
+        events.sort((a, b) -> {
+            var ta = eventTimestamp(a);
+            var tb = eventTimestamp(b);
+            if (ta == null && tb == null) {
+                return 0;
+            }
+            if (ta == null) {
+                return 1;
+            }
+            if (tb == null) {
+                return -1;
+            }
+            return tb.compareTo(ta);
+        });
+        return events;
     }
 
     /** 厂商 `getStringRandom(length)`：每位 `SecureRandom.nextInt(2)%2==0` 取 `a-z`，否则取 `0-9`。 */

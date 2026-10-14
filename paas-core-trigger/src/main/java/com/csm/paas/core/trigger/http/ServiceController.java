@@ -143,6 +143,18 @@ public class ServiceController {
     }
 
     /**
+     * 厂商 `GET /v1/service/baseEvent?baseServiceName=`：基础服务（kube-system 组件）的 Event 列表。
+     *
+     * <p>命名空间写死 `kube-system`；`kube-proxy` 用 `k8s-app` 选择器、其它用 `name`；ReplicaSet 名直接用
+     * `<baseServiceName>-`。规则见 `IServiceQueryService.queryBaseServiceEvents`（规格 `findings/125`）。
+     */
+    @GetMapping("/v1/service/baseEvent")
+    public ResponseDTO<java.util.List<java.util.Map<String, Object>>> baseEvent(
+            @org.springframework.web.bind.annotation.RequestParam String baseServiceName) {
+        return ResponseDTO.ok(serviceQueryService.queryBaseServiceEvents(baseServiceName));
+    }
+
+    /**
      * 厂商 `POST /v1/service/tolerance?serviceName&type`：开启/关闭 master 节点污点容忍。
      *
      * <p>`type=0` 关闭（本来就为空则不打 patch）、`type=1` 开启（固定那一条容忍）、**其它 type ⇒ `data:false`**。

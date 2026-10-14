@@ -45,6 +45,7 @@
 | B16 | `PUT /v1/service/healthCheck` 的 `HealthSetInfo.type` 为 null 时按"不改该探针"处理 | 厂商写的是 `getType() == 0`（`Integer` **拆箱**）⇒ null 时 **NPE** ⇒ 500 `系统错误`。同上 | `findings/121` §4、§6.3 |
 | B17 | `GET /v1/software/relationService/{id}`：`g_software_app.app_name` 在 k8s 里找不到对应服务时**跳过该行** | 厂商 `serviceMap.get(appName)` **不判空**，紧接着 `setMappingInfo` **NPE ⇒ 500**；"服务删了但关联没清"在本环境很常见，整页 500 不可接受 | `findings/120` §6.4 |
 | B18 | `GET /v1/service/event`：pod 的 `metadata.generateName` 为 null 时**跳过该 pod** | 厂商直接 `generateName.substring(0, len-1)` ⇒ **NPE ⇒ 500**；裸 Pod（非控制器创建）没有 `generateName` | `findings/123` §4 |
+| B19 | `GET /v1/service/baseEvent`：事件缺 `lastTimestamp` 时**排到最后**（而不是报错） | 厂商 `Comparator.comparing(getLastTimestamp).reversed()` **没有空值保护** ⇒ 比较器抛 **NPE ⇒ 500**。该端点意图是"最新在前"，空值只是没有时间信息 | `findings/125` §4 |
 
 ## C. 参考环境限制导致无法对拉（按代码实现 + 标注证据来源）
 

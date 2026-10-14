@@ -302,4 +302,25 @@ public interface IServiceQueryService {
      * <p><b>未照抄</b>：厂商方法开头的 `Thread.sleep(100)`（对响应无可观测影响，见 findings）。
      */
     boolean allowMasterTolerance(String namespace, String serviceName, Integer type);
+
+    /**
+     * 基础服务（kube-system 里的组件）的 Event 列表（厂商 `GET /v1/service/baseEvent?baseServiceName=` →
+     * `ServiceController.getBaseServiceEvent:3377-3421`，规格见 `docs/findings/125`）。
+     *
+     * <p>与 {@link #queryServiceEvents} 的四处不同：
+     * <ol>
+     *   <li>命名空间**写死 `kube-system`**；</li>
+     *   <li>标签选择器：`kube-proxy` ⇒ `k8s-app=<name>`，**其它** ⇒ `name=<name>`；</li>
+     *   <li>ReplicaSet 名**不是**从 pod 的 `generateName` 推的，而是 `<baseServiceName>-`（直接用）；</li>
+     *   <li>排序是"按 `lastTimestamp` 降序"（**没有 `nullsLast` 保护**——见下）。</li>
+     * </ol>
+     *
+     * <p>三个错误键分工：列 pod 失败 ⇒ 400 `service.get.basic.service.container.info.failed`；
+     * ReplicaSet 事件失败 ⇒ 400 `service.get.container.event.info.failed`；
+     * 每个 pod 的事件失败 ⇒ 400 `service.get.container.pod.event.info.failed`。
+     *
+     * <p><b>一处主动收紧</b>（`deviations.md` B19）：厂商的 `Comparator.comparing(getLastTimestamp).reversed()`
+     * **没有空值保护** ⇒ 事件缺 `lastTimestamp` 时比较器抛 NPE ⇒ 500。我们把空值**排到最后**。
+     */
+    java.util.List<java.util.Map<String, Object>> queryBaseServiceEvents(String baseServiceName);
 }
