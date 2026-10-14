@@ -259,7 +259,11 @@ Label: `wayfinder:map`
     - 回归：`/v1/service` mine=9 vendor=9 通过。
     - 改动：实体加 `appName`；端口 `appTypeOf`→`labelOf(snapshot,key)`；`matches(type,name,appType,appName)` **两条分支都要过 `isGaopApp`**（厂商是统一加在 return 上的）；新增用例断言"有 appType 也照样要过 appName 这关"。
     - **三轮串起来**：55 我写成"依赖 TenX"（错）→ 57 用同源 9 条数据否掉、改成"未定论"（对了一半）→ 58 逐行读完找到真因（对）。**每步都不是"想更久"，而是又多了一条证据**；"读一半就下结论"与"抄错字符"同类，都缺一次核对。
-  - 下一轮顺序：读全 `serviceAuth` handler 后半段（授权状态过滤/分页/装配）→ 实现（它是已确认可观测的 9 条）；`baseComponent` 内容退化（2 条均 null），优先级低。
+  - **`serviceAuth` 算法已读全并留档**（[findings/59](docs/findings/59-service-auth-algorithm.md)）：下一轮直接实现，无需再读源码。
+    - 三段过滤：①`appName` 既不是 `gaop` 也不是 `gis-server`（**与 `gaop` 端点正好互补，别写反**）；②keyword 两段式（与 gaop 同款）；③`authType` 过滤（有授权行→按 `auth.getAuth()` 命中；无授权行→三条分支，第 2 条已按等价式化简）。
+    - 分页 + 装配与 `GET /v1/service` **完全同一套**（Pod 列表 + `serviceAuth` 富化）⇒ 形状复用已对拉的 `ServiceListResponseDTO`。
+    - **下一轮最容易验证的点**：不带 `authType` 时本环境应为 **9 条**，可拿到**非空对拉**。
+    - 实现清单 5 步已列全（实体加 `serviceType`、授权仓按名批量查、域服务方法、控制器、四种情形对拉）。
   - 下一轮程序：搬常量 → 实现 filter（type=2 照抄缺陷）→ keyword 两段式（兜底 `filterServiceName` 需先补读）→ 复用已对拉的 `ServiceList` 形状 → 对拉 type=1/type=2/带 keyword/keyword>45 四种情形。：我此前逐轮报的「162/174」是**数错了**（grep 只匹配到部分模块的汇总行，且 surefire 报告目录混有旧文件）。按模块汇总行精确求和：**33 个测试类、210 条用例全绿**。教训与「手抄不透明值」「只验形状不验值」同源——**计数也是要验证的量**，必须用可复算的命令。
 
 - （K3 预研结论）`LicenceInfo.expired(code)` = `{end:-1, endIso8601:null, code, expired:true}`，其中 `code = 机器码 + Base64(软件key)`；**"没有激活码"这一支不需要密码学**，可以在做 `GET /v1/software/{id}` 时一并实现（本轮没写，因为详情端点没做就没有调用方，写了是死代码）。
