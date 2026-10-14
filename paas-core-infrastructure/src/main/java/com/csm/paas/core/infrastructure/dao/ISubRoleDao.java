@@ -62,6 +62,73 @@ public interface ISubRoleDao {
     int deleteUserSubRolesBySubRoleId(@Param("subRoleId") String subRoleId);
 
     /**
+     * 新增子角色时的重名检查（厂商 `existKeyName:108-110`）。
+     * <p><b>注意查的是 `g_role`（战位表）</b>——厂商用的是 `subRoleMapper` 但 where 写的是
+     * `RoleDynamicSqlSupport.role.key/name`，SQL 落在 `g_role` 上（照抄）。
+     */
+    @Select("""
+            SELECT COUNT(*) FROM g_role WHERE `key` = #{key} OR name = #{name}
+            """)
+    long countRoleByKeyOrName(@Param("key") String key, @Param("name") String name);
+
+    /** 修改时的 key 重复检查（厂商 `duplicateKey:361-363`：`key = ? AND id <> ?`）。 */
+    @Select("""
+            SELECT COUNT(*) FROM g_sub_role WHERE `key` = #{key} AND id <> #{id}
+            """)
+    long countByKeyExcludingId(@Param("key") String key, @Param("id") String id);
+
+    /** 修改时的 name 重复检查（厂商 `duplicateName:365-367`）。 */
+    @Select("""
+            SELECT COUNT(*) FROM g_sub_role WHERE name = #{name} AND id <> #{id}
+            """)
+    long countByNameExcludingId(@Param("name") String name, @Param("id") String id);
+
+    /** 插子角色（厂商 `addRole:135` 的 `insert`）。 */
+    @org.apache.ibatis.annotations.Insert("""
+            INSERT INTO g_sub_role (id, `key`, name, `desc`, updated_at, created_at)
+            VALUES (#{id}, #{key}, #{name}, #{desc}, #{updatedAt}, #{createdAt})
+            """)
+    int insertSubRole(@Param("id") String id, @Param("key") String key, @Param("name") String name,
+                      @Param("desc") String desc, @Param("updatedAt") long updatedAt,
+                      @Param("createdAt") long createdAt);
+
+    /**
+     * 选择性更新（厂商 `updateByPrimaryKeySelective`）：**只更新非 null 的字段**，
+     * `desc` 允许显式置 null（厂商在 blank 时 setDesc(null)，然后选择性更新会跳过 null ⇒ 不写 desc）。
+     */
+    @org.apache.ibatis.annotations.Update("""
+            <script>
+            UPDATE g_sub_role
+            <set>
+              <if test="key != null">`key` = #{key},</if>
+              <if test="name != null">name = #{name},</if>
+              <if test="desc != null">`desc` = #{desc},</if>
+              updated_at = #{updatedAt},
+            </set>
+            WHERE id = #{id}
+            </script>
+            """)
+    int updateSubRoleSelective(@Param("id") String id, @Param("key") String key, @Param("name") String name,
+                               @Param("desc") String desc, @Param("updatedAt") long updatedAt);
+
+    /** 该用户是否存在（厂商 `usersRelateRole:148-149` 对每个 userId `selectByPrimaryKey`，查不到就跳过）。 */
+    @Select("SELECT COUNT(*) FROM g_user WHERE id = #{userId}")
+    long countUserById(@Param("userId") String userId);
+
+    /** 删该用户的全部"用户-子角色"关联（厂商 `usersRelateRole:145`）。 */
+    @org.apache.ibatis.annotations.Delete("DELETE FROM g_user_sub_role WHERE user_id = #{userId}")
+    int deleteUserSubRolesByUserId(@Param("userId") String userId);
+
+    /** 插一条"用户-子角色"关联。 */
+    @org.apache.ibatis.annotations.Insert("""
+            INSERT INTO g_user_sub_role (id, user_id, sub_role_id, created_at, updated_at)
+            VALUES (#{id}, #{userId}, #{subRoleId}, #{createdAt}, #{updatedAt})
+            """)
+    int insertUserSubRole(@Param("id") String id, @Param("userId") String userId,
+                          @Param("subRoleId") String subRoleId, @Param("createdAt") long createdAt,
+                          @Param("updatedAt") long updatedAt);
+
+    /**
      * 按名称模糊（厂商 `SubRoleServiceImpl.java:194`）。
      * <p>厂商该分支**不分页**（漏了 `startPage`），这里同样不加 LIMIT。
      */

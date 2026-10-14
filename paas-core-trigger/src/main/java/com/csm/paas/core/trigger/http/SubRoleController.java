@@ -2,6 +2,7 @@ package com.csm.paas.core.trigger.http;
 
 import com.csm.paas.core.api.dto.ResponseDTO;
 import com.csm.paas.core.api.dto.SubRoleListResponseDTO;
+import com.csm.paas.core.api.dto.SubRoleFormDTO;
 import com.csm.paas.core.api.dto.SubRoleIdsDTO;
 import com.csm.paas.core.api.dto.SubRoleItemDTO;
 import com.csm.paas.core.domain.subrole.service.ISubRoleCommandService;
@@ -29,6 +30,48 @@ public class SubRoleController {
 
     @Resource
     private ISubRoleCommandService subRoleCommandService;
+
+    /**
+     * 厂商 `POST /v1/sub_role`：新增子角色（body `{key, name, nameUs, nameFr, desc, userList}`）。
+     *
+     * <p>重名检查**查的是战位表 `g_role`**；`name` 空或 >100、`key` 空或 >36、`desc` >255 各有 400；
+     * `desc` 空白 ⇒ 存 null；`userList` 去重后逐个关联（用户不存在则跳过）。
+     * 规则见 `ISubRoleCommandService.addSubRole`（规格 `findings/148`）。
+     */
+    @org.springframework.web.bind.annotation.PostMapping
+    public ResponseDTO<SubRoleItemDTO> addRole(
+            @org.springframework.web.bind.annotation.RequestBody SubRoleFormDTO form) {
+        var role = subRoleCommandService.addSubRole(form == null ? null : toVo(form));
+        if (role == null) {
+            return ResponseDTO.ok(null);
+        }
+        return ResponseDTO.ok(SubRoleItemDTO.builder()
+                .id(role.getId()).key(role.getKey()).name(role.getName())
+                .nameFr(role.getNameFr()).nameUs(role.getNameUs())
+                .updatedAt(role.getUpdatedAt()).createdAt(role.getCreatedAt())
+                .desc(role.getDesc()).build());
+    }
+
+    /**
+     * 厂商 `PUT /v1/sub_role/update`：修改子角色（body 同新增，另需 `id`）。
+     *
+     * <p>不存在 ⇒ 400 `sub.role.storage.not.found`；key/name 与别的子角色重复 ⇒ 两个 400；
+     * 长度校验两个 400；**先删光用户关联再重建**；选择性更新。
+     * 规则见 `ISubRoleCommandService.updateSubRole`（规格 `findings/148`）。
+     */
+    @org.springframework.web.bind.annotation.PutMapping("/update")
+    public ResponseDTO<Boolean> updateRole(
+            @org.springframework.web.bind.annotation.RequestBody SubRoleFormDTO form) {
+        return ResponseDTO.ok(subRoleCommandService.updateSubRole(toVo(form)));
+    }
+
+    private static com.csm.paas.core.domain.subrole.model.valobj.SubRoleFormVO toVo(SubRoleFormDTO form) {
+        return com.csm.paas.core.domain.subrole.model.valobj.SubRoleFormVO.builder()
+                .id(form.getId()).key(form.getKey()).name(form.getName())
+                .nameFr(form.getNameFr()).nameUs(form.getNameUs())
+                .desc(form.getDesc()).userList(form.getUserList())
+                .build();
+    }
 
     /**
      * 厂商 `GET /v1/sub_role/{id}`：子角色详情。

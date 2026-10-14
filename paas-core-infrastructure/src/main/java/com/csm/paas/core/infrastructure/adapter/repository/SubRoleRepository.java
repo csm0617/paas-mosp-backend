@@ -62,6 +62,46 @@ public class SubRoleRepository implements ISubRoleRepository {
     }
 
     @Override
+    public boolean existsInRoleByKeyOrName(String key, String name) {
+        return subRoleDao.countRoleByKeyOrName(key, name) > 0;
+    }
+
+    @Override
+    public boolean existsKeyExcludingId(String key, String id) {
+        return subRoleDao.countByKeyExcludingId(key, id) > 0;
+    }
+
+    @Override
+    public boolean existsNameExcludingId(String name, String id) {
+        return subRoleDao.countByNameExcludingId(name, id) > 0;
+    }
+
+    @Override
+    public void insertSubRole(String id, String key, String name, String desc, long updatedAt, long createdAt) {
+        subRoleDao.insertSubRole(id, key, name, desc, updatedAt, createdAt);
+    }
+
+    @Override
+    public int updateSubRoleSelective(String id, String key, String name, String desc, long updatedAt) {
+        return subRoleDao.updateSubRoleSelective(id, key, name, desc, updatedAt);
+    }
+
+    @Override
+    public void deleteUserSubRolesByUserId(String userId) {
+        subRoleDao.deleteUserSubRolesByUserId(userId);
+    }
+
+    @Override
+    public void insertUserSubRole(String id, String userId, String subRoleId, long createdAt, long updatedAt) {
+        subRoleDao.insertUserSubRole(id, userId, subRoleId, createdAt, updatedAt);
+    }
+
+    @Override
+    public boolean userExists(String userId) {
+        return subRoleDao.countUserById(userId) > 0;
+    }
+
+    @Override
     public java.util.Optional<SubRoleEntity> queryById(String id) {
         return java.util.Optional.ofNullable(subRoleDao.selectById(id)).map(this::toEntity);
     }

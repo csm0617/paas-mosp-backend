@@ -53,4 +53,28 @@ public interface ISubRoleRepository {
 
     /** 删该子角色的"用户-子角色"关联。 */
     void deleteUserSubRolesBySubRoleId(String subRoleId);
+
+    /** 新增时的重名检查（**查的是 `g_role`**，厂商如此）。 */
+    boolean existsInRoleByKeyOrName(String key, String name);
+
+    /** 修改时 key 是否与**别的**子角色重复。 */
+    boolean existsKeyExcludingId(String key, String id);
+
+    /** 修改时 name 是否与**别的**子角色重复。 */
+    boolean existsNameExcludingId(String name, String id);
+
+    /** 插子角色。 */
+    void insertSubRole(String id, String key, String name, String desc, long updatedAt, long createdAt);
+
+    /** 选择性更新（只写非 null 字段；`desc` 传 null 时**不写该列**）。 */
+    int updateSubRoleSelective(String id, String key, String name, String desc, long updatedAt);
+
+    /** 删该**用户**的全部"用户-子角色"关联（厂商 `usersRelateRole:145` / `userAddRole:348`）。 */
+    void deleteUserSubRolesByUserId(String userId);
+
+    /** 插一条"用户-子角色"关联（厂商 `usersRelateRole:150-157` / `userAddRole:350-356` / `roleAddUser:373-379`）。 */
+    void insertUserSubRole(String id, String userId, String subRoleId, long createdAt, long updatedAt);
+
+    /** 该用户是否存在（厂商 `usersRelateRole` 里对每个 userId `selectByPrimaryKey`，查不到就跳过）。 */
+    boolean userExists(String userId);
 }
