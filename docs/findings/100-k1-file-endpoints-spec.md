@@ -209,6 +209,24 @@ userMapper.updateByPrimaryKeySelective(update);             // 只写 g_user.ava
 口令与角色的处理 + uuid 列表，**且全程写库**。实现它需要**一整轮**，并且必须配**可回滚探针**
 （导入前后核对 `g_user`/`g_user_role` 等表的行数与内容，验完还原）。
 
+### 第 115 轮补读：插入/更新两条分支的关键规则
+
+```
+新用户行（不存在）：
+   col4 → 子角色 key 列表（**JSON 字符串**，Gson 解析成 List<String>）
+   id = UUID.randomUUID()；createdAt = currentTime
+   avatar = userConfig.getDefaultAvatar()        ← **配置项默认头像**
+   col7 → password；取不到 ⇒ 默认 "123456"；长度 < 6 ⇒ **记日志并跳过该行**
+   收集完 ⇒ 逐条 userMapper.insertSelective(user)（+ 后续关系写入）
+
+已存在用户 + isCover=true（existUpdateUser:1235-）：
+   同样读 col7 作为口令；取不到 ⇒ "123456"；长度 < 6 ⇒ 记日志跳过
+   （其余字段与关系更新待读全）
+```
+
+⇒ 实现时必须带上：**默认口令 "123456"**、**口令长度 < 6 跳过该行**、
+**`userConfig.getDefaultAvatar()`**（我们的配置里需要一个同名项）、以及 col4 的 **JSON 子角色列表**。
+
 **建议**：把它排在 K1 最后、单独一轮；**不要**与其它端点混做。验证至少覆盖：
 ① 空表 ⇒ 200 且**库无变化**；② 只含 admin 的行 ⇒ 同样无变化；③ 新用户行 ⇒ 插入；
 ④ 已存在用户 + `isCover=false` ⇒ 不变；⑤ `isCover=true` ⇒ 更新；⑥ 用户名长度越界 ⇒ 400。
