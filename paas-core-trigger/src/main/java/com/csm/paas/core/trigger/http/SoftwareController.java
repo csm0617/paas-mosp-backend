@@ -50,6 +50,25 @@ public class SoftwareController {
     private String namespace;
 
     /**
+     * 厂商 `POST /v1/software/image_base64`（multipart `file`）：把上传的图片转成 base64 字符串。
+     *
+     * <p>格式守卫照抄厂商 `imageToBase64Str:2543-2554`：Tika 探测 MIME，只有
+     * `image/(jpg|jpeg|png|bmp|webp)`（含大写变体）才通过，否则 400 `global.image.format.error`。
+     * 返回的是**裸 base64**（不带 `data:` 前缀）。
+     */
+    @org.springframework.web.bind.annotation.PostMapping(value = "/image_base64",
+            consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseDTO<String> imageToBase64(
+            @org.springframework.web.bind.annotation.RequestParam("file") org.springframework.web.multipart.MultipartFile file)
+            throws java.io.IOException {
+        if (file == null
+                || !com.csm.paas.core.trigger.assembler.ImageBase64Encoder.isImage(file.getInputStream())) {
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("global.image.format.error");
+        }
+        return ResponseDTO.ok(com.csm.paas.core.trigger.assembler.ImageBase64Encoder.encode(file.getBytes()));
+    }
+
+    /**
      * 厂商 `PUT /v1/software/order/{orderNum}`：软件置顶配置（body `{softwareIds}`）。
      *
      * <p>逐个把 `order_top` 设成路径上的 `orderNum`、`order_time` 设成当前毫秒；
