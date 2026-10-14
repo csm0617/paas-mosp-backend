@@ -26,4 +26,20 @@ public class LanguageVersionRepository implements ILanguageVersionRepository {
                 .version(String.valueOf(row.get("lang_version")))
                 .build());
     }
+
+    @Override
+    public java.util.List<com.csm.paas.core.domain.language.model.entity.LanguageVersionEntity>
+    queryLanguageVersionPage(String likeKeyword, int offset, int size) {
+        return languageVersionDao.selectLanguageVersionPage(likeKeyword, offset, size).stream()
+                .map(po -> com.csm.paas.core.domain.language.model.entity.LanguageVersionEntity.builder()
+                        .id(po.getId()).lang(po.getLang()).langVersion(po.getLangVersion())
+                        .used(po.getUsed()).createTime(po.getCreateTime())
+                        .build())
+                .toList();
+    }
+
+    @Override
+    public long countLanguageVersions(String likeKeyword) {
+        return languageVersionDao.countLanguageVersions(likeKeyword);
+    }
 }

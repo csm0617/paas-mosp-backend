@@ -27,4 +27,20 @@ public class LanguageQueryServiceImpl implements ILanguageQueryService {
                 .orElseGet(() -> CurrentLanguageEntity.builder()
                         .language(DEFAULT_LANGUAGE).version(DEFAULT_VERSION).build());
     }
+
+    @Override
+    public com.csm.paas.core.domain.language.model.entity.LanguageVersionPageEntity queryLanguageVersionList(
+            int page, int size, String keyword) {
+        // 厂商：先去空格，再 lang2Underline（`-` → `_`）
+        String normalized = null;
+        if (keyword != null) {
+            normalized = keyword.replaceAll(" +", "").replaceAll("-", "_");
+        }
+        String likeKeyword = normalized == null || normalized.isEmpty() ? null : "%" + normalized + "%";
+        int offset = (page - 1) * size;
+        return com.csm.paas.core.domain.language.model.entity.LanguageVersionPageEntity.builder()
+                .versionList(languageVersionRepository.queryLanguageVersionPage(likeKeyword, offset, size))
+                .total(languageVersionRepository.countLanguageVersions(likeKeyword))
+                .build();
+    }
 }
