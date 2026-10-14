@@ -85,6 +85,34 @@ public static HSSFWorkbook initializeWorkbook(List<String> tableHeaders, String 
 `POST /backup` 的处理器调的是 **`generateExportExcel`**；而 `generateBackupExcel:950-`（会**跳过
 `admin`/`dev`/`root`**）是**另一个**函数、由别处使用。⇒ 实现时不要"望名生义"把两者当成一个。
 
+## 3''. `generateExportExcel:977-`（`/export` 与 `/backup` 共用）——**它不是个小函数**
+
+已读到的结构（约 50 行）：
+
+```
+initializeWorkbook(i18n.getMessages(TABLE_HEADERS), "sheet1")            // 表头（已翻译）
+select g_user where id in (userIdList) order by created_at desc          // 注意：**有排序**
+dateStyle = getDateCellStyle(workbook, "yyyy-MM-dd")                     // 有日期格式！
+逐行（**跳过 `admin` 与 `root`**，注意**不跳 `dev`**）：
+   col0 username
+   col1 nickname
+   col2 该用户的第一个角色的 key（`getRoleByUserId(u.getId())` 取 `[0]`）
+   col3 角色关系的 key 列表 **JSON 字符串**（`Gson`，仅当非空）
+   col4 子角色 key 列表 **JSON 字符串**（`Gson`，仅当非空；逐个 `subRoleMapper.selectByPrimaryKey`）
+   col5+ 待读（下一次实现前必须补全）
+```
+
+**与 `generateBackupExcel:950-971` 的三处不同**（**不要混用**）：
+
+| | `generateExportExcel`（`/export`、`/backup` 实际用） | `generateBackupExcel`（别处用） |
+| --- | --- | --- |
+| 跳过哪些用户 | **admin、root** | admin、**dev**、root |
+| 表头 | `i18n.getMessages(TABLE_HEADERS)`（**已翻译**） | **直接用 key**（`initializeWorkbook(TABLE_HEADERS, …)`） |
+| 列 | username/nickname/roleKey/rolesJson/subRolesJson/…（≥5 列） | 只有 4 列：username/status/desc/roleKey |
+
+⇒ **实现 `/export` 与 `/backup` 是"一个 ~50 行的生成函数 + 一个响应写出"**，且**与 `generateBackupExcel` 无关**。
+另外：这个函数**用日期样式**（`yyyy-MM-dd`），与模板端点（无样式）不同——照抄时别把样式漏掉。
+
 ## 4. 建议顺序
 
 1. `import/template`（**最简单**：无入参、纯产出、可解析比对单元格）；
