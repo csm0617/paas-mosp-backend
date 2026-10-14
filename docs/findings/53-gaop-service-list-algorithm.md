@@ -85,3 +85,15 @@ else if (type == 2)  { result = GaopName.serviceInPassFrame(name); }   // ← �
 ## 7. 状态
 
 本轮零业务代码改动；只读探测；全量用例仍 **34 类 220 条全绿**。
+
+## 8. 本轮已把 §2/§3 落成代码（可执行规格）
+
+- `domain/software/valobj/GaopServiceNames.java`：18 条显示名 + 两个名单 + 标签常量（照抄厂商 `GaopName`）；
+- `domain/software/valobj/GaopServiceFilter.java`：`matches(type, name, appType)` 逐行照抄 §2（含 §5 的缺陷）；
+- `GaopServiceFilterTest` **5 条**，其中一条专门把缺陷钉成**可执行证据**：
+  `baseOnlyServicesAreNeverReturnedWhenLabelIsAbsent()` —— 遍历基础名单，断言在 `type=2` + 无标签时**全部查不出来**，
+  同时又断言 `serviceInBaseService("gaop-fdfs") == true`（名单本身没问题，是**调用点**用错了）。
+  这样将来若有人"顺手修好"这个缺陷，测试会**立刻红**，而不是等到对拉时才发现。
+
+**一处仍待对拉确认**：厂商 `fixedName` 是 `gaopName.get(name)`（取不到就是 **null**），
+我实现成**回退原名**。下一轮接控制器时要拿一个"不在名单里的服务"对拉确认前端读的是哪个。

@@ -238,6 +238,8 @@ Label: `wayfinder:map`
 - （**gaop 端点开工资料齐了**）[算法与常量全量摘录](docs/findings/53-gaop-service-list-algorithm.md)：下一轮**无需再读源码**。
   - 摘全了：`gaopName` 18 条显示名映射、`PASS_FRAME_SERVER_NAME_SET`(9)/`BASE_SERVER_NAME_SET`(7)、`AppTypeLabelsEnum`、过滤算法（含 `system/appType` 标签优先）、keyword 两段式、伪服务 gis-server/gis-jb（本环境因 existService 恒 false 而**不可达**）。
   - **顺带发现厂商缺陷**：没有 `appType` 标签时，`type==1` 与 `type==2` **用的是同一套 PASS_FRAME 集合**（`serviceInBaseService`/`BASE_SERVER_NAME_SET` 成了死代码）⇒ 本环境查 `type=2`「基础服务」实际返回**框架服务**。照抄，并加注释与用例钉住。
+  - **本轮已落成代码**：`GaopServiceNames`（18 显示名 + 两名单 + 标签常量）+ `GaopServiceFilter.matches(...)`，5 条测试。其中一条把缺陷钉成**可执行证据**（遍历基础名单断言 type=2+无标签时全部查不出、同时断言名单本身正常）——将来谁"顺手修好"它，测试会立刻红。
+  - **待对拉确认**：厂商 `fixedName` 取不到时是 **null**，我实现成回退原名；接控制器时要拿一个不在名单里的服务对拉确认。
   - 下一轮程序：搬常量 → 实现 filter（type=2 照抄缺陷）→ keyword 两段式（兜底 `filterServiceName` 需先补读）→ 复用已对拉的 `ServiceList` 形状 → 对拉 type=1/type=2/带 keyword/keyword>45 四种情形。：我此前逐轮报的「162/174」是**数错了**（grep 只匹配到部分模块的汇总行，且 surefire 报告目录混有旧文件）。按模块汇总行精确求和：**33 个测试类、210 条用例全绿**。教训与「手抄不透明值」「只验形状不验值」同源——**计数也是要验证的量**，必须用可复算的命令。
 
 - （K3 预研结论）`LicenceInfo.expired(code)` = `{end:-1, endIso8601:null, code, expired:true}`，其中 `code = 机器码 + Base64(软件key)`；**"没有激活码"这一支不需要密码学**，可以在做 `GET /v1/software/{id}` 时一并实现（本轮没写，因为详情端点没做就没有调用方，写了是死代码）。
