@@ -38,6 +38,42 @@ public class SoftwareQueryServiceImpl implements ISoftwareQueryService {
     private final IWebEntryStatusPort webEntryStatusPort;
 
     @Override
+    public java.util.List<com.csm.paas.core.domain.software.model.valobj.SoftwareAuthInfoVO> queryAuthList(
+            int page, int size, String name, String type) {
+        String likeName = (name == null || name.isEmpty()) ? null : "%" + name + "%";
+        long now = System.currentTimeMillis();
+        java.util.List<com.csm.paas.core.domain.software.model.valobj.SoftwareAuthInfoVO> list = new java.util.ArrayList<>();
+        for (SoftwareEntity s : softwareRepository.queryAuthPage(likeName, type, PageUtils.offset(page, size), size)) {
+            var info = com.csm.paas.core.domain.software.model.valobj.SoftwareAuthInfoVO.builder()
+                    .id(s.getId()).softWareName(s.getName()).softWareKey(s.getKey()).framework(s.getFramework())
+                    .build();
+            if (s.getActiveCode() == null || s.getActiveCode().isBlank()) {
+                info.setStatus(0);
+                info.setAuthCreateTime(null);
+                info.setAuthExpireTime(null);
+            } else {
+                Long activeExpire = s.getActiveExpire();
+                if (activeExpire != null && now > activeExpire) {
+                    info.setStatus(2);
+                } else if (activeExpire == null || activeExpire == 0L) {
+                    info.setStatus(0);
+                } else {
+                    info.setStatus(1);
+                }
+                info.setAuthCreateTime(s.getActiveCreate());
+                info.setAuthExpireTime(s.getActiveExpire());
+            }
+            list.add(info);
+        }
+        return list;
+    }
+
+    @Override
+    public long countAuthList(String name, String type) {
+        return softwareRepository.countAuth((name == null || name.isEmpty()) ? null : "%" + name + "%", type);
+    }
+
+    @Override
     public SoftwareListEntity querySoftwareList(int page, int size, String name, String type,
                                                 String order, String sort, String host) {
         String likeName = (name == null || name.isEmpty()) ? null : "%" + name + "%";

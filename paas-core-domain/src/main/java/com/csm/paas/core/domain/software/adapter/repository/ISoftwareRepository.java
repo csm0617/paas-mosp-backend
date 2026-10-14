@@ -95,4 +95,10 @@ public interface ISoftwareRepository {
      * —— 即"上传记录 id 等于软件 version 列"的那一条；没有则返回 null。
      */
     UploadStoreRecordVO queryCurrentVersionRecord(String softwareId);
+
+    /** 授权列表分页：name 模糊 / type 等值，**只按 `created_at DESC`**（厂商 `getSoftwareAuthList`）。 */
+    List<SoftwareEntity> queryAuthPage(String likeName, String type, int offset, int size);
+
+    /** 授权列表总数（**与 `queryAuthPage` 同一套 WHERE**，name 只打在 name 上）。 */
+    long countAuth(String likeName, String type);
 }

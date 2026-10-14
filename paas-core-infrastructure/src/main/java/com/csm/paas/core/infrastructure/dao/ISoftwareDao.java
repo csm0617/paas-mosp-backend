@@ -58,6 +58,40 @@ public interface ISoftwareDao {
             """)
     long selectCount(@Param("likeName") String likeName, @Param("type") String type);
 
+    /**
+     * 授权列表分页（厂商 `getSoftwareAuthList:3290`）：name 模糊 / type 等值，
+     * **只按 `created_at DESC` 排序**——注意与列表端点的"`order_top` 恒在最前"不同。
+     */
+    @Select("""
+            <script>
+            SELECT id, `key`, name, app_name, router_key, type, version, created_at, updated_at,
+                   framework, exec_name, location, remote_ip, remote_name, remote_password,
+                   active_create, active_expire, order_top, order_time, `desc`, active_code, screenshot, icon
+            FROM g_software
+            <where>
+              <!-- 厂商 getSoftwareAuthList 的 likeName **只打在 name 上**（不像列表端点那样 name OR key） -->
+              <if test="likeName != null">name LIKE #{likeName}</if>
+              <if test="type != null">AND type = #{type}</if>
+            </where>
+            ORDER BY created_at DESC
+            LIMIT #{size} OFFSET #{offset}
+            </script>
+            """)
+    List<SoftwarePO> selectAuthPage(@Param("likeName") String likeName, @Param("type") String type,
+                                    @Param("offset") int offset, @Param("size") int size);
+
+    /** 授权列表总数——**必须与 `selectAuthPage` 用同一套 WHERE**（name 只打在 name 上），否则 total 会与 list 不一致。 */
+    @Select("""
+            <script>
+            SELECT COUNT(*) FROM g_software
+            <where>
+              <if test="likeName != null">name LIKE #{likeName}</if>
+              <if test="type != null">AND type = #{type}</if>
+            </where>
+            </script>
+            """)
+    long selectAuthCount(@Param("likeName") String likeName, @Param("type") String type);
+
     /** 白名单里是否存在该路径（厂商 `softWareReleaseStatus`）。 */
     @Select("SELECT COUNT(*) FROM g_white_list WHERE path = #{path}")
     long countWhiteListPath(@Param("path") String path);

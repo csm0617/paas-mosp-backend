@@ -152,6 +152,16 @@ public class SoftwareRepository implements ISoftwareRepository {
                 .build();
     }
 
+    @Override
+    public List<SoftwareEntity> queryAuthPage(String likeName, String type, int offset, int size) {
+        return softwareDao.selectAuthPage(likeName, type, offset, size).stream().map(this::toEntity).toList();
+    }
+
+    @Override
+    public long countAuth(String likeName, String type) {
+        return softwareDao.selectAuthCount(likeName, type);
+    }
+
     private SoftwarePO toPO(SoftwareEntity s) {
         SoftwarePO po = new SoftwarePO();
         po.setId(s.getId());

@@ -56,6 +56,34 @@ public class SoftwareController {
     }
 
     /**
+     * 厂商 `GET /v1/software/auth?page&size&name&type`：软件授权列表（`{list,total}`）。
+     * <p>`name` 长度 > 36 → 400 `software.search.length.invalid`；`status` 三态见
+     * `ISoftwareQueryService.queryAuthList`；排序**只按 `created_at DESC`**。
+     */
+    @GetMapping("/auth")
+    public ResponseDTO<com.csm.paas.core.api.dto.SoftwareAuthListDTO> softwareAuthList(
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) String type) {
+        if (name != null && name.length() > 36) {
+            throw new WrongArgumentException("software.search.length.invalid");
+        }
+        int p = PageUtils.normalizePage(page);
+        int s = PageUtils.normalizeSize(size);
+        return ResponseDTO.ok(com.csm.paas.core.api.dto.SoftwareAuthListDTO.builder()
+                .list(softwareQueryService.queryAuthList(p, s, name, type).stream()
+                        .map(v -> com.csm.paas.core.api.dto.SoftwareAuthInfoDTO.builder()
+                                .id(v.getId()).softWareName(v.getSoftWareName()).softWareKey(v.getSoftWareKey())
+                                .framework(v.getFramework()).status(v.getStatus())
+                                .authCreateTime(v.getAuthCreateTime()).authExpireTime(v.getAuthExpireTime())
+                                .build())
+                        .toList())
+                .total(softwareQueryService.countAuthList(name, type))
+                .build());
+    }
+
+    /**
      * 厂商 `PUT /v1/software/{id}`：修改软件。
      * <p>三道闸照抄 `SoftwareController.java:365-378`：不存在 → 400 `software.not.exist.by.id`；
      * key 与他人重复 → 400 `software.key.identifier.existed`；**name 与他人重复用的是同一个键**（厂商照抄点）。

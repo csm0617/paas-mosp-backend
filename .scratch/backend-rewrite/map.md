@@ -321,4 +321,9 @@ Label: `wayfinder:map`
 - 当前：46 端点映射、38 测试类 **236 条全绿**、81 提交、63 篇 findings。
 - 下一步优先序：服务切片同模式推进 → K2 跨域（`/auth` 列表可对拉；CS 上传/导入导出需先定边界）→ K3 侧效应 → 把"不可验证项"整理成对外偏离清单。
 
+- （**K2 跨域第一个**）[GET /v1/software/auth](docs/findings/68-software-auth-list.md)：**7 种情形对拉全部完全相等**（含三态探针、name 只打在 name 上、分页）。
+  - **先踩了自己两个坑**，都是"顺手复用隔壁端点的查询"：①授权列表的 `likeName` **只打在 `name`**，我复用了列表端点的 `name OR key`；②修完①后 `total` 仍不一致，因为 `countAuthList` 复用了列表的 `count()` ⇒ **total 与 list 来自两套 WHERE**。已各补专用查询。
+  - 同族第 4 例：`edit()`vs`patch`、`fixedName`vs`gaop/serviceLabel`、存在vs值为空、现在是"列表过滤"vs"授权列表过滤"——**复用相邻实现的代价，是在它们分叉的那一点静默出错**。
+  - 反直觉但已确认：`active_expire = 0` → status **2**（第一分支先命中），`== 0 → 0` 那句在 now>0 时不可达；已用单测钉住。
+  - 测试 236 → **240 条**全绿；探针已清、无残留。
 - **对外交付版偏离清单**：[`docs/deviations.md`](docs/deviations.md) —— A 类 11 条（厂商自身缺陷/环境依赖）、B 类 8 条（我们主动收紧）、C 类 6 条（参考环境导致无法对拉）。每条都指向 findings 里的实测证据，便于核对判定依据。**这份清单是本阶段最后一件可直接使用的东西**（此前这些信息散落在 63 篇 findings 里）。
