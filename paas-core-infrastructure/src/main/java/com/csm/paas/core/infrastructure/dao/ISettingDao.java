@@ -32,4 +32,19 @@ public interface ISettingDao {
             + "VALUES(#{key}, #{val}, #{desc}, #{now}, #{now})")
     int insertSetting(@Param("key") String key, @Param("val") String val,
                       @Param("desc") String desc, @Param("now") long now);
+
+    /**
+     * 厂商 `SettingService.updateOrInsert` 的插入分支：`desc=""`、**`updated_at` 留 NULL**、
+     * `created_at=now`（与 {@link #insertSetting} 不同，后者两个时间戳都写 now）。
+     */
+    @org.apache.ibatis.annotations.Insert("INSERT INTO g_setting(`key`, val, `desc`, updated_at, created_at) "
+            + "VALUES(#{key}, #{val}, '', NULL, #{now})")
+    int insertSettingWithNullUpdatedAt(@Param("key") String key, @Param("val") String val,
+                                       @Param("now") long now);
+
+    /** 厂商 `updateOrInsert` 的更新分支：`updateByPrimaryKeySelective` 只带 val 与 updated_at。 */
+    @org.apache.ibatis.annotations.Update("UPDATE g_setting SET val = #{val}, updated_at = #{updatedAt} "
+            + "WHERE `key` = #{key}")
+    int updateSettingValue(@Param("key") String key, @Param("val") String val,
+                           @Param("updatedAt") long updatedAt);
 }

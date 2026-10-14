@@ -86,4 +86,26 @@ public interface ISubRoleRepository {
 
     /** 该用户是否存在（厂商 `usersRelateRole` 里对每个 userId `selectByPrimaryKey`，查不到就跳过）。 */
     boolean userExists(String userId);
+
+    /**
+     * 只改 `desc`（厂商 `importSubroleExcel:614-616`：`subrole.setDesc(desc); updateByPrimaryKey(subrole)`）。
+     * <p>`desc` 允许为 **null**（表格里读不到 ⇒ 写成 NULL）。
+     */
+    void updateDesc(String id, String desc);
+
+    /**
+     * 用给定用户 id 列表**替换**该子角色的用户关联（厂商 `usersRelateRole:144-160` 的等价写法）：
+     * 先删光该子角色的 `g_user_sub_role`，再逐个插入（**不存在的用户跳过**）。
+     * <p><b>刻意不照抄的一处</b>：厂商还会把每个用户的 `created_at` 覆盖成 now（写错字段），
+     * 本域统一不做（见 `docs/deviations.md` B27）。
+     */
+    void replaceUserSubRoleRelations(String subRoleId, java.util.List<String> userIds);
+
+    /**
+     * 用给定战位 id 列表**替换**该子角色的"子角色-战位"关联
+     * （厂商 `subRoleRelateRoles:410-419`：先删 `g_sub_role_role` 再逐个插）。
+     * <p><b>刻意不照抄的一处</b>：厂商那段 `delete` 写错了表（删的是 `g_user_sub_role`，
+     * 会把上一步刚写好的用户关联清掉），这里按**意图**删 `g_sub_role_role`（见 `deviations.md` B28）。
+     */
+    void replaceSubRoleRoleRelations(String subRoleId, java.util.List<String> roleIds);
 }

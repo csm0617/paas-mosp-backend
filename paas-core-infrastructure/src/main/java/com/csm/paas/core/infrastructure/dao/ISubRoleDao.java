@@ -3,6 +3,7 @@ package com.csm.paas.core.infrastructure.dao;
 import com.csm.paas.core.infrastructure.dao.po.SubRolePO;
 import com.csm.paas.core.infrastructure.dao.po.SubRoleRolePO;
 import com.csm.paas.core.infrastructure.dao.po.SubRoleUserPO;
+import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -93,6 +94,23 @@ public interface ISubRoleDao {
     /** 删"用户-子角色"关联（厂商 `deleteByIds:289` 的 `userSubRoleMapper.delete`）。 */
     @org.apache.ibatis.annotations.Delete("DELETE FROM g_user_sub_role WHERE sub_role_id = #{subRoleId}")
     int deleteUserSubRolesBySubRoleId(@Param("subRoleId") String subRoleId);
+
+    /**
+     * 只改 `desc`（厂商 `importSubroleExcel:614-616` 的
+     * `subrole.setDesc(desc); subRoleMapper.updateByPrimaryKey(subrole)`）。
+     * <p>厂商是整行 update，但实体其余列都是刚从库里读出来的原值 ⇒ **净效果等价于这一条**；
+     * 注意 `desc` 可以是 **null**（表格里读不到就写成 NULL）。
+     */
+    @Update("UPDATE g_sub_role SET `desc` = #{desc} WHERE id = #{id}")
+    int updateDesc(@Param("id") String id, @Param("desc") String desc);
+
+    /** 插一条"子角色-战位"关联（厂商 `subRoleRelateRoles:414` 的 `insertSelective`）。 */
+    @Insert("""
+            INSERT INTO g_sub_role_role (sub_role_id, role_id, created_at)
+            VALUES (#{subRoleId}, #{roleId}, #{createdAt})
+            """)
+    int insertSubRoleRole(@Param("subRoleId") String subRoleId, @Param("roleId") String roleId,
+                          @Param("createdAt") long createdAt);
 
     /**
      * 新增子角色时的重名检查（厂商 `existKeyName:108-110`）。

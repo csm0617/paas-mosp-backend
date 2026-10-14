@@ -23,4 +23,14 @@ public interface ISettingRepository {
 
     /** 删除该键（厂商 `clearActiveCode` 对 `system.active.code` 是删行）。 */
     void deleteValue(String key);
+
+    /**
+     * 厂商 `SettingService.updateOrInsert:81-99` 的**逐字**语义（与 {@link #upsertValue} 不同）：
+     * <ul>
+     *   <li>不存在 ⇒ 插入：`val`、`desc=""`、**`updated_at=NULL`**、`created_at=now`；</li>
+     *   <li>存在 ⇒ **只更新 `val` 与 `updated_at`**（`desc`/`created_at` 原样保留）。</li>
+     * </ul>
+     * 用于 i18n 自动名（键 `i18n.<module>.<language>.<key>`）。
+     */
+    void upsertAutoName(String key, String val);
 }

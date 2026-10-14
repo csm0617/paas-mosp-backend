@@ -141,6 +141,41 @@ public class SubRoleRepository implements ISubRoleRepository {
         return java.util.Optional.ofNullable(subRoleDao.selectByKey(key)).map(this::toEntity);
     }
 
+    @Override
+    public void updateDesc(String id, String desc) {
+        subRoleDao.updateDesc(id, desc);
+    }
+
+    @Override
+    @org.springframework.transaction.annotation.Transactional
+    public void replaceUserSubRoleRelations(String subRoleId, java.util.List<String> userIds) {
+        subRoleDao.deleteUserSubRolesBySubRoleId(subRoleId);
+        if (userIds == null || userIds.isEmpty()) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        for (String userId : new java.util.LinkedHashSet<>(userIds)) {
+            if (subRoleDao.countUserById(userId) == 0) {
+                continue;
+            }
+            subRoleDao.insertUserSubRole(java.util.UUID.randomUUID().toString(), userId, subRoleId, now, now);
+        }
+    }
+
+    @Override
+    @org.springframework.transaction.annotation.Transactional
+    public void replaceSubRoleRoleRelations(String subRoleId, java.util.List<String> roleIds) {
+        // 厂商这里 delete 写错了表（删的是 g_user_sub_role）；按意图删 g_sub_role_role（deviations B28）
+        subRoleDao.deleteSubRoleRolesBySubRoleId(subRoleId);
+        if (roleIds == null || roleIds.isEmpty()) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        for (String roleId : new java.util.LinkedHashSet<>(roleIds)) {
+            subRoleDao.insertSubRoleRole(subRoleId, roleId, now);
+        }
+    }
+
     private SubRoleEntity toEntity(SubRolePO po) {
         return SubRoleEntity.builder()
                 .id(po.getId()).key(po.getKey()).name(po.getName()).desc(po.getDesc())

@@ -127,6 +127,21 @@ public interface IRoleRepository {
     List<String> querySoftwareKeysByRoleId(String roleId);
 
     /**
+     * 导入覆盖分支用：key **或** name 命中的**第一条**战位（厂商 `importRoleExcel:878-881` 的
+     * `select(key = ? OR name = ?)` 后 `roles.get(0)`）。
+     */
+    java.util.Optional<RoleEntity> queryByKeyOrName(String key, String name);
+
+    /** 插一条"战位-软件"关联（厂商 `importRoleExcel` 的 `roleSoftwareMapper.insertSelective`）。 */
+    void insertRoleSoftware(String roleId, String appId, int order, long createdAt);
+
+    /**
+     * 只把该战位的 `updated_at` 覆盖成 `updatedAt`（厂商
+     * `SubRoleServiceImpl.subRoleRelateRoles:415-418` 的 `role.setUpdatedAt(now); updateByPrimaryKey(role)`）。
+     */
+    void touchUpdatedAt(String roleId, long updatedAt);
+
+    /**
      * 同上，但**额外把每个被关联子角色的 `created_at` 覆盖成 now**——厂商两个入口行为不同：
      * `POST /v1/role/{roleId}/suRoles` 走 `SubRoleServiceImpl.roleRelateSubRoles:401-424`
      * （`subRoles.setCreatedAt(now); subRoleMapper.updateByPrimaryKey(subRoles)`），

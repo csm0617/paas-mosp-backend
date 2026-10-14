@@ -242,4 +242,32 @@ public interface IRoleDao {
             """)
     int insertSubRoleRole(@Param("subRoleId") String subRoleId, @Param("roleId") String roleId,
                           @Param("createdAt") long createdAt);
+
+    /**
+     * key **或** name 命中的第一条战位（厂商 `importRoleExcel:878-881` 的
+     * `select(key = ? OR name = ?)` 后 `roles.get(0)`）。
+     */
+    @Select("""
+            SELECT id, `key`, name, `desc`, type, updated_at, created_at FROM g_role
+            WHERE `key` = #{key} OR name = #{name} LIMIT 1
+            """)
+    RolePO selectByKeyOrName(@Param("key") String key, @Param("name") String name);
+
+    /**
+     * 插一条"战位-软件"关联（厂商 `importRoleExcel:976-984` 的 `insertSelective`：
+     * 只写 role_id/app_id/`order`/created_at，`app_name`/`url`/`updated_at` 留空）。
+     */
+    @Insert("""
+            INSERT INTO g_role_software (role_id, app_id, `order`, created_at)
+            VALUES (#{roleId}, #{appId}, #{order}, #{createdAt})
+            """)
+    int insertRoleSoftware(@Param("roleId") String roleId, @Param("appId") String appId,
+                           @Param("order") int order, @Param("createdAt") long createdAt);
+
+    /**
+     * 只改 `updated_at`（厂商 `SubRoleServiceImpl.subRoleRelateRoles:415-418`：
+     * `role.setUpdatedAt(now); roleMapper.updateByPrimaryKey(role)`，实体其余列是原值 ⇒ 净效果等价）。
+     */
+    @Update("UPDATE g_role SET updated_at = #{updatedAt} WHERE id = #{id}")
+    int touchUpdatedAt(@Param("id") String id, @Param("updatedAt") long updatedAt);
 }

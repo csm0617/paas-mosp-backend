@@ -7,8 +7,11 @@ import com.csm.paas.core.api.dto.UserIdsDTO;
 import com.csm.paas.core.api.dto.SubRoleIdsDTO;
 import com.csm.paas.core.api.dto.SubRoleItemDTO;
 import com.csm.paas.core.domain.subrole.service.ISubRoleCommandService;
+import com.csm.paas.core.domain.subrole.service.ISubRoleImportService;
 import com.csm.paas.core.domain.subrole.service.ISubRoleQueryService;
+import com.csm.paas.core.trigger.assembler.ExcelFileValidator;
 import com.csm.paas.core.trigger.assembler.ExcelResponseWriter;
+import com.csm.paas.core.trigger.assembler.SubRoleImportExcelParser;
 import com.csm.paas.core.trigger.assembler.SubRoleExcelWriter;
 import com.csm.paas.core.trigger.assembler.SubRoleListAssembler;
 import com.csm.paas.core.trigger.i18n.MessageResolver;
@@ -38,6 +41,9 @@ public class SubRoleController {
     @Resource
     private MessageResolver messageResolver;
 
+    @Resource
+    private ISubRoleImportService subRoleImportService;
+
     /**
      * 厂商 `POST /v1/sub_role/export`：导出子角色（**xls 附件**，body 是子角色 id 数组，可为空）。
      *
@@ -63,6 +69,29 @@ public class SubRoleController {
     public void roleImportTemplate(jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
         ExcelResponseWriter.write(response, SubRoleExcelWriter.buildTemplate(messageResolver),
                 messageResolver, "export.file.name.sub.role.import.template", true);
+    }
+
+    /**
+     * 厂商 `POST /v1/sub_role/import`（multipart `file` + `isCover`）：从 Excel 导入子角色。
+     *
+     * <p>① MIME 探测不是 Excel ⇒ 400 `global.import.supported.file.type`；
+     * ② POI 解析（空表 ⇒ 空列表 ⇒ 库无变化，仍 200 `data:null`）；
+     * ③ 领域服务按厂商规则写库（**没有事务**，见 `ISubRoleImportService`）。
+     */
+    @org.springframework.web.bind.annotation.PostMapping(value = "/import",
+            consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseDTO<Object> importSubRole(
+            @org.springframework.web.bind.annotation.RequestParam("file")
+            org.springframework.web.multipart.MultipartFile file,
+            @org.springframework.web.bind.annotation.RequestParam("isCover") Boolean isCover)
+            throws java.io.IOException {
+        if (file == null || !ExcelFileValidator.isExcel(file.getInputStream())) {
+            throw new com.csm.paas.core.types.exception.WrongArgumentException(
+                    "global.import.supported.file.type");
+        }
+        var rows = SubRoleImportExcelParser.parse(file.getInputStream());
+        subRoleImportService.importSubRoles(rows, Boolean.TRUE.equals(isCover));
+        return ResponseDTO.ok(null);
     }
 
     /**

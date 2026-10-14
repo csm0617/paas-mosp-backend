@@ -62,6 +62,12 @@ public interface ISoftwareRepository {
 
     Optional<SoftwareEntity> queryById(String softwareId);
 
+    /**
+     * 按 `key` 取软件 id（厂商 `importRoleExcel:975` 等处：`softwareMapper.select(key = ?)` 后取 `id`）。
+     * <p>查不到 ⇒ `Optional.empty()`（调用方**跳过**该行，不报错）。
+     */
+    Optional<String> queryIdByKey(String key);
+
     /** 往白名单插入一条放行路径（`/<key>/**`）。 */
     void insertWhiteListPath(String path, long createdAt);
 

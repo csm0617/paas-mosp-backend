@@ -9,10 +9,13 @@ import com.csm.paas.core.api.dto.RoleFormDTO;
 import com.csm.paas.core.api.dto.RoleUsersDTO;
 import com.csm.paas.core.cases.role.IRoleDeleteCase;
 import com.csm.paas.core.cases.role.IRoleWriteCase;
+import com.csm.paas.core.domain.role.service.IRoleImportService;
 import com.csm.paas.core.domain.role.service.IRoleQueryService;
+import com.csm.paas.core.trigger.assembler.ExcelFileValidator;
 import com.csm.paas.core.trigger.assembler.ExcelResponseWriter;
 import com.csm.paas.core.trigger.i18n.MessageResolver;
 import com.csm.paas.core.trigger.assembler.RoleExcelWriter;
+import com.csm.paas.core.trigger.assembler.RoleImportExcelParser;
 import com.csm.paas.core.trigger.assembler.RoleListAssembler;
 import com.csm.paas.core.types.exception.WrongArgumentException;
 import com.csm.paas.core.types.util.PageUtils;
@@ -66,6 +69,9 @@ public class RoleController {
 
     @Resource
     private MessageResolver messageResolver;
+
+    @Resource
+    private IRoleImportService roleImportService;
 
     /** 厂商 `GET /v1/role?page&size&username`：username 非空时按该用户关联的战位过滤（且不分页）。 */
     @GetMapping
@@ -300,5 +306,27 @@ public class RoleController {
     public void roleImportTemplate(HttpServletResponse response) throws IOException {
         ExcelResponseWriter.write(response, RoleExcelWriter.buildTemplate(messageResolver),
                 messageResolver, "export.file.name.role.import.template", false);
+    }
+
+    /**
+     * 厂商 `POST /v1/role/import`（multipart `file` + `isCover`）：从 Excel 导入战位。
+     *
+     * <p>三步照抄：① MIME 探测不是 Excel ⇒ 400 `global.import.supported.file.type`；
+     * ② POI 解析（空表 ⇒ 空列表 ⇒ 库无变化，仍 200 `data:null`）；
+     * ③ 领域服务按厂商规则写库（**没有事务**，见 {@code IRoleImportService}）。
+     */
+    @PostMapping(value = "/import", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseDTO<Object> roleImport(
+            @org.springframework.web.bind.annotation.RequestParam("file")
+            org.springframework.web.multipart.MultipartFile file,
+            @org.springframework.web.bind.annotation.RequestParam("isCover") Boolean isCover)
+            throws IOException {
+        if (file == null || !ExcelFileValidator.isExcel(file.getInputStream())) {
+            throw new com.csm.paas.core.types.exception.WrongArgumentException(
+                    "global.import.supported.file.type");
+        }
+        var rows = RoleImportExcelParser.parse(file.getInputStream());
+        roleImportService.importRoles(rows, Boolean.TRUE.equals(isCover));
+        return ResponseDTO.ok(null);
     }
 }

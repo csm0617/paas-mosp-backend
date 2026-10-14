@@ -25,4 +25,13 @@ public class LanguageAutoNamePort implements ILanguageAutoNamePort {
         return settingRepository.queryValue("i18n." + module + "." + language + "." + key)
                 .filter(val -> !val.isBlank());
     }
+
+    @Override
+    public void saveAutoName(String module, String language, String key, String value) {
+        // 厂商 `saveAutoNameMessage`：key 空白 或 value 为 null ⇒ 什么都不做（value 是空串仍会写）
+        if (module == null || language == null || key == null || key.isBlank() || value == null) {
+            return;
+        }
+        settingRepository.upsertAutoName("i18n." + module + "." + language + "." + key, value);
+    }
 }

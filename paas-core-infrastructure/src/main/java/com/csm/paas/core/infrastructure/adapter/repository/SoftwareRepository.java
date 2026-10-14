@@ -115,6 +115,11 @@ public class SoftwareRepository implements ISoftwareRepository {
     }
 
     @Override
+    public java.util.Optional<String> queryIdByKey(String key) {
+        return java.util.Optional.ofNullable(softwareDao.selectIdByKey(key));
+    }
+
+    @Override
     public boolean existsById(String softwareId) {
         return softwareDao.countById(softwareId) > 0;
     }

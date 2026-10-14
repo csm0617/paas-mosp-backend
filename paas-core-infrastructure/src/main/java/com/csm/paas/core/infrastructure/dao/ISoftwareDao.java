@@ -429,4 +429,8 @@ public interface ISoftwareDao {
             WHERE sp.software_id = #{softwareId} AND sp.web_entry = 1
             """)
     List<String> selectWebEntryServiceNames(@Param("softwareId") String softwareId);
+
+    /** 按 `key` 取 id（厂商 `importRoleExcel:975` 等处 `select(key = ?)` 后取 `Software::getId`）。 */
+    @Select("SELECT id FROM g_software WHERE `key` = #{key} LIMIT 1")
+    String selectIdByKey(@Param("key") String key);
 }

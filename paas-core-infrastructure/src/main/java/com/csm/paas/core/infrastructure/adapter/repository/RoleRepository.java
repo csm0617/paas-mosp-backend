@@ -264,6 +264,21 @@ public class RoleRepository implements IRoleRepository {
     }
 
     @Override
+    public Optional<RoleEntity> queryByKeyOrName(String key, String name) {
+        return Optional.ofNullable(roleDao.selectByKeyOrName(key, name)).map(this::toEntity);
+    }
+
+    @Override
+    public void insertRoleSoftware(String roleId, String appId, int order, long createdAt) {
+        roleDao.insertRoleSoftware(roleId, appId, order, createdAt);
+    }
+
+    @Override
+    public void touchUpdatedAt(String roleId, long updatedAt) {
+        roleDao.touchUpdatedAt(roleId, updatedAt);
+    }
+
+    @Override
     public List<String> querySoftwareKeysByRoleId(String roleId) {
         return roleDao.selectSoftwareKeysByRoleId(roleId);
     }

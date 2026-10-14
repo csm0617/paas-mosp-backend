@@ -59,8 +59,14 @@ def frontend_paths():
             text = f.read_text(errors="ignore")
         except OSError:
             continue
-        for m in FE_PATH_RE.findall(text):
-            found.add(normalize(m))
+        # 裸字面量扫描：**跳过后面紧跟 `.concat(` / `+` 的**——那半截路径由下面的拼串扫描
+        # 还原成完整路径；两遍都收会把 `/v1/x/` 这种截断形式当成独立端点（假阳性）。
+        for m in FE_PATH_RE.finditer(text):
+            # 注意字面量的**闭合引号**要一起跳过：`"/v1/x/"` + `.concat(...)`
+            tail = re.match(r'["\']?\s*(\.concat\(|\+)', text[m.end():m.end() + 14])
+            if tail:
+                continue
+            found.add(normalize(m.group(0)))
         for m in CONCAT_RE.finditer(text):
             path = m.group(1)
             for arg in CONCAT_ARG_RE.findall(m.group(2)):

@@ -19,4 +19,13 @@ public interface ILanguageAutoNamePort {
      * @return 自动名；**键不存在或值为空白** ⇒ `Optional.empty()`（厂商返回 null）
      */
     Optional<String> queryAutoName(String module, String language, String key);
+
+    /**
+     * 写自动名（厂商 `I18nUtil.saveAutoNameMessage:91-108`）。
+     *
+     * <p>厂商语义：`key` 空白 ⇒ 什么都不做；**`value == null` ⇒ 什么都不做**（读路径走兜底）；
+     * `value` 非 null（**包括空串**）⇒ upsert 到 `g_setting`。写入时：
+     * 不存在 ⇒ `desc=""`、`updated_at=NULL`、`created_at=now`；存在 ⇒ **只改 `val` 与 `updated_at`**。
+     */
+    void saveAutoName(String module, String language, String key, String value);
 }

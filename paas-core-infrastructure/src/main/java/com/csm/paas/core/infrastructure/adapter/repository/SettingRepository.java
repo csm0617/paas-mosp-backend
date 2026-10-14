@@ -62,6 +62,18 @@ public class SettingRepository implements ISettingRepository {
     }
 
     @Override
+    public void upsertAutoName(String key, String val) {
+        long now = System.currentTimeMillis();
+        if (settingDao.countByKey(key) == 0) {
+            // 厂商 updateOrInsert 的插入分支：desc=""、updated_at=NULL、created_at=now
+            settingDao.insertSettingWithNullUpdatedAt(key, val, now);
+        } else {
+            // 更新分支：只改 val 与 updated_at（desc/created_at 保留）
+            settingDao.updateSettingValue(key, val, now);
+        }
+    }
+
+    @Override
     public void saveValueIfAbsent(String key, String val, String desc) {
         if (settingDao.countByKey(key) == 0) {
             settingDao.insertSetting(key, val, desc, System.currentTimeMillis());

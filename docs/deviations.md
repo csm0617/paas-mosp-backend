@@ -53,6 +53,9 @@
 | B22 | `existConfigmap`：`key` 为 null/空时返回 `false`（**不实现**厂商那个"检查全部软件"的分支） | 厂商写的是 `key != null \|\| key.size() != 0` ⇒ null 时 **NPE ⇒ 500**，且该写法让"不带 key"分支**永不可达**（死代码）；实现它等于替厂商发明一个走不到的行为 | `findings/133` §3 |
 | B25 | `DELETE /v1/role/{roleId}/{userId}` 的 userId 不存在 ⇒ **400 `user.id.not.found`** | 厂商 `userMapper.selectByPrimaryKey(userId).get()` ⇒ `NoSuchElementException` ⇒ **500**（与 B24① 同类：厂商的"查不到"分支写成了未捕获异常） | `findings/156` §5 |
 | B26 | 同一端点上把 `root` 用户从战位移除 ⇒ **正常删关联** | 厂商 `getUserLoginStatusList:1360` 先 `filter(u -> !"root".equals(username))`，再把用户名列表逐个判存在 ⇒ `root` 得到**空列表** ⇒ `userStatusInfos.get(0)` 抛 `IndexOutOfBoundsException` ⇒ **500**。即厂商"不允许删 root 关联"是靠崩而不是靠校验 | `findings/156` §5 |
+| B27 | 子角色域写"用户-子角色"关联时**不覆盖用户的 `created_at`** | 厂商 `SubRoleServiceImpl.usersRelateRole:144-160` 每插一条都会 `users.setCreatedAt(now); userMapper.updateByPrimaryKey(users)`（**写错字段**，本意大概是 updated_at）。role 域照抄了这个覆盖（`findings/156` 实测确认），sub_role 域**统一不做**——导入路径与既有 `addSubRole` 保持一致，避免同一域两条路径行为不同 | `findings/158` §4 |
+| B28 | 子角色导入的"子角色-战位"关联：**按意图删 `g_sub_role_role`** | 厂商 `SubRoleServiceImpl.subRoleRelateRoles:410-412` 的 delete 写错了表——`userSubRoleMapper.delete(where sub_role_id = ?)`，删的是 `g_user_sub_role`，会把导入上一步刚写好的用户关联清掉。响应恒为 `data:null`，照抄只会静默毁数据 | `findings/158` §4 |
+| B29 | 导入 Excel 的关联列填 `[]`（空 JSON 数组）时**按"空列表 = 不动"处理** | 厂商的 `isInWhenPresent(空集合)` 会**去掉整个 where** ⇒ 退化成"全表"：子角色导入的 `[]` 表示**关联所有用户/所有战位**（`SubRoleServiceImpl:598-612`）；战位导入的子角色列 `[]` 则**清空该战位的全部子角色关联**（`RoleService:997-1000`）。前端导出对空列表写的是**空单元格**（不是 `[]`），所以这条路径上产不出 `[]`；照抄等于给手改文件留一个"清库"开关 | `findings/158` §4 |
 
 ## C. 参考环境限制导致无法对拉（按代码实现 + 标注证据来源）
 
