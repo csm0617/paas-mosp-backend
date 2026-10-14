@@ -48,6 +48,29 @@ total = Page.getTotal()
 另外一条好消息：`selectPageByKeyword` 的 SQL **已经取了全部 14 列**（含 `email/birth/phone/uuid/avatar`），
 所以**不用改 SQL**——只需给 `UserInfoEntity` 补 5 个字段并让 `toInfo` 填上。
 
+## 2''. 已取到**厂商实时样本**（`runtime-samples/v1_user_list.json`）——又一处规模修正
+
+```json
+{"list":[{"id":"...","username":"admin","nickname":null,"status":1,"email":null,"birth":null,"phone":null,
+          "updatedAt":...,"createdAt":...,"desc":"...","avatar":null,"lastLoginRole":"admin","uuid":null,
+          "roles":[{"id":"1111...","key":"admin","name":"...","nameFr":null,"nameUs":null,"updatedAt":...,
+                    "createdAt":...,"desc":"...","type":1,"onLineUserList":null,"softwareList":...,
+                    "userList":...,"subRoleList":...,"adminOrDev":...,"admin":...,"dev":...}],
+          "subRoles":[], "admin":true}],"total":1}
+```
+
+三处**实测确认 / 规模修正**：
+
+1. **`nickname` 实测就是 `null`**（印证 §2' 第 1 条）；
+2. **`roles` 是完整 16 键的 `Role` 对象**（`id,key,name,nameFr,nameUs,updatedAt,createdAt,desc,type,
+   onLineUserList,softwareList,userList,subRoleList,adminOrDev,admin,dev`）——**与 `/v1/role` 返回的 Role 形状相同**
+   ⇒ 实现时应当**复用 `/v1/role` 那套角色装配**（含 `softwareList`/`userList`/`subRoleList` 的填充规则）。
+   **这不是"加 5 个字段 + 一个 DTO"的规模**，而是要接上角色域的装配链路。
+3. **`subRoles` 是 `[]`（空数组）不是 `null`**——与 `/v1/user/info` 的写法（空则 null）**不同**，照抄要注意。
+
+⇒ **结论：`/v1/user/list` 的真实成本 ≈ "用户分页查询" + "每个用户套一遍角色装配"**，
+应按这个规模排期（一轮实现 + 一轮对拉），不要按"别名端点"估。
+
 ## 3. 下一轮要改的地方（已经定位到文件）
 
 1. `UserInfoEntity`（domain）**缺 5 个字段**：`email` / `birth` / `phone` / `avatar` / `uuid`
