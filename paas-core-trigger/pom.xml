@@ -43,4 +43,14 @@
             <artifactId>tika-core</artifactId>
             <version>2.9.2</version>
         </dependency>
+        <!--
+          `/v1/user/import` 用 `WorkbookFactory.create`（厂商 `UserService.java:1034`）——它同时支持
+          xls 与 xlsx，xlsx 需要 poi-ooxml（否则抛 UnsupportedFileFormatException）。
+          厂商的 MIME 守卫本来就把 xlsx 列为合法，所以这里必须一起支持（离线仓已有 5.2.5 全套传递依赖）。
+        -->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+            <version>5.2.5</version>
+        </dependency>
     </dependencies></project>

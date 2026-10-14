@@ -172,6 +172,27 @@ public class UserRepository implements IUserRepository {
         }
     }
 
+    @Override
+    public void deleteUserRoleRelationsByUsername(String username) {
+        userDao.deleteUserRoleByUsername(username);
+    }
+
+    @Override
+    public void deleteUserSubRoleRelationsByUserId(String userId) {
+        userDao.deleteUserSubRoleByUserId(userId);
+    }
+
+    @Override
+    public void insertUserRoleRelation(String userId, String roleId, long createdAt) {
+        userDao.insertUserRole(userId, roleId, createdAt);
+    }
+
+    @Override
+    public void insertUserSubRoleRelation(String id, String userId, String subRoleId, long createdAt) {
+        // 厂商 `insertSelective` 只写 id/user_id/sub_role_id/created_at ⇒ updated_at 传 null
+        userDao.insertUserSubRole(id, userId, subRoleId, null, createdAt);
+    }
+
     private UserPO toPO(UserEntity u) {
         UserPO po = new UserPO();
         po.setId(u.getId());

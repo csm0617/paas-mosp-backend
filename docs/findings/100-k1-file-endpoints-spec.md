@@ -261,6 +261,62 @@ selectUsers 为空 或 col4 的 subRoles 为空 ⇒ 跳过
 ① 空表 ⇒ 200 且**库无变化**；② 只含 admin 的行 ⇒ 同样无变化；③ 新用户行 ⇒ 插入；
 ④ 已存在用户 + `isCover=false` ⇒ 不变；⑤ `isCover=true` ⇒ 更新；⑥ 用户名长度越界 ⇒ 400。
 
+### 第 121 轮：开工前的三处**规格补正**（都是"照抄会错"的点）
+
+**(1) `roleKey` 为空时，子角色也一起被跳过**（上一轮的规格漏了）
+
+```java
+if (selectUsers != null && selectUsers.size() != 0) {
+    String roleKey = importUserInfo.getRoleKey();
+    if (StringUtils.isBlank(roleKey)) continue;      // ← 这个 continue 是**外层 for** 的
+    ... 写角色关系 ...
+}
+if (selectUsers == null || selectUsers.size() == 0 || CollectionUtils.isEmpty(subRoles = ...)) continue;
+for (String subRole : subRoles) { ...写 g_user_sub_role... }
+```
+
+⇒ 新用户分支里：**`roleKey` 为空 ⇒ 既不写 `g_user_role`，也不写 `g_user_sub_role`**（不是"只不写角色"）。
+两处 `roleKey` 的"空"判定还**不一样**，必须分开照抄：
+
+| 分支 | 取值 | 空判定 | 空时的结果 |
+| --- | --- | --- | --- |
+| 新用户 | `isNotBlank(cell2)` 才 `setRoleKey` | `isBlank` | `continue`（**角色与子角色都不写**） |
+| 已存在+覆盖 | 直接取 `cell2` | `roleKey == null` | `return`（**只跳过角色**，子角色在前面已经写完） |
+
+⇒ 所以**单元格存在但为空串**时：新用户 → 无任何关系；覆盖 → 走 `else` 分支，**写 `user` 角色** + col3 列表。
+
+**(2) `updateByPrimaryKeySelective` 的"present"就是 `!= null`**（不是"非空串"）
+
+厂商用的是 **`mybatis-dynamic-sql 1.1.4`**（`gaop-be/pom.xml:117-120`）；反编译
+`IsEqualToWhenPresent` 的 BootstrapMethods 可见谓词是 `java/util/Objects.nonNull`（`IsLikeWhenPresent` 同）。
+⇒ 覆盖分支里 `desc`/`nickname`：**单元格缺失 ⇒ 保持原值**；**单元格存在但为空串 ⇒ 写成 `""`**。
+（我原先打算"空串也当缺失"，那会与厂商不一致。）
+
+**(3) 覆盖分支对 col4/col3 的 JSON `null` 会 NPE**
+
+```java
+List roleRelationList = (List) gson.fromJson(subRoleKey, new TypeToken<List<String>>(){}.getType());
+subRoleList.addAll(roleRelationList);        // ← col4 字面量 "null" ⇒ roleRelationList == null ⇒ NPE ⇒ 500
+```
+新用户分支有 `if (userToJson != null)` 保护，**覆盖分支没有**。
+⇒ 这一条我们**主动硬化**（把 JSON `null` 当"无列表"），记入 `docs/deviations.md`：模板/导出都不可能产出字面量 `null`，
+所以前端路径上不可达；照抄等于故意留一个 NPE。
+
+**(4) 另外两处已确认的语义**（顺手记录）
+
+- `existUsername` 在**长度校验之前** ⇒ 已存在的用户 + `isCover=false` 即使用户名只有 1 个字符也是"跳过"而不是 400；
+- 覆盖分支**先删角色关系再更新用户**（`deleteExistUserRelationRole(username)` 在 `updateByPrimaryKeySelective` 之前），
+  且**最后还会再 update 一次**（`:1349-1350`，只为把 `updated_at` 写成 `currentTime`）⇒ 净效果等价于"一次带 `updatedAt=now` 的更新"。
+
+**(5) 事务边界：厂商的 `importExcel` 没有事务**，而且**覆盖更新发生在解析循环里、插入发生在循环之后**：
+
+```
+for 每一行：… 已存在+isCover ⇒ existUpdateUser(...) 立刻写库 …
+（循环里若某行抛 400 ⇒ 前面几行的"覆盖更新"已落库，而"新用户插入"一行都没写）
+userList 非空 ⇒ 再逐条 insertSelective + 关系写入
+```
+⇒ 我们要照抄这个"**半途落库**"语义（不加事务），否则行为不同。**这一点必须写进实现注释**，否则后人会"顺手"加 `@Transactional`。
+
 ## 4. 建议顺序
 
 1. `import/template`（**最简单**：无入参、纯产出、可解析比对单元格）；

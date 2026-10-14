@@ -54,6 +54,13 @@ public interface ISubRoleDao {
     List<SubRolePO> selectByNameLike(@Param("likeKeyword") String likeKeyword);
 
     /**
+     * 按 `key` 取子角色（厂商在用户导入里逐个 `subRoleMapper.select(key = ?)` 再取 `get(0)`，
+     * `UserService.java:1222,1291`）。`g_sub_role.key` 有唯一索引 ⇒ 至多一行。
+     */
+    @Select("SELECT id, `key`, name, `desc`, updated_at, created_at FROM g_sub_role WHERE `key` = #{key}")
+    SubRolePO selectByKey(@Param("key") String key);
+
+    /**
      * 按 id 批量取子角色（厂商 `getSubRoleListByRoleId` 的第二段查询）。
      */
     @Select("""

@@ -69,6 +69,9 @@ public class UserController {
     private com.csm.paas.core.domain.user.service.IUserAvatarService userAvatarService;
 
     @Resource
+    private com.csm.paas.core.domain.user.service.IUserImportService userImportService;
+
+    @Resource
     private IUserRepository userRepository;
 
     @Resource
@@ -138,6 +141,29 @@ public class UserController {
                 "attachment; filename*=UTF-8''" + java.net.URLEncoder.encode(filename, java.nio.charset.StandardCharsets.UTF_8));
         response.getOutputStream().write(bytes);
         response.flushBuffer();
+    }
+
+    /**
+     * 厂商 `POST /v1/user/import`（multipart `file` + `isCover`）：用户导入。
+     *
+     * <p>三件事：① MIME 守卫（非 Excel → 400 `global.import.supported.file.type`）；
+     * ② 用 POI 解析成行（空表 ⇒ 空列表 ⇒ 库无变化，仍是 200 `data:null`）；
+     * ③ 交给领域服务按厂商规则写库（**不带事务**，见 {@code IUserImportService} 的文档）。
+     *
+     * <p>厂商控制器还打了 `@AuditLog(...)`；我们目前没有审计日志落库链路（见 `docs/deviations.md`）。
+     */
+    @PostMapping(value = "/v1/user/import", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseDTO<Object> userImport(
+            @org.springframework.web.bind.annotation.RequestParam("file") org.springframework.web.multipart.MultipartFile file,
+            @org.springframework.web.bind.annotation.RequestParam("isCover") Boolean isCover)
+            throws java.io.IOException {
+        if (file == null || !com.csm.paas.core.trigger.assembler.ExcelFileValidator.isExcel(file.getInputStream())) {
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("global.import.supported.file.type");
+        }
+        java.util.List<com.csm.paas.core.domain.user.model.valobj.ImportUserRowVO> rows =
+                com.csm.paas.core.trigger.assembler.UserImportExcelParser.parse(file.getInputStream());
+        userImportService.importUsers(rows, Boolean.TRUE.equals(isCover));
+        return ResponseDTO.ok(null);
     }
 
     /**

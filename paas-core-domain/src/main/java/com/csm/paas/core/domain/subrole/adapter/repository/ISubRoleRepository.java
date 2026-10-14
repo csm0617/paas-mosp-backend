@@ -35,4 +35,10 @@ public interface ISubRoleRepository {
      * （多元素时无法与厂商逐字节对齐，见 `docs/findings/28-e2e-role-page.md`）。
      */
     List<SubRoleEntity> queryByIds(List<String> ids);
+
+    /**
+     * 按 `key` 取子角色（厂商在用户导入里逐个 `subRoleMapper.select(key = ?)`，`UserService.java:1222,1291`；
+     * 查不到 ⇒ 调用方跳过）。
+     */
+    java.util.Optional<SubRoleEntity> queryByKey(String key);
 }

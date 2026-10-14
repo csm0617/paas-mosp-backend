@@ -178,5 +178,30 @@ public interface IUserDao {
             """)
     int insertUserSubRole(@Param("id") String id, @Param("userId") String userId,
                           @Param("subRoleId") String subRoleId,
-                          @Param("updatedAt") long updatedAt, @Param("createdAt") long createdAt);
+                          @Param("updatedAt") Long updatedAt, @Param("createdAt") Long createdAt);
+
+    // ---------- 用户导入（厂商 UserService.importExcel / existUpdateUser）----------
+
+    /**
+     * 按用户名删光该用户的角色关系。逐字照抄厂商 `UserMapper.deleteExistUserRelationRole`
+     * （`dao/UserMapper.java:138`）：嵌套派生表绕开 MySQL "不能在子查询里更新同一张表"的限制。
+     */
+    @Delete("""
+            DELETE FROM g_user_role
+            WHERE user_id IN (
+              SELECT m.id FROM (SELECT u.id FROM g_user u WHERE u.username = #{username}) m
+            )
+            """)
+    int deleteUserRoleByUsername(@Param("username") String username);
+
+    /**
+     * 插**一条**角色关系（厂商 `userRoleMapper.insertSelective`，导入里是逐条插、**不去重**；
+     * `g_user_role.id` 是自增列，不写）。
+     */
+    @Insert("""
+            INSERT INTO g_user_role (user_id, role_id, created_at)
+            VALUES (#{userId}, #{roleId}, #{createdAt})
+            """)
+    int insertUserRole(@Param("userId") String userId, @Param("roleId") String roleId,
+                       @Param("createdAt") long createdAt);
 }

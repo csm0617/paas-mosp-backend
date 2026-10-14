@@ -101,4 +101,26 @@ public interface IUserRepository {
      * 先删该用户全部 `g_user_sub_role`，再逐条插入（id 用随机 UUID）。
      */
     void replaceUserSubRoleRelations(String userId, List<String> subRoleIds);
+
+    // ---------- 用户导入（厂商 UserService.importExcel / existUpdateUser，UserService.java:1181-1351）----------
+
+    /**
+     * 按**用户名**删光该用户的 `g_user_role`（厂商 `UserMapper.deleteExistUserRelationRole`，
+     * `dao/UserMapper.java:138` 的 `@Delete`）。与按 userId 删等价，但导入的覆盖分支就是按用户名删的，照抄。
+     */
+    void deleteUserRoleRelationsByUsername(String username);
+
+    /** 删光某用户的 `g_user_sub_role`（厂商 `UserSubRoleMapper.deleteRelateUserToSubRole`）。 */
+    void deleteUserSubRoleRelationsByUserId(String userId);
+
+    /**
+     * 插**一条**角色关系（厂商在导入里是逐条 `userRoleMapper.insertSelective`，
+     * **不去重**：col3 里同一个 key 出现两次就会插两行）。
+     */
+    void insertUserRoleRelation(String userId, String roleId, long createdAt);
+
+    /**
+     * 插**一条**子角色关系（厂商 `insertSelective`：`id` 用随机 UUID、`updated_at` **不写**）。
+     */
+    void insertUserSubRoleRelation(String id, String userId, String subRoleId, long createdAt);
 }
