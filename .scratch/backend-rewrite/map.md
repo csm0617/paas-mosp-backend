@@ -410,6 +410,8 @@ Label: `wayfinder:map`
   - **读 `getUserRoles:1780-1803` 后的三处关键修正**（比字段表更易踩）：① **`nickname` 恒 null**（厂商没 `setNickname`，尽管字段声明了）——别顺手从实体填；② **`roles`/`subRoles` 是对象列表**（`List<Role>`/`List<SubRole>`），而 `/v1/user/info` 同名键是**字符串**（已逐字节验证）⇒ 实现前必须先取 `Role`/`SubRole` 的序列化样本；③ **不过滤 root**（`/v1/user/info` 才过滤）⇒ 我们的 `queryUserInfoPage` 不能复用，需新域方法。
   - 好消息：`selectPageByKeyword` 的 SQL **已取全 14 列** ⇒ **不用改 SQL**，只需给 `UserInfoEntity` 补 5 字段并在 `toInfo` 填上。
   - **已取厂商实时样本**（`runtime-samples/v1_user_list.json`）：`nickname` 实测 null ✅；**`roles` 是完整 16 键 Role 对象**（与 `/v1/role` 同形状）⇒ 实现要**复用角色域装配**（含 `softwareList`/`userList`/`subRoleList` 填充规则），**不是"加字段+DTO"的规模**；**`subRoles` 是 `[]` 不是 null**（与 `/v1/user/info` 写法不同）。⇒ 真实成本 ≈ "用户分页 + 每用户套一遍角色装配"。
+- （**20 轮后 e2e 复验**）[findings/111](docs/findings/111-e2e-regression.md)：第 91 轮之后又交付 7 个端点（user/list、access_permission、import/template、export、backup、recovery、update_avatar）+ 实体/DAO 改动，**其中多处落在前端会读的端点上** ⇒ 重跑 e2e：表头与数据行与厂商归档页**逐项相等**、可见文本 64/64、仅 vendor 有=空、**非 2xx 无**、脚本退出 0。
+  - 结论：**20 轮改动后页面链路无回归**；再次印证"改动落在前端会读的端点就必须重跑 e2e"（L1/L2 只证明字段对，证明不了页面不白屏）。
 - （**改动后 e2e 复验**）[findings/97](docs/findings/97-e2e-after-token-fix.md)：第 89 轮把 `/v1/user` 的 token 改成 null 后，专门重跑 e2e——**表头/数据行/可见文本与厂商归档页全等**（64/64 行、仅 vendor 有=空）、前端请求**无 4xx/5xx**、脚本退出 0。⇒ 修复没破坏前端。
   - 经验：**改了前端会读的端点就必须重跑 e2e**——契约比对（L1/L2）只看字段对不对，看不出"页面会不会白屏"。
 - （**工具修正**）[contract-check 增加易变字段模式](docs/findings/96-contract-check-volatile.md)：`/v1/user/info` 的 `createdAt`/`updatedAt` 标为 `mode: volatile`——**只比存在与类型**，不再因样本陈旧误报（**不用 `allowDeviation`**：那是"允许的偏离"会永久豁免，而"易变"只是字段性质）。
