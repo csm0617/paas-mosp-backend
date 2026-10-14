@@ -547,6 +547,35 @@ public class ServiceRuntimeGateway {
         return cm == null ? java.util.Optional.empty() : java.util.Optional.of(toSnapshot(cm));
     }
 
+    /** 建一个只有 metadata.name 的 ConfigMap。 */
+    public Map<String, Object> createConfigMap(String namespace, String name) {
+        var body = new io.fabric8.kubernetes.api.model.ConfigMapBuilder()
+                .withNewMetadata().withName(name).endMetadata()
+                .build();
+        var created = kubernetesClient.configMaps().inNamespace(namespace).resource(body).create();
+        return toSnapshot(created);
+    }
+
+    /** 把 ConfigMap 的 data 整份替换（读 → 改 data → replace）。 */
+    public Map<String, Object> replaceConfigMapData(String namespace, String name, Map<String, String> data) {
+        var existing = kubernetesClient.configMaps().inNamespace(namespace).withName(name).get();
+        if (existing == null) {
+            return null;
+        }
+        existing.setData(new java.util.LinkedHashMap<>(data));
+        var replaced = kubernetesClient.configMaps().inNamespace(namespace).resource(existing).replace();
+        return replaced == null ? null : toSnapshot(replaced);
+    }
+
+    /** 删一个 ConfigMap；不存在 ⇒ false（不抛）。 */
+    public boolean deleteConfigMap(String namespace, String name) {
+        var existing = kubernetesClient.configMaps().inNamespace(namespace).withName(name).get();
+        if (existing == null) {
+            return false;
+        }
+        return !kubernetesClient.configMaps().inNamespace(namespace).resource(existing).delete().isEmpty();
+    }
+
     /** 全部 Deployment 的原样快照。 */
     public List<Map<String, Object>> listDeploymentSnapshots(String namespace) {
         return kubernetesClient.apps().deployments().inNamespace(namespace).list().getItems().stream()

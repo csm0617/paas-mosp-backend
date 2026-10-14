@@ -518,4 +518,38 @@ public interface IServiceQueryService {
      */
     java.util.List<com.csm.paas.core.domain.software.model.entity.ConfigMapInfoEntity> queryConfigMapRelations(
             String namespace, String name);
+
+    /**
+     * 建配置组（厂商 `POST /v1/config_map` → `createConfigMap:122-152`）。
+     *
+     * <p>`name` 空白 ⇒ 400 `configmap.name.must.not.empty`；不匹配 `[-._a-zA-Z0-9]+` ⇒
+     * 400 `configmap.name.not.invalid`；**已存在 ⇒ 400 `configmap.existed`（带 name）**；
+     * 建失败 ⇒ 500 `configmap.create.failed`。body **只有 `metadata.name`**（不带 data）。
+     */
+    java.util.Map<String, Object> createConfigMap(String namespace, String name);
+
+    /**
+     * 新增/覆盖配置组里的一个配置项（厂商 `POST /{name}/config` → `createConfig:276-315`）。
+     *
+     * <p>`form.name` 空白/非法 ⇒ 两个 400；ConfigMap 不存在（404）⇒ 400 `configmap.not.exist`；
+     * ConfigMap 读取失败（非 404）⇒ 500 `configmap.get.config.error`（带 ConfigMap 名）；
+     * `value` 为空 ⇒ **存空串**；同名**覆盖**；replace 失败 ⇒ 500 `configmap.request.api.error`。
+     */
+    java.util.Map<String, Object> upsertConfigEntry(String namespace, String configMapName,
+                                                    String entryName, String value);
+
+    /**
+     * 删除配置组里的一个配置项（厂商 `DELETE /{name}/config/{configName}` → `deleteConfig:246-274`）。
+     *
+     * <p>与上面同款的前置校验；**配置项不存在 ⇒ 400 `configmap.name.not.exist`（带配置项名）**。
+     */
+    java.util.Map<String, Object> deleteConfigEntry(String namespace, String configMapName, String entryName);
+
+    /**
+     * 删配置组（厂商 `DELETE /v1/config_map?names=` → `deleteConfigMap:337-358`）。
+     *
+     * <p>`names` 按 `,` 拆开、**每个名字 trim 后删**，但**返回列表里放的是未 trim 的原值**；
+     * 删除失败/不存在 ⇒ 只记日志（不报错）；返回成功删除的那些名字。
+     */
+    java.util.List<String> deleteConfigMaps(String namespace, String names);
 }

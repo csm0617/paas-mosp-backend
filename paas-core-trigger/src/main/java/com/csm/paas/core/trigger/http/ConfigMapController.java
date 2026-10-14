@@ -1,6 +1,8 @@
 package com.csm.paas.core.trigger.http;
 
 import com.csm.paas.core.api.dto.ConfigMapInfoDTO;
+import com.csm.paas.core.api.dto.CreateConfigInConfigMapDTO;
+import com.csm.paas.core.api.dto.CreateConfigMapDTO;
 import com.csm.paas.core.api.dto.ConfigMapListDTO;
 import com.csm.paas.core.api.dto.ResponseDTO;
 import com.csm.paas.core.domain.software.service.IServiceQueryService;
@@ -15,9 +17,9 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 厂商 `ConfigMapController`（`/v1/config_map`）——目前只实现 **`GET /`（列表）**。
  *
- * <p>已实现：`GET /`（列表）、`GET /{name}`、`GET /{name}/exist`、`GET /relationService`。
- * 未实现：`POST /`（创建）、`POST|DELETE /{name}/config`、`DELETE /?names=`、
- * `POST /backup|/import|/importListen|/listenBackup`。
+ * <p>已实现：`GET /`（列表）、`GET /{name}`、`GET /{name}/exist`、`GET /relationService`、
+ * `POST /`（创建）、`POST /{name}/config`、`DELETE /{name}/config/{configName}`、`DELETE /?names=`。
+ * 未实现：`POST /backup|/import|/importListen|/listenBackup`。
  */
 @RestController
 @RequestMapping("/v1/config_map")
@@ -37,6 +39,54 @@ public class ConfigMapController {
      * **`total` 恒为关键字过滤之前的数量**。规则见
      * `IServiceQueryService.queryConfigMapList`（规格 `findings/142`）。
      */
+    /**
+     * 厂商 `POST /v1/config_map`：建配置组（body 只有 `name`）。
+     *
+     * <p>名称空白/非法 ⇒ 两个 400；**已存在 ⇒ 400 `configmap.existed`**；建失败 ⇒ 500。规则见
+     * `IServiceQueryService.createConfigMap`（规格 `findings/144`）。
+     */
+    @org.springframework.web.bind.annotation.PostMapping
+    public ResponseDTO<java.util.Map<String, Object>> createConfigMap(
+            @org.springframework.web.bind.annotation.RequestBody CreateConfigMapDTO form) {
+        return ResponseDTO.ok(serviceQueryService.createConfigMap(namespace, form == null ? null : form.getName()));
+    }
+
+    /**
+     * 厂商 `POST /v1/config_map/{name}/config`：新增/覆盖配置组里的一个配置项（body `{name, value}`）。
+     *
+     * <p>`value` 为空 ⇒ 存**空串**；同名**覆盖**。规则见
+     * `IServiceQueryService.upsertConfigEntry`（规格 `findings/144`）。
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/{name}/config")
+    public ResponseDTO<java.util.Map<String, Object>> createConfig(
+            @org.springframework.web.bind.annotation.PathVariable String name,
+            @org.springframework.web.bind.annotation.RequestBody CreateConfigInConfigMapDTO form) {
+        return ResponseDTO.ok(serviceQueryService.upsertConfigEntry(namespace, name,
+                form == null ? null : form.getName(), form == null ? null : form.getValue()));
+    }
+
+    /**
+     * 厂商 `DELETE /v1/config_map/{name}/config/{configName}`：删一个配置项
+     * （配置项不存在 ⇒ 400 `configmap.name.not.exist`）。
+     */
+    @org.springframework.web.bind.annotation.DeleteMapping("/{name}/config/{configName}")
+    public ResponseDTO<java.util.Map<String, Object>> deleteConfig(
+            @org.springframework.web.bind.annotation.PathVariable String name,
+            @org.springframework.web.bind.annotation.PathVariable String configName) {
+        return ResponseDTO.ok(serviceQueryService.deleteConfigEntry(namespace, name, configName));
+    }
+
+    /**
+     * 厂商 `DELETE /v1/config_map?names=`：删配置组（`names` 逗号分隔；删除失败只记日志）。
+     *
+     * <p>返回的是**成功删除的那些名字**，且用的是**未 trim 的原值**。规则见
+     * `IServiceQueryService.deleteConfigMaps`（规格 `findings/144`）。
+     */
+    @org.springframework.web.bind.annotation.DeleteMapping
+    public ResponseDTO<java.util.List<String>> deleteConfigMap(@RequestParam String names) {
+        return ResponseDTO.ok(serviceQueryService.deleteConfigMaps(namespace, names));
+    }
+
     /**
      * 厂商 `GET /v1/config_map/relationService?name=`：配置组关联的服务。
      *

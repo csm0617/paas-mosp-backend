@@ -1606,6 +1606,100 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
                 .toList();
     }
 
+    @Override
+    public Map<String, Object> createConfigMap(String namespace, String name) {
+        validateConfigMapName(name);
+        if (configMapExists(namespace, name)) {
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("configmap.existed", name);
+        }
+        try {
+            return serviceRuntimePort.createConfigMap(namespace, name);
+        } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+            log.error("创建configmap失败: {}", e.getMessage());
+            throw new com.csm.paas.core.types.exception.SystemException("configmap.create.failed");
+        }
+    }
+
+    @Override
+    public Map<String, Object> upsertConfigEntry(String namespace, String configMapName,
+                                                 String entryName, String value) {
+        validateConfigMapName(entryName);
+        Map<String, Object> configMap = readConfigMapOrThrow(namespace, configMapName);
+        Map<String, String> data = new java.util.LinkedHashMap<>();
+        Map<String, Object> existing = asMap(configMap.get("data"));
+        if (existing != null) {
+            existing.forEach((k, v) -> data.put(k, v == null ? null : String.valueOf(v)));
+        }
+        // 厂商：value 为空（isEmpty）⇒ 存空串
+        data.put(entryName, value == null || value.isEmpty() ? "" : value);
+        return replaceOrThrow(namespace, configMapName, data);
+    }
+
+    @Override
+    public Map<String, Object> deleteConfigEntry(String namespace, String configMapName, String entryName) {
+        Map<String, Object> configMap = readConfigMapOrThrow(namespace, configMapName);
+        Map<String, Object> existing = asMap(configMap.get("data"));
+        if (existing == null || !existing.containsKey(entryName)) {
+            throw new com.csm.paas.core.types.exception.WrongArgumentException(
+                    "configmap.name.not.exist", entryName);
+        }
+        Map<String, String> data = new java.util.LinkedHashMap<>();
+        existing.forEach((k, v) -> {
+            if (!k.equals(entryName)) {
+                data.put(k, v == null ? null : String.valueOf(v));
+            }
+        });
+        return replaceOrThrow(namespace, configMapName, data);
+    }
+
+    @Override
+    public List<String> deleteConfigMaps(String namespace, String names) {
+        List<String> deleted = new ArrayList<>();
+        for (String raw : names.split(",")) {
+            try {
+                if (serviceRuntimePort.deleteConfigMap(namespace, raw.trim())) {
+                    // 厂商：加入的是**未 trim 的原值**
+                    deleted.add(raw);
+                }
+            } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+                log.error("configmap删除失败: {}", e.getMessage());
+            }
+        }
+        return deleted;
+    }
+
+    /** 厂商 `createConfig`/`deleteConfig` 共用的前置校验（名字空白/非法）。 */
+    private void validateConfigMapName(String name) {
+        if (name == null || name.isBlank()) {
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("configmap.name.must.not.empty");
+        }
+        if (!name.matches(REGEX_CONFIGMAP_NAME)) {
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("configmap.name.not.invalid");
+        }
+    }
+
+    /** 读 ConfigMap（不区分 404）；读不到 ⇒ 400 `configmap.not.exist`；其它错误 ⇒ 500 `configmap.get.config.error`。 */
+    private Map<String, Object> readConfigMapOrThrow(String namespace, String name) {
+        java.util.Optional<Map<String, Object>> found;
+        try {
+            found = serviceRuntimePort.findConfigMap(namespace, name);
+        } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+            log.error("获取配置组失败: {}", e.getMessage());
+            throw new com.csm.paas.core.types.exception.SystemException("configmap.get.config.error", name);
+        }
+        return found.orElseThrow(() -> new com.csm.paas.core.types.exception.WrongArgumentException(
+                "configmap.not.exist", name));
+    }
+
+    private Map<String, Object> replaceOrThrow(String namespace, String name, Map<String, String> data) {
+        try {
+            return serviceRuntimePort.replaceConfigMapData(namespace, name, data);
+        } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+            log.error("创建配置接口调用失败: {}", e.getMessage());
+            throw new com.csm.paas.core.types.exception.SystemException("configmap.request.api.error");
+        }
+    }
+
     /** 厂商 `getStringRandom(length)`：每位 `SecureRandom.nextInt(2)%2==0` 取 `a-z`，否则取 `0-9`。 */
     private static String randomString(int length) {
         java.security.SecureRandom random = new java.security.SecureRandom();

@@ -294,4 +294,17 @@ public interface IServiceRuntimePort {
 
     /** 列命名空间里**全部 Deployment** 的原样快照（厂商 `getV1Deployments`，`relationService` 用）。 */
     java.util.List<java.util.Map<String, Object>> listDeploymentSnapshots(String namespace);
+
+    /** 建一个**只有 metadata.name** 的 ConfigMap（厂商 `createConfigMap:122-152` 的 body 就是空壳）。 */
+    java.util.Map<String, Object> createConfigMap(String namespace, String name);
+
+    /**
+     * 把某个 ConfigMap 的 `data` **整份替换**成给定内容（厂商 `replaceConfigMap:317-334`：
+     * 读到的整份对象改完 data 后 `replaceNamespacedConfigMap`）。
+     */
+    java.util.Map<String, Object> replaceConfigMapData(String namespace, String name,
+                                                       java.util.Map<String, String> data);
+
+    /** 删一个 ConfigMap；**不存在或删除失败返回 false**（厂商对 ApiException 只记日志）。 */
+    boolean deleteConfigMap(String namespace, String name);
 }

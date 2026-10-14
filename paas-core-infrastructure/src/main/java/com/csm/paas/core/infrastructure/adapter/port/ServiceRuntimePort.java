@@ -308,6 +308,34 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
     }
 
     @Override
+    public java.util.Map<String, Object> createConfigMap(String namespace, String name) {
+        try {
+            return serviceRuntimeGateway.createConfigMap(namespace, name);
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    @Override
+    public java.util.Map<String, Object> replaceConfigMapData(String namespace, String name,
+                                                              java.util.Map<String, String> data) {
+        try {
+            return serviceRuntimeGateway.replaceConfigMapData(namespace, name, data);
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    @Override
+    public boolean deleteConfigMap(String namespace, String name) {
+        try {
+            return serviceRuntimeGateway.deleteConfigMap(namespace, name);
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    @Override
     public java.util.List<java.util.Map<String, Object>> listDeploymentSnapshots(String namespace) {
         try {
             return serviceRuntimeGateway.listDeploymentSnapshots(namespace);
