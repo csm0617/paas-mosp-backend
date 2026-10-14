@@ -95,6 +95,38 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
     }
 
     @Override
+    public boolean updateServiceHostname(String namespace, String serviceName, String hostName) {
+        // 厂商：**读不到 Deployment**（ApiException）才回退；不是"hostname 为空"就回退
+        if (!serviceRuntimePort.deploymentExists(namespace, serviceName)) {
+            return updateStatefulSetHostname(namespace, serviceName, hostName);
+        }
+        String current = serviceRuntimePort.deploymentHostname(namespace, serviceName);
+        if (isBlank(hostName) && isBlank(current)) {
+            return true;   // 厂商：两边都空白 → 静默 no-op
+        }
+        serviceRuntimePort.patchDeploymentHostname(namespace, serviceName, hostName);
+        return true;
+    }
+
+    private boolean updateStatefulSetHostname(String namespace, String serviceName, String hostName) {
+        String current = serviceRuntimePort.statefulSetHostname(namespace, serviceName);
+        if (current == null) {
+            // 实测厂商文案：HTTP **400** + `service.not.found.update.host.pod`（不是 500、也不是我先前猜的键名）
+            throw new com.csm.paas.core.types.exception.WrongArgumentException(
+                    "service.not.found.update.host.pod", serviceName);
+        }
+        if (isBlank(hostName) && isBlank(current)) {
+            return true;
+        }
+        serviceRuntimePort.patchStatefulSetHostname(namespace, serviceName, hostName);
+        return true;
+    }
+
+    private static boolean isBlank(String v) {
+        return v == null || v.isBlank();
+    }
+
+    @Override
     public ServiceListEntity queryServiceAuthList(String namespace, int page, int size, String keyword,
                                                  String authType, String serviceType) {
         // ① 基础过滤：appName 既不是 gaop 也不是 gis-server（与 gaop 端点互补！）

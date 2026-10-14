@@ -89,6 +89,17 @@ public class ServiceController {
                 keyword, authType, serviceType)));
     }
 
+    /**
+     * 厂商 `PUT /v1/service/hostName`：改服务 hostname（先 Deployment，读不到回退 StatefulSet）。
+     * <p>**首位 no-op**：请求 hostName 与现有 hostname 都空白时直接 200 true、不做任何修改。
+     */
+    @org.springframework.web.bind.annotation.PutMapping("/v1/service/hostName")
+    public ResponseDTO<Boolean> updateHostName(
+            @org.springframework.web.bind.annotation.RequestBody com.csm.paas.core.api.dto.HostNameDTO form) {
+        return ResponseDTO.ok(serviceQueryService.updateServiceHostname(
+                namespace, form.getServiceName(), form.getHostName()));
+    }
+
     @GetMapping("/v1/service/labels")
     public ResponseDTO<java.util.List<com.csm.paas.core.api.dto.LabelListDTO>> labels() {
         var merged = serviceQueryService.queryNodeLabels();

@@ -50,4 +50,16 @@ public interface IServiceQueryService {
      */
     ServiceListEntity queryServiceAuthList(String namespace, int page, int size, String keyword,
                                           String authType, String serviceType);
+
+    /**
+     * 改服务 hostname（厂商 `PUT /v1/service/hostName`，`ServiceController:2693-2712`）。
+     *
+     * <p>逐行照抄的三点：
+     * <ol>
+     *   <li>先读 **Deployment**；读不到（ApiException）**回退 StatefulSet**（同一套逻辑）；</li>
+     *   <li>**若请求的 hostName 与现有 hostname 都是空白 → 直接返回 true，什么也不改**（静默 no-op）；</li>
+     *   <li>真正修改时是"读→改→整份 `application/merge-patch+json`"。</li>
+     * </ol>
+     */
+    boolean updateServiceHostname(String namespace, String serviceName, String hostName);
 }

@@ -28,4 +28,18 @@ public interface IServiceRuntimePort {
 
     /** 同上，但打在 StatefulSet 上（厂商失败回退路径）。 */
     void patchStatefulSetServiceLabel(String namespace, String serviceKey, String name);
+
+    // ---------- hostname（厂商 PUT /v1/service/hostName）----------
+
+    /** Deployment 是否存在（厂商只在"读不到"时回退 StatefulSet，**不是**"hostname 为空时"）。 */
+    boolean deploymentExists(String namespace, String serviceName);
+
+    /** 读 Deployment 的 hostname；Deployment 存在但没有该字段时为 null。 */
+    String deploymentHostname(String namespace, String serviceName);
+
+    void patchDeploymentHostname(String namespace, String serviceName, String hostname);
+
+    String statefulSetHostname(String namespace, String serviceName);
+
+    void patchStatefulSetHostname(String namespace, String serviceName, String hostname);
 }

@@ -44,6 +44,31 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
     }
 
     @Override
+    public boolean deploymentExists(String namespace, String serviceName) {
+        return serviceRuntimeGateway.deploymentExists(namespace, serviceName);
+    }
+
+    @Override
+    public String deploymentHostname(String namespace, String serviceName) {
+        return serviceRuntimeGateway.deploymentHostname(namespace, serviceName);
+    }
+
+    @Override
+    public void patchDeploymentHostname(String namespace, String serviceName, String hostname) {
+        serviceRuntimeGateway.patchDeploymentHostname(namespace, serviceName, hostname);
+    }
+
+    @Override
+    public String statefulSetHostname(String namespace, String serviceName) {
+        return serviceRuntimeGateway.statefulSetHostname(namespace, serviceName);
+    }
+
+    @Override
+    public void patchStatefulSetHostname(String namespace, String serviceName, String hostname) {
+        serviceRuntimeGateway.patchStatefulSetHostname(namespace, serviceName, hostname);
+    }
+
+    @Override
     public Map<String, List<String>> queryNodeLabels() {
         // 厂商：遍历每个节点的 metadata.labels，按 label 键把"值"塞进一个 set（HashMap 聚合，顺序不可依赖）
         Map<String, java.util.Set<String>> collected = new java.util.HashMap<>();

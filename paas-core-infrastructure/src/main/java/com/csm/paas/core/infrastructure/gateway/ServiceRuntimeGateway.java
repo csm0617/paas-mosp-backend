@@ -69,6 +69,39 @@ public class ServiceRuntimeGateway {
                         io.fabric8.kubernetes.client.dsl.base.PatchType.JSON), serviceLabelPatchBody(name));
     }
 
+    /** Deployment 是否存在（厂商"读 Deployment 抛 ApiException 才回退 StatefulSet"的等价判断）。 */
+    public boolean deploymentExists(String namespace, String name) {
+        return kubernetesClient.apps().deployments().inNamespace(namespace).withName(name).get() != null;
+    }
+
+    /** 读 Deployment 的 `spec.template.spec.hostname`（**Deployment 存在但没设 hostname 时也返回 null**）。 */
+    public String deploymentHostname(String namespace, String name) {
+        var d = kubernetesClient.apps().deployments().inNamespace(namespace).withName(name).get();
+        return d == null || d.getSpec() == null || d.getSpec().getTemplate() == null
+                || d.getSpec().getTemplate().getSpec() == null ? null : d.getSpec().getTemplate().getSpec().getHostname();
+    }
+
+    /**
+     * 设置 Deployment 的 hostname 并**merge-patch**（厂商用 `application/merge-patch+json` 发整份序列化对象）。
+     * <p>厂商是"读→改→整份 merge-patch"，我们用 fabric8 的 `edit` 表达同一语义（只改这一个字段）。
+     */
+    public void patchDeploymentHostname(String namespace, String name, String hostname) {
+        kubernetesClient.apps().deployments().inNamespace(namespace).withName(name)
+                .edit(d -> { d.getSpec().getTemplate().getSpec().setHostname(hostname); return d; });
+    }
+
+    /** 读 StatefulSet 的 hostname；不存在返回 null。 */
+    public String statefulSetHostname(String namespace, String name) {
+        var s = kubernetesClient.apps().statefulSets().inNamespace(namespace).withName(name).get();
+        return s == null || s.getSpec() == null || s.getSpec().getTemplate() == null
+                || s.getSpec().getTemplate().getSpec() == null ? null : s.getSpec().getTemplate().getSpec().getHostname();
+    }
+
+    public void patchStatefulSetHostname(String namespace, String name, String hostname) {
+        kubernetesClient.apps().statefulSets().inNamespace(namespace).withName(name)
+                .edit(s -> { s.getSpec().getTemplate().getSpec().setHostname(hostname); return s; });
+    }
+
     public List<StatefulSet> listStatefulSets(String namespace) {
         List<StatefulSet> items = kubernetesClient.apps().statefulSets().inNamespace(namespace).list().getItems();
         log.info("fabric8 读到 namespace:{} 的 StatefulSet {} 个", namespace, items.size());
