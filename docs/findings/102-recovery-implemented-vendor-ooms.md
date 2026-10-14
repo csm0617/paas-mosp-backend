@@ -21,10 +21,17 @@
 
 - **B 是环境故障**：`OutOfMemoryError: Metaspace` 是厂商 JVM 的问题（该 pod 内存限制很小），
   与契约无关 ⇒ **该用例当前无法对拉**，需要等厂商进程恢复后重跑；
-- **A 值得追**：厂商代码里明明写着"非 Excel → 400 `global.import.supported.file.type`"，实际却 500
-  ⇒ 大概率是 `ValidateUtils.isExcelFile` 内部**先抛了别的异常**（例如 Tika 在该输入上抛错，
-  或 `MediaType.application("x-tika-msoffice")` 构造异常），于是 400 分支根本没走到。
-  **下一轮可查**：厂商日志里这条请求的异常栈（`kubectl logs`）。
+- **A 也不是"值得追的差异"——它同样是 OOM**（**第 102 轮更正**）：重跑并打印完整响应体后看到
+  `NestedServletException: … java.lang.OutOfMemoryError: Metaspace`。
+  ⇒ **两条用例都是厂商 JVM 故障**，没有任何契约结论可下。我上一版写的"400 分支没走到、大概率是 Tika 抛错"
+  **是错的**——真因是**进程已经坏了**，根本走不到业务代码。
+
+  **厂商 pod 的资源限制**（实测）：`limits.memory=640Mi`、`JAVA_TOOL_OPTIONS=-Xmx320m -XX:MaxMetaspaceSize=128m`。
+  **Metaspace 只有 128m**，而 POI/Tika 这类库会大量加载类 ⇒ 这很可能是**被我这两次文件类请求打爆的**
+  （时间点吻合：模板端点用 POI、恢复端点用 Tika，之后就开始 500）。
+
+  ⇒ **结论（环境限制，A 类）**：在这个 pod 规格下，**厂商的文件类端点无法可靠对拉**——
+  一调用就可能把它的 Metaspace 打满。要么给厂商 pod 调大 Metaspace 再验，要么这些端点只做"代码路径级"实现 + 离线单测。
 
 **不要**因为"厂商 500 而我们 400"就改我们的实现——那会把"厂商的 bug"抄成"我们的 bug"。
 正确做法是**先查清厂商 500 的原因**，再决定我们是否要复现它。

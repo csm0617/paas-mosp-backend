@@ -432,7 +432,9 @@ Label: `wayfinder:map`
   - **K1 剩余端点清单**：`/v1/user/list`、`/redirect`、`/access_permission`、`/tenx_user` + **文件类**（`recovery`/`backup`/`export`/`import/template`/`import`/`update_avatar`）+ **破坏性** `reset_user`。⇒ K1 剩下主要是文件传输类，值得单独一轮（牵动 `g_upload_store_record` 与 `gaop-fdfs`）。
 - （**已实现**）[POST /v1/user/recovery](docs/findings/102-recovery-implemented-vendor-ooms.md)：照抄厂商的**空实现**（只做 MIME 校验 → 返回 null，不写库）；库内核对 `g_user` 前后都是 1 行 ✅。
   - **两条路径都拿不到有效对拉**：A 非 Excel → 厂商 **500**（而它代码里明明写着 400 `global.import.supported.file.type` ⇒ 400 分支没走到，下一轮查厂商日志栈）；B 合法 xls → 厂商 **500 `OutOfMemoryError: Metaspace`**（**厂商进程故障**，非契约答案）。
-  - **判断**：B 是环境故障、A 待追因；**不要因为"厂商 500 我们 400"就改我们**——那会把厂商的 bug 抄成我们的 bug。
+  - **第 102 轮更正**：**A 也是 OOM**（重跑打印完整响应体：`NestedServletException: … OutOfMemoryError: Metaspace`）⇒ 两条用例都是**厂商 JVM 故障**，没有契约结论；我上一版"A 待追因（400 分支没走到）"**是错的**。
+  - 厂商 pod 资源：`limits.memory=640Mi`、`-Xmx320m -XX:MaxMetaspaceSize=128m` ⇒ **Metaspace 仅 128m**，而 POI/Tika 大量加载类，**很可能被我这两次文件类请求打爆**（时间点吻合）。
+  - **结论（环境限制，A 类）**：该 pod 规格下**厂商文件类端点无法可靠对拉**；要么调大 Metaspace 再验，要么只做代码路径级实现 + 离线单测。
   - 新增 Tika 依赖（离线仓已有 1.24.1/2.9.2）；端点映射 63 → **64**；测试仍 294 条全绿。
 - （**已实现**）[GET /v1/user/import/template](docs/findings/101-import-template-implemented.md)：**内容与厂商一致**——响应头逐字节相同、文件大小同为 4608B、UTF-16 串集合相等；**唯一字节差异（5 字节）已定位为 xls 文档属性里的操作系统用户名**（厂商机 `root` / 本机 `csm`，环境产物非契约差异）。
   - 实现：`poi:5.2.5`（离线仓已有）+ `UserImportTemplateExcelWriter`（sheet1、第 0 行 8 表头、第 1 行 8 示例，文案走 `MessageResolver`、**不加样式**）+ 厂商同款 `filename*=UTF-8''` 头。
