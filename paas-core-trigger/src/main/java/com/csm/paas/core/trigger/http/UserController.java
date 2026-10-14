@@ -31,6 +31,7 @@ import com.csm.paas.core.types.exception.WrongArgumentException;
 import com.csm.paas.core.types.util.PageUtils;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.util.List;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -57,6 +58,9 @@ public class UserController {
 
     @Resource
     private com.csm.paas.core.domain.user.service.IUserRolesQueryService userRolesQueryService;
+
+    @Resource
+    private com.csm.paas.core.trigger.i18n.MessageResolver messageResolver;
 
     @Resource
     private IUserRepository userRepository;
@@ -111,6 +115,23 @@ public class UserController {
                 userRolesQueryService.queryUserRolesPage(
                         PageUtils.normalizePage(page), PageUtils.normalizeSize(size),
                         keyword == null ? null : keyword.replaceAll(" +", ""))));
+    }
+
+    /**
+     * 厂商 `GET /v1/user/import/template`：下载用户导入模板（xls）。
+     * <p>响应头照抄厂商 `ResponseUtils.getAttachmentHeaderValue`：`attachment; filename*=UTF-8''<urlencode>`；
+     * `Content-Type: application/vnd.ms-excel`；文件名来自 i18n `export.file.name.user.import.template`。
+     */
+    @GetMapping("/v1/user/import/template")
+    public void usersImportTemplate(HttpServletResponse response) throws java.io.IOException {
+        byte[] bytes = com.csm.paas.core.trigger.assembler.UserImportTemplateExcelWriter.build(messageResolver);
+        response.reset();
+        response.setContentType("application/vnd.ms-excel");
+        String filename = messageResolver.resolve("export.file.name.user.import.template");
+        response.setHeader("Content-Disposition",
+                "attachment; filename*=UTF-8''" + java.net.URLEncoder.encode(filename, java.nio.charset.StandardCharsets.UTF_8));
+        response.getOutputStream().write(bytes);
+        response.flushBuffer();
     }
 
     @GetMapping("/v1/user/info")
