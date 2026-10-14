@@ -53,4 +53,16 @@ public interface ISoftwareQueryService {
      */
     com.csm.paas.core.domain.software.model.valobj.ServicePortVO updateServicePortPath(
             String softwareId, String serviceName, int port, String path);
+
+    /**
+     * 生成软件申请码的载荷（厂商 `POST /v1/software/softwareCode` → `SoftwareService.getSoftwareCode:3166-3186`）。
+     * <p>**JSON 组装与 Base64 在 trigger 层做**（domain 模块没有 Jackson；且用显式 ObjectNode 保证字段顺序）。
+     *
+     * <p>算法**完全确定**：`Base64( JSON({"serviceIdList":[入参],"machineCode":<软件机器码>}) )`，
+     * 其中机器码用的是 `getMachineCodeBase64ByService()`（= 原始机器码 + "," + "gaop"，**无尾逗号**，
+     * 见 `findings/42`）。因此这个端点的输出应当与厂商**逐字节相同**。
+     * <p>`softwareKeyList` 为空/null → 400 `software.invalid.api.parameter`。
+     */
+    com.csm.paas.core.domain.software.model.valobj.SoftwareIdentifierVO generateSoftwareIdentifier(
+            java.util.List<String> softwareKeyList);
 }

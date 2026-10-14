@@ -34,7 +34,8 @@ class SoftwareAuthListTest {
     private final IWebEntryStatusPort webEntryStatusPort = mock(IWebEntryStatusPort.class);
 
     private SoftwareQueryServiceImpl service() {
-        return new SoftwareQueryServiceImpl(repository, webEntryStatusPort);
+        return new SoftwareQueryServiceImpl(repository, webEntryStatusPort,
+                mock(com.csm.paas.core.domain.licence.service.ILicenceQueryService.class));
     }
 
     private SoftwareAuthInfoVO only(String activeCode, Long expire) {

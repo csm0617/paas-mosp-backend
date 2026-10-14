@@ -321,6 +321,11 @@ Label: `wayfinder:map`
 - 当前：46 端点映射、38 测试类 **236 条全绿**、81 提交、63 篇 findings。
 - 下一步优先序：服务切片同模式推进 → K2 跨域（`/auth` 列表可对拉；CS 上传/导入导出需先定边界）→ K3 侧效应 → 把"不可验证项"整理成对外偏离清单。
 
+- （**K2 跨域**）[POST /v1/software/softwareCode](docs/findings/73-software-code-endpoint.md)：软件申请码，**输出与厂商逐字节相同**（两种入参 + 空列表 400）。
+  - 为什么能逐字节：算法完全确定 `Base64(JSON({serviceIdList, machineCode}))`，**机器码那一版第 34 轮已逐字节验证过** ⇒ 基础件验证过、后面的端点免费拿到强证据。
+  - **分层决定**：domain 模块没有 Jackson（第一版写在域层编译失败）⇒ 域服务只返回载荷对象，**JSON 组装与 Base64 放 trigger 层**，并用**显式 ObjectNode** 固定字段顺序（**字段顺序就是契约**）。
+  - 顺带记：`GET /v1/software/{softwareId}/export` 第一步就调 `detailSoftware`（厂商自身 NPE，A1）⇒ 属 C 类（无法对拉），等详情端点的证据来源确定后再处理。
+  - 测试 252 → **254 条**全绿。
 - （**K2 跨域**）[PUT /v1/software/{softwareId}/service/{serviceName}](docs/findings/72-software-service-port-path.md)：端口映射路径，**七种情形对拉一致**（成功/路径占用/端口不存在/长度/首字符数字/非法字符/空白）。
   - **两处方法层面的教训**：①**共享状态的顺序对拉会自己骗自己**——第一版依次打两侧，第一种情形的**成功写入**污染了后续所有情形的前置状态，看起来"六条全不一致"；修法是**每种情形前都重置探针行**。②**错误响应不能整体比对**——`data.trace` 里的类名/行号天然不同（我们 `com.csm.paas.core` vs 厂商 `com.glriverside.gaop.be`），正确比法是 `code` + `msg` + 业务字段（并忽略自增 id）。**已写进方法清单。**
   - 照抄点：四个 path 校验**全在 controller 且在任何 DB 访问之前**；判重错误参数是 **serviceName**、端口不存在是 **port**（易写反）；`path` 先 trim；成功后**重新查一次**再返回。

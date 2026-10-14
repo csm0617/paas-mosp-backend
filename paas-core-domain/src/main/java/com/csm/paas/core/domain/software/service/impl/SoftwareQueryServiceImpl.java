@@ -36,6 +36,7 @@ public class SoftwareQueryServiceImpl implements ISoftwareQueryService {
 
     private final ISoftwareRepository softwareRepository;
     private final IWebEntryStatusPort webEntryStatusPort;
+    private final com.csm.paas.core.domain.licence.service.ILicenceQueryService licenceQueryService;
 
     @Override
     public java.util.List<com.csm.paas.core.domain.software.model.valobj.SoftwareAuthInfoVO> queryAuthList(
@@ -106,6 +107,18 @@ public class SoftwareQueryServiceImpl implements ISoftwareQueryService {
             throw new com.csm.paas.core.types.exception.WrongArgumentException("service.port.not.found", port);
         }
         return softwareRepository.updateServicePortPath(existing.getId(), p);
+    }
+
+    @Override
+    public com.csm.paas.core.domain.software.model.valobj.SoftwareIdentifierVO generateSoftwareIdentifier(
+            java.util.List<String> softwareKeyList) {
+        if (softwareKeyList == null || softwareKeyList.isEmpty()) {
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("software.invalid.api.parameter");
+        }
+        return com.csm.paas.core.domain.software.model.valobj.SoftwareIdentifierVO.builder()
+                .serviceIdList(softwareKeyList)
+                .machineCode(licenceQueryService.machineCodeForSoftware())
+                .build();
     }
 
     @Override

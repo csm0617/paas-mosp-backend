@@ -28,7 +28,8 @@ class SoftwareServicePortsTest {
         when(repository.queryServicePorts("sw", "svc")).thenReturn(List.of(
                 ServicePortVO.builder().id(1L).softwareId("sw").serviceName("svc").port(8080).build()));
 
-        var result = new SoftwareQueryServiceImpl(repository, webEntryStatusPort).queryServicePorts("sw", "svc");
+        var result = new SoftwareQueryServiceImpl(repository, webEntryStatusPort,
+                mock(com.csm.paas.core.domain.licence.service.ILicenceQueryService.class)).queryServicePorts("sw", "svc");
 
         verify(repository).queryServicePorts("sw", "svc");
         assertEquals(1, result.size());
@@ -39,7 +40,8 @@ class SoftwareServicePortsTest {
     void missingCombinationYieldsEmptyListNotAnError() {
         when(repository.queryServicePorts("sw", "nope")).thenReturn(List.of());
 
-        assertTrue(new SoftwareQueryServiceImpl(repository, webEntryStatusPort)
+        assertTrue(new SoftwareQueryServiceImpl(repository, webEntryStatusPort,
+                mock(com.csm.paas.core.domain.licence.service.ILicenceQueryService.class))
                 .queryServicePorts("sw", "nope").isEmpty());
     }
 }

@@ -92,6 +92,30 @@ public class SoftwareController {
     }
 
     /**
+     * 厂商 `POST /v1/software/softwareCode`：生成软件申请码（`Base64(JSON({serviceIdList,machineCode}))`）。
+     * <p>`softwareKeyList` 为空 → 400 `software.invalid.api.parameter`。
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/softwareCode")
+    public ResponseDTO<String> softwareCode(
+            @org.springframework.web.bind.annotation.RequestBody com.csm.paas.core.api.dto.SoftwareKeyFormDTO form) {
+        var identifier = softwareQueryService.generateSoftwareIdentifier(form.getSoftwareKeyList());
+        // 厂商：Jackson 序列化 Identifier 后整体 Base64。字段顺序就是契约（serviceIdList → machineCode），
+        // 这里用显式 ObjectNode 固定顺序，不依赖任何注解/反射顺序。
+        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        var node = mapper.createObjectNode();
+        var arr = node.putArray("serviceIdList");
+        identifier.getServiceIdList().forEach(arr::add);
+        node.put("machineCode", identifier.getMachineCode());
+        try {
+            String json = mapper.writeValueAsString(node);
+            return ResponseDTO.ok(java.util.Base64.getEncoder()
+                    .encodeToString(json.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            throw new com.csm.paas.core.types.exception.SystemException("json.identifier.to.json.failed");
+        }
+    }
+
+    /**
      * 厂商 `GET /v1/software/auth?page&size&name&type`：软件授权列表（`{list,total}`）。
      * <p>`name` 长度 > 36 → 400 `software.search.length.invalid`；`status` 三态见
      * `ISoftwareQueryService.queryAuthList`；排序**只按 `created_at DESC`**。
