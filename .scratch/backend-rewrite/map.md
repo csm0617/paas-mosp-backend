@@ -321,6 +321,10 @@ Label: `wayfinder:map`
 - 当前：46 端点映射、38 测试类 **236 条全绿**、81 提交、63 篇 findings。
 - 下一步优先序：服务切片同模式推进 → K2 跨域（`/auth` 列表可对拉；CS 上传/导入导出需先定边界）→ K3 侧效应 → 把"不可验证项"整理成对外偏离清单。
 
+- （**K2 跨域**）[POST /v1/software/cancelAuth](docs/findings/74-software-cancel-auth.md)：**五种情形对拉一致**（有激活码/无激活码→400/混合/不存在/先有效后不存在），并核对库内状态。
+  - 两处照抄点：**没有激活码是"跳过"**（只有结果列表为空才 400 `auth.no.software.authorization`）；**这条链路没有事务**——"先有效后不存在"实测两侧库里都已被清空（先清空再抛错、不回滚）。
+  - **引号家族的第四次坑**：`python3 - <<PY`（未加引号）里的 SQL 含**反引号**被 shell 当命令替换 ⇒ `reset()` 静默失效、输出看起来像"五条全不一致"。规则：含反引号/`$`/三引号的脚本一律用**带引号的 heredoc**或独立脚本文件，并确认它真的执行了。
+  - 测试 254 → **259 条**全绿。
 - （**K2 跨域**）[POST /v1/software/softwareCode](docs/findings/73-software-code-endpoint.md)：软件申请码，**输出与厂商逐字节相同**（两种入参 + 空列表 400）。
   - 为什么能逐字节：算法完全确定 `Base64(JSON({serviceIdList, machineCode}))`，**机器码那一版第 34 轮已逐字节验证过** ⇒ 基础件验证过、后面的端点免费拿到强证据。
   - **分层决定**：domain 模块没有 Jackson（第一版写在域层编译失败）⇒ 域服务只返回载荷对象，**JSON 组装与 Base64 放 trigger 层**，并用**显式 ObjectNode** 固定字段顺序（**字段顺序就是契约**）。

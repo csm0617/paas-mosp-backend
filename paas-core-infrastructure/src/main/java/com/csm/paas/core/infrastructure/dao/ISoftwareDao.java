@@ -133,6 +133,17 @@ public interface ISoftwareDao {
             """)
     com.csm.paas.core.infrastructure.dao.po.ServicePortPO selectServicePortById(@Param("id") long id);
 
+    /**
+     * 清空某软件的授权字段（厂商 `cancelAuth:3199-3205`：`active_code`/`active_create`/`active_expire` 置 null，
+     * `updated_at` 设为传入时间）。
+     */
+    @org.apache.ibatis.annotations.Update("""
+            UPDATE g_software SET active_code = NULL, active_create = NULL, active_expire = NULL,
+                                  updated_at = #{updatedAt}
+            WHERE id = #{id}
+            """)
+    int clearSoftwareAuth(@Param("id") String id, @Param("updatedAt") long updatedAt);
+
     /** 白名单里是否存在该路径（厂商 `softWareReleaseStatus`）。 */
     @Select("SELECT COUNT(*) FROM g_white_list WHERE path = #{path}")
     long countWhiteListPath(@Param("path") String path);

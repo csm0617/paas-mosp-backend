@@ -122,6 +122,29 @@ public class SoftwareQueryServiceImpl implements ISoftwareQueryService {
     }
 
     @Override
+    public java.util.List<com.csm.paas.core.domain.software.model.valobj.SoftwareAuthResultVO> cancelSoftwareAuth(
+            java.util.List<String> softwareIdList) {
+        long now = System.currentTimeMillis();
+        java.util.List<com.csm.paas.core.domain.software.model.valobj.SoftwareAuthResultVO> results = new java.util.ArrayList<>();
+        for (String id : softwareIdList) {
+            var software = softwareRepository.queryById(id)
+                    .orElseThrow(() -> new com.csm.paas.core.types.exception.WrongArgumentException(
+                            "software.not.exist.or.deleted"));
+            if (software.getActiveCode() == null || software.getActiveCode().isBlank()) {
+                continue;   // 厂商：没有激活码就跳过，不产出结果项
+            }
+            softwareRepository.clearSoftwareAuth(id, now);
+            results.add(com.csm.paas.core.domain.software.model.valobj.SoftwareAuthResultVO.builder()
+                    .softwareKey(software.getKey()).result(false).build());
+        }
+        if (results.isEmpty()) {
+            // 厂商：一个都没取消到 ⇒ 400（不是返回空数组）
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("auth.no.software.authorization");
+        }
+        return results;
+    }
+
+    @Override
     public SoftwareListEntity querySoftwareList(int page, int size, String name, String type,
                                                 String order, String sort, String host) {
         String likeName = (name == null || name.isEmpty()) ? null : "%" + name + "%";

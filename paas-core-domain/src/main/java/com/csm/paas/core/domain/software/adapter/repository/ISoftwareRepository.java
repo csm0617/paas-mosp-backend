@@ -115,4 +115,7 @@ public interface ISoftwareRepository {
 
     /** 更新该行的 `path_name`，返回**重新查出来的**那一行（厂商返回 `selectByPrimaryKey(...)` 的结果）。 */
     com.csm.paas.core.domain.software.model.valobj.ServicePortVO updateServicePortPath(long id, String pathName);
+
+    /** 清空该软件的授权字段（`active_code`/`active_create`/`active_expire` → null，`updated_at` → 传入值）。 */
+    void clearSoftwareAuth(String softwareId, long updatedAt);
 }

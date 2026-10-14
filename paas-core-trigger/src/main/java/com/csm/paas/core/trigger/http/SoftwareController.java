@@ -92,6 +92,20 @@ public class SoftwareController {
     }
 
     /**
+     * 厂商 `POST /v1/software/cancelAuth`：批量取消软件授权。
+     * <p>请求体是**字符串数组**（软件 id）；返回 `[{softwareKey, result:false}]`。
+     * 规则见 `ISoftwareQueryService.cancelSoftwareAuth`（含"一个都没取消到 → 400"）。
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/cancelAuth")
+    public ResponseDTO<java.util.List<com.csm.paas.core.api.dto.SoftwareAuthDTO>> cancelAuth(
+            @org.springframework.web.bind.annotation.RequestBody java.util.List<String> softwareIdList) {
+        return ResponseDTO.ok(softwareQueryService.cancelSoftwareAuth(softwareIdList).stream()
+                .map(v -> com.csm.paas.core.api.dto.SoftwareAuthDTO.builder()
+                        .softwareKey(v.getSoftwareKey()).result(v.isResult()).build())
+                .toList());
+    }
+
+    /**
      * 厂商 `POST /v1/software/softwareCode`：生成软件申请码（`Base64(JSON({serviceIdList,machineCode}))`）。
      * <p>`softwareKeyList` 为空 → 400 `software.invalid.api.parameter`。
      */

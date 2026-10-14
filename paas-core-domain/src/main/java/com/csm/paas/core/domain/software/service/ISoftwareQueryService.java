@@ -65,4 +65,15 @@ public interface ISoftwareQueryService {
      */
     com.csm.paas.core.domain.software.model.valobj.SoftwareIdentifierVO generateSoftwareIdentifier(
             java.util.List<String> softwareKeyList);
+
+    /**
+     * 取消软件授权（厂商 `POST /v1/software/cancelAuth` → `SoftwareService.cancelAuth:3187-3211`）。
+     *
+     * <p>逐行照抄：逐个 id 查软件，**不存在 → 400 `software.not.exist.or.deleted`（立即中断）**；
+     * `active_code` 空白 → **跳过**（不产出结果项）；否则清空三个授权字段 + 置 `updated_at`，
+     * 并产出一项 `{softwareKey, result:false}`。
+     * <p>最后：**结果列表为空 → 400 `auth.no.software.authorization`**（即"一个都没取消到"是错误，不是空数组）。
+     */
+    java.util.List<com.csm.paas.core.domain.software.model.valobj.SoftwareAuthResultVO> cancelSoftwareAuth(
+            java.util.List<String> softwareIdList);
 }
