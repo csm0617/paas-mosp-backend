@@ -62,6 +62,19 @@ infra    IUserDao.deleteUserRoleByUsername / insertUserRole
 | ⑨ | 新用户缺 col6 | `400 导入的paas_probe_nostatus用户状态不能为空`（`{0}` 占位符被用户名替换） |
 | 回滚 | — | `g_user=1 g_user_role=1 g_user_sub_role=0`（与基线相同）、`g_sub_role=0`、`admin` 行逐字段未变、`paas_probe%` 残留 0 |
 
+### 5''. 顺带发现：**实验室 `admin.nickname` 在库里是双重编码的**（不是本轮造成的）
+
+```
+utf8mb4 客户端: SELECT nickname,HEX(nickname) … ⇒ ç®¡ç†å‘˜  C3A7C2AEC2A1C3A7C290E280A0C3A5E28098CB9C
+latin1  客户端: 同一列 ⇒ 管理员   （latin1 连接把双重编码的字节"还原"成 UTF-8 字节流）
+```
+⇒ 库里存的就是 `ç®¡ç†å‘˜` 这串**双重编码**的 mojibake，来源是**早期用 `kubectl exec mysql -e "…中文…"`
+且没带 `--default-character-set=utf8mb4` 的播种**（连接字符集 latin1 ⇒ 写入时多编一层）。
+**本轮导入写的是正确的单编码**（`探针` 用 utf8mb4 客户端读回正常，见 ⑤）。
+
+**对后续验证的影响**：`/v1/user/list` 之类的 A/B 两边读同一个库，这个 mojibake **会互相抵消**；
+但若哪天有人"顺手修"了这行数据，**必须重跑受影响的 A/B**（否则会以为是我们的差异）。
+
 ### 5'. 顺带验到的三个边界（与厂商**响应层一致**）
 
 | 输入 | 我们 | 厂商（按代码推演） | 结论 |
