@@ -34,7 +34,9 @@ public final class ServiceListAssembler {
                     .hostIP(s.getHostIP())
                     .imageInfo(s.getImage())
                     .restartCount(s.getRestartCount())
-                    .fixedName(s.getName())
+                    // 只有 gaop 端点会设置 fixedName（GaopName 里的中文显示名）；
+                    // 列表端点不设 ⇒ 回退服务名，保证已对拉通过的 /v1/service 行为不变
+                    .fixedName(s.getFixedName() != null ? s.getFixedName() : s.getName())
                     .build());
         }
         return ServiceListResponseDTO.builder()

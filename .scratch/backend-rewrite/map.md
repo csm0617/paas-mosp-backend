@@ -245,7 +245,12 @@ Label: `wayfinder:map`
     - **问题 B（我们的 bug，下一轮先修）**：`fixedName` 实测是服务名而不是中文显示名（`GaopServiceNames.fixedName` 单测是对的 ⇒ 问题在装配链路上）。
     - 已落代码：`appType`/`fixedName` 字段 + 端口取 `system/appType` 标签 + `queryGaopServiceList`（过滤/固定名/keyword 两段式/分页）+ 控制器（含 keyword>45 → 400）。装配器改为"有 fixedName 用它、否则回退服务名"，**保持已对拉的 `/v1/service` 行为不变**。
     - 另标注一处**近似**：厂商兜底 `filterServiceName` 未读全，暂按"名字或显示名忽略大小写包含"实现，注释已写明未经对拉。
-  - 下一轮顺序：**先修 fixedName → 再读 allPageService 判是否结构性不可用 → 再读全 filterServiceName**。
+  - **两个问题都定论**（[findings/55](docs/findings/55-gaop-rootcause-and-known-fix.md)）：
+    - **问题 B 已修并验证**：根因是上一轮那个补丁脚本**断言失败中途退出**，装配器那处从未改（半成品状态却像成功）。修复后 `gaop` 返回中文显示名（框架授权/框架后端/网关/…），**并回归确认 `/v1/service` 的 fixedName 仍是服务名**（已对拉行为一字未变）。
+    - **问题 A 已定论**：`allPageService` 是 `@RequestLine("GET /api/v2/clusters/{id}/services")` —— **对 TenX 云 API 的远程调用**；本环境无该外部服务 ⇒ 恒空。**与 `/v1/service` 本质不同**（后者直读 K8s）。
+    - **处置**：保留我们的 K8s 直读实现 + 记录成因。**不为了"本环境看起来一致"去模仿返回空列表**——那等于把可用功能改成空壳以迎合坏参考。真实部署里 TenX 存在时两者的集合应当相同。
+    - 仍欠：厂商 keyword 兜底 `filterServiceName` 未读全，当前是"名字/显示名忽略大小写包含"的**近似**（注释已标）。
+  - 下一轮顺序：读全 `filterServiceName` → 转 `serviceAuth`/`baseComponent`。
   - 下一轮程序：搬常量 → 实现 filter（type=2 照抄缺陷）→ keyword 两段式（兜底 `filterServiceName` 需先补读）→ 复用已对拉的 `ServiceList` 形状 → 对拉 type=1/type=2/带 keyword/keyword>45 四种情形。：我此前逐轮报的「162/174」是**数错了**（grep 只匹配到部分模块的汇总行，且 surefire 报告目录混有旧文件）。按模块汇总行精确求和：**33 个测试类、210 条用例全绿**。教训与「手抄不透明值」「只验形状不验值」同源——**计数也是要验证的量**，必须用可复算的命令。
 
 - （K3 预研结论）`LicenceInfo.expired(code)` = `{end:-1, endIso8601:null, code, expired:true}`，其中 `code = 机器码 + Base64(软件key)`；**"没有激活码"这一支不需要密码学**，可以在做 `GET /v1/software/{id}` 时一并实现（本轮没写，因为详情端点没做就没有调用方，写了是死代码）。
