@@ -153,6 +153,21 @@ def main():
     print("=== 口径 B：厂商后端 API 面（真正的重构总量） ===")
     missing_v, extra_v = report("厂商后端映射（归一化）", vendor, "paas-core 已实现", ours)
 
+    # 口径噪声：前端有、我们没实现、**厂商后端在同一个前缀下一条都没有** ⇒ 不是我们的缺口
+    # （前端 bundle 里指向别的服务的路径残片，例如 /v1/pods、/v1/mail/status、/v1/thirdPart/...）。
+    # 注意：不能用"整条路径必须精确存在于厂商集合"来判，因为两边的路径变量归一化粒度可能不同
+    # （例：厂商 `/export/{databaseName}` 与前端 `/export/` + concat 会差一个 `/X`）。
+    def prefix2(p):
+        seg = p.split("/")
+        return "/".join(seg[:3]) if len(seg) > 2 else p
+
+    vendor_prefixes = {prefix2(p) for p in vendor}
+    noise = sorted(p for p in missing_fe if prefix2(p) not in vendor_prefixes)
+    print(f"\n### 口径噪声（前端有、厂商后端同前缀下一条都没有，不算缺口）: {len(noise)}")
+    for p in noise:
+        print(f"    {p}")
+    print(f"⇒ 真实剩余（扣掉口径噪声）: {len(missing_fe) - len(noise)}")
+
     missing = missing_v if "--vendor" in sys.argv else missing_fe
     label = "厂商后端" if "--vendor" in sys.argv else "前端"
 
