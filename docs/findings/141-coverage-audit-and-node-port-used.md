@@ -1,5 +1,10 @@
 # 前端调用面覆盖率审计 + `GET /v1/pub/nodePortUsed` 实现（第 148 轮）
 
+> **⚠️ 已更正（第 158 轮）**：本文的 `grep` 口径漏掉了厂商前端用 `.concat()` 拼出来的路径
+> （59 处，例如 `"/v1/software/".concat(id,"/start")`），因此 **§1 的「215 条」与 §3「软件域真实缺口只有 4 条」
+> 都是错的**。请以 `docs/findings/155-coverage-audit-v2.md`（前端面 240 条、剩余 148 条）为准。
+> 复跑工具：`python3 tools/coverage-audit.py`。
+
 审计时间：2026-10-14（第 146 轮 goal round）。审计口径：**厂商原样前端 bundle** 里出现的 `/v1/*` 路径
 （`grep -rho "/v1/..." build/gaop-web-ctx/html/`，共 **215** 条）与我们 `paas-core-trigger` 里
 **类级 `@RequestMapping` 前缀 + 方法映射**拼出的实际路径（归一化 `{var}` → `X`）做差集。
