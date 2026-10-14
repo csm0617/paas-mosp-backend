@@ -45,7 +45,7 @@
 | # | 端点/能力 | 缺什么 | 我们的证据来源 |
 | --- | --- | --- | --- |
 | C1 | `GET /v1/service/{serviceName}` | 厂商自身 500（A1） | `/v1/service` 列表项的 `ServicesItem` 形状（**已对拉**） |
-| C2 | `imageStorage` | **Harbor 未接入** | 未实现（拒绝用 `0/0` 冒充） |
+| C2 | `imageStorage` | 早期判断为"**Harbor 未接入**"；**`findings/77` 已更正**：Harbor 在集群内是可达的（厂商从中读出了真实项目），只是**本机到不了**（`192.168.1.52:30002` 超时） | `projectList` 已实现（`findings/78`）；`imageStorage` 待做；**在线对拉需要把后端部署进集群** |
 | C3 | TenX 侧效应（激活后通知、时速云授权时间） | 无 TenX 对端 | 未实现，记录为待办 |
 | C4 | GIS 在线激活 | 无 GIS 服务 | `checkAndActiveGis` 如实返回 false |
 | C5 | `serviceInfoByNode` | 单 master 集群（A5） | 参考值可解释（0） |

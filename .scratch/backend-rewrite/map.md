@@ -325,7 +325,7 @@ Label: `wayfinder:map`
   - **最容易写错的一处**：契约键是 **snake_case**（厂商 `@JsonProperty`），域对象是 camelCase ⇒ 用 `ImageProjectAssembler` 显式 Map 固定 11 键名称与顺序，并写**回放测试**（从实测样本读键集合断言一致）。
   - 两处照抄：鉴权头是 URL-safe base64（厂商 `getUrlEncoder()`）；`creation_time` 是 String 且可能畸形（实测 `+58753-04-29…`），不解析成时间。
   - **没有在线对拉（如实标注）**：`192.168.1.52:30002` 本机直连超时、Harbor 不在本集群 ⇒ 后端跑在本机时到不了 Harbor。正确性靠"逐行对应 + 回放测试"；要在线对拉需把后端**部署进集群**（拓扑变更，已记待办）。
-  - 测试 262 → **269 条**全绿。
+  - 测试 262 → **266 条**全绿（+3 域规则 +1 键名回放）。
 - （**顺着 e2e 线索找到真实缺口**）[GET /v1/image/projectList](docs/findings/77-image-projectlist-divergence.md)：A/B 共享端点后定位到它——**vendor 返回 2 个 Harbor 项目（library/gaop），我们返回空列表（stub）**。其余共享端点（quickStart/mode/lang/settings/switchRole）全部相等。
   - 线索链：HTML 大小差异 → 可见文本**完全相同**（否掉"多导航条目"的猜测）→ `data:image` 5 vs 15（导航图标）→ **前端调用的端点集合两侧完全相同** → 逐个 A/B → 命中 `projectList`。
   - 实现路径：`K8sImageServiceImpl.projectList:107-119` = `harbor.allPageProjects` → 过滤 `system_containers`/`system_store` → 按 `creation_time` 倒序 → 分页。

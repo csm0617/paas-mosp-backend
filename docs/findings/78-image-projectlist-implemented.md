@@ -48,4 +48,4 @@ GET /v1/image/projectList?page&size&keyword
 ## 5. 状态
 
 新增：影像域（port/service/gateway）+ `ImageProjectAssembler` + 4 条测试；
-全量 **41 类 269 条全绿**（上一轮 262）。工作树干净。
+全量 **41 类 266 条全绿**（上一轮 262：+3 条域规则测试 +1 条键名回放测试）。工作树干净。
