@@ -106,4 +106,16 @@ public interface ISoftwareCommandService {
      * <p>`softwareIds` 为 null 或空 ⇒ **返回 false**（HTTP 200 + `data:false`，不碰库）。
      */
     boolean orderSoftware(java.util.List<String> softwareIds, Integer orderNum);
+
+    /**
+     * 修改软件关联的战位（厂商 `PUT /v1/software/softwareRelateRole?softwareId=` →
+     * `SoftwareService.updateSoftwareRelateRole:1535-1561`，规格见 `docs/findings/135`）。
+     *
+     * <p>三步：① 入参 **去重**（`LinkedHashSet`）；② 把该软件**已有的关联逐条删掉**，**每删一条推一次
+     * `/topic/software`**（`{event:"DELETE", roleList:<roleId>}`）；③ 把 roleKey 解析成 roleId
+     * （**查不到 `g_role` 的 key 跳过**）后逐条补关联（已存在的跳过，`order = 该战位现有行数 + 1`）。
+     *
+     * <p>恒返回 `true`（厂商 `Response.ok(true)`；即使 roleKeyList 为空也只是"删光不加"）。
+     */
+    boolean updateSoftwareRelateRole(String softwareId, java.util.List<String> roleKeyList);
 }

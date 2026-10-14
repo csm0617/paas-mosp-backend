@@ -33,9 +33,13 @@ import static org.mockito.Mockito.when;
 class SoftwareOrderTest {
 
     private final ISoftwareRepository softwareRepository = mock(ISoftwareRepository.class);
+    private final com.csm.paas.core.domain.software.adapter.port.ISoftwareRelationBroadcastPort relationBroadcastPort =
+            mock(com.csm.paas.core.domain.software.adapter.port.ISoftwareRelationBroadcastPort.class);
+    private final com.csm.paas.core.domain.role.adapter.repository.IRoleRepository roleRepository =
+            mock(com.csm.paas.core.domain.role.adapter.repository.IRoleRepository.class);
 
     private SoftwareCommandServiceImpl service() {
-        return new SoftwareCommandServiceImpl(softwareRepository);
+        return new SoftwareCommandServiceImpl(softwareRepository, relationBroadcastPort, roleRepository);
     }
 
     private void exists(String id) {

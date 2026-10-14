@@ -73,6 +73,9 @@ public interface ISoftwareRepository {
     /** 删 `g_role_software` 里该软件的关联（厂商 `deleteRoleSoftwareById` → `removeRoleSoftwareById`）。 */
     void deleteRoleSoftwareBySoftwareId(String softwareId);
 
+    /** 删**一对**关联（厂商 `updateSoftwareRelateRole` 里逐条删 `role_id + app_id`）。 */
+    void deleteRoleSoftwareRelation(String roleId, String softwareId);
+
     int deleteSoftwareAppBySoftwareId(String softwareId);
 
     /** 删 `g_service_port` 里该软件的端口行，返回删除行数（厂商据此决定要不要通知网关）。 */

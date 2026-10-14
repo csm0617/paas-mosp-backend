@@ -26,6 +26,12 @@ public class SoftwareCommandServiceImpl implements ISoftwareCommandService {
 
     private final ISoftwareRepository softwareRepository;
 
+    /** 关联变化要推 `/topic/software`（厂商 `convertAndSend`）。 */
+    private final com.csm.paas.core.domain.software.adapter.port.ISoftwareRelationBroadcastPort relationBroadcastPort;
+
+    /** 按 roleKey 查 roleId（厂商 `roleMapper.select(where key = ?)` 后取第 0 条）。 */
+    private final com.csm.paas.core.domain.role.adapter.repository.IRoleRepository roleRepository;
+
     @Override
     public SoftwareEntity prepareNewSoftware(SoftwareFormVO form) {
         String key = form.getKey();
@@ -152,6 +158,28 @@ public class SoftwareCommandServiceImpl implements ISoftwareCommandService {
             softwareRepository.updateSoftwareIcon(softwareId, null, System.currentTimeMillis());
         }
         return icon;
+    }
+
+    /**
+     * 修改软件关联的战位（厂商 `updateSoftwareRelateRole:1535-1561`，规格见 `docs/findings/135`）。
+     */
+    @Override
+    public boolean updateSoftwareRelateRole(String softwareId, java.util.List<String> roleKeyList) {
+        // ① 入参去重（厂商 LinkedHashSet）
+        java.util.List<String> keys = new java.util.ArrayList<>(
+                new java.util.LinkedHashSet<>(roleKeyList == null ? java.util.List.of() : roleKeyList));
+        // ② 先删该软件已有的关联，**每删一条推一次**（厂商逐条 delete + convertAndSend）
+        for (String roleId : softwareRepository.queryRoleIdsBySoftwareId(softwareId)) {
+            softwareRepository.deleteRoleSoftwareRelation(roleId, softwareId);
+            relationBroadcastPort.softwareRelationDeleted(roleId);
+        }
+        // ③ roleKey → roleId（查不到就跳过），再逐条补关联
+        java.util.List<String> roleIds = new java.util.ArrayList<>();
+        for (String roleKey : keys) {
+            roleRepository.queryByKey(roleKey).ifPresent(role -> roleIds.add(role.getId()));
+        }
+        softwareRepository.relateRoles(softwareId, roleIds);
+        return true;
     }
 
     /**

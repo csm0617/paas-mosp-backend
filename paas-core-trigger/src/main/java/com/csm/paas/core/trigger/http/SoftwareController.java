@@ -50,6 +50,20 @@ public class SoftwareController {
     private String namespace;
 
     /**
+     * 厂商 `PUT /v1/software/softwareRelateRole?softwareId=`：修改软件关联的战位（body 是 **roleKey 数组**）。
+     *
+     * <p>先去重、再**删光该软件已有战位关联（每删一条推一次 `/topic/software`）**、
+     * 最后按 roleKey 解析成 roleId 补关联（查不到的 key 跳过）。规则见
+     * `ISoftwareCommandService.updateSoftwareRelateRole`（规格 `findings/135`）。
+     */
+    @org.springframework.web.bind.annotation.PutMapping("/softwareRelateRole")
+    public ResponseDTO<Boolean> softwareRelateRole(
+            @org.springframework.web.bind.annotation.RequestParam String softwareId,
+            @org.springframework.web.bind.annotation.RequestBody(required = false) java.util.List<String> roleKeyList) {
+        return ResponseDTO.ok(softwareCommandService.updateSoftwareRelateRole(softwareId, roleKeyList));
+    }
+
+    /**
      * 厂商 `POST /v1/software/exportConfigmap`：导出配置组（响应是 **JSON 附件**，不是 JSON 信封）。
      *
      * <p>收集逻辑与 `existConfigmap` 相同，但 service 分支里 **Deployment 读不到 ⇒ 400**

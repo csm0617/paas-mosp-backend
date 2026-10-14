@@ -272,6 +272,13 @@ public interface ISoftwareDao {
     @org.apache.ibatis.annotations.Delete("DELETE FROM g_role_software WHERE app_id = #{softwareId}")
     int deleteRoleSoftwareBySoftwareId(@Param("softwareId") String softwareId);
 
+    /** 删**一对**关联（厂商 `updateSoftwareRelateRole:1545` 里逐条 `delete where role_id=? and app_id=?`）。 */
+    @org.apache.ibatis.annotations.Delete("""
+            DELETE FROM g_role_software WHERE role_id = #{roleId} AND app_id = #{softwareId}
+            """)
+    int deleteRoleSoftwareByRoleIdAndSoftwareId(@Param("roleId") String roleId,
+                                                @Param("softwareId") String softwareId);
+
     @org.apache.ibatis.annotations.Delete("DELETE FROM g_software_app WHERE software_id = #{softwareId}")
     int deleteSoftwareAppBySoftwareId(@Param("softwareId") String softwareId);
 

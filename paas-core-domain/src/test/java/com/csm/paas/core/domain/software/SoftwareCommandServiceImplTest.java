@@ -28,9 +28,13 @@ import static org.mockito.Mockito.when;
 class SoftwareCommandServiceImplTest {
 
     private final ISoftwareRepository repository = mock(ISoftwareRepository.class);
+    private final com.csm.paas.core.domain.software.adapter.port.ISoftwareRelationBroadcastPort relationBroadcastPort =
+            mock(com.csm.paas.core.domain.software.adapter.port.ISoftwareRelationBroadcastPort.class);
+    private final com.csm.paas.core.domain.role.adapter.repository.IRoleRepository roleRepository =
+            mock(com.csm.paas.core.domain.role.adapter.repository.IRoleRepository.class);
 
     private SoftwareCommandServiceImpl service() {
-        return new SoftwareCommandServiceImpl(repository);
+        return new SoftwareCommandServiceImpl(repository, relationBroadcastPort, roleRepository);
     }
 
     @Test

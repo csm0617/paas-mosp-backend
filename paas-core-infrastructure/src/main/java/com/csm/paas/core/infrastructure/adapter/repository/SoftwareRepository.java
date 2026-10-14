@@ -89,6 +89,11 @@ public class SoftwareRepository implements ISoftwareRepository {
     }
 
     @Override
+    public void deleteRoleSoftwareRelation(String roleId, String softwareId) {
+        softwareDao.deleteRoleSoftwareByRoleIdAndSoftwareId(roleId, softwareId);
+    }
+
+    @Override
     public int deleteSoftwareAppBySoftwareId(String softwareId) {
         return softwareDao.deleteSoftwareAppBySoftwareId(softwareId);
     }
