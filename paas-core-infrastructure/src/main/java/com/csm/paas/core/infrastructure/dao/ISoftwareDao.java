@@ -305,6 +305,15 @@ public interface ISoftwareDao {
     @Select("SELECT app_name FROM g_software_app WHERE software_id = #{softwareId}")
     List<String> selectAppNamesBySoftwareId(@Param("softwareId") String softwareId);
 
+    /**
+     * 只更新置顶相关两列（厂商 `orderSoftWare:3816-3832` 的 `setOrderTop` + `setOrderTime` + 整行更新）。
+     */
+    @org.apache.ibatis.annotations.Update("""
+            UPDATE g_software SET order_top = #{orderTop}, order_time = #{orderTime} WHERE id = #{id}
+            """)
+    int updateSoftwareOrderTop(@Param("id") String id, @Param("orderTop") Integer orderTop,
+                               @Param("orderTime") long orderTime);
+
     /** 只更新 `icon` + `updated_at`（厂商 `updateIcon:2577-2595` 里 `setIcon` + `setUpdatedAt` + 整行更新）。 */
     @org.apache.ibatis.annotations.Update("UPDATE g_software SET icon = #{icon}, updated_at = #{updatedAt} WHERE id = #{id}")
     int updateSoftwareIcon(@Param("id") String id, @Param("icon") String icon, @Param("updatedAt") long updatedAt);

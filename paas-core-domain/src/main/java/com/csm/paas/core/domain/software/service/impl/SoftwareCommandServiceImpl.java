@@ -155,6 +155,23 @@ public class SoftwareCommandServiceImpl implements ISoftwareCommandService {
     }
 
     /**
+     * 软件置顶（厂商 `orderSoftWare:3816-3832`，规格见 `docs/findings/131`）。
+     */
+    @Override
+    public boolean orderSoftware(java.util.List<String> softwareIds, Integer orderNum) {
+        if (softwareIds == null || softwareIds.isEmpty()) {
+            return false;
+        }
+        for (String id : softwareIds) {
+            // 厂商：读不到就抛（带 id 参数）；因为是边遍历边写，前面的 id 已经落库
+            softwareRepository.queryById(id)
+                    .orElseThrow(() -> new WrongArgumentException("software.id.not.found", id));
+            softwareRepository.updateSoftwareOrderTop(id, orderNum, System.currentTimeMillis());
+        }
+        return true;
+    }
+
+    /**
      * 修改截图（厂商 `updateScreenshot:2556-2575`，规格见 `docs/findings/130`）。
      */
     @Override

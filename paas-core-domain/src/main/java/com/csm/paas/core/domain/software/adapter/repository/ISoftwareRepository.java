@@ -148,6 +148,9 @@ public interface ISoftwareRepository {
 
     // ---------- batch-restart（厂商 serviceRestart:3826-3912）----------
 
+    /** 只更新 `order_top` 与 `order_time`（厂商 `orderSoftWare`）。 */
+    void updateSoftwareOrderTop(String softwareId, Integer orderTop, long orderTime);
+
     /** 只更新 `icon` 与 `updated_at`（厂商 `updateIcon`）。 */
     void updateSoftwareIcon(String softwareId, String icon, long updatedAt);
 

@@ -94,4 +94,16 @@ public interface ISoftwareCommandService {
      * @return 传入的列表原值
      */
     java.util.List<String> updateScreenshot(String softwareId, java.util.List<String> screenShotList);
+
+    /**
+     * 软件置顶配置（厂商 `PUT /v1/software/order/{orderNum}` → `SoftwareService.orderSoftWare:3816-3832`，
+     * 规格见 `docs/findings/131`）。
+     *
+     * <p>逐个 id：`setOrderTop(orderNum)` + `setOrderTime(now)` + 更新；**某个 id 不存在 ⇒
+     * 400 `software.id.not.found`（带该 id）**——注意循环是边遍历边写，所以**前面的 id 已经写进去了**
+     * （厂商的顺序如此，照抄）。
+     *
+     * <p>`softwareIds` 为 null 或空 ⇒ **返回 false**（HTTP 200 + `data:false`，不碰库）。
+     */
+    boolean orderSoftware(java.util.List<String> softwareIds, Integer orderNum);
 }

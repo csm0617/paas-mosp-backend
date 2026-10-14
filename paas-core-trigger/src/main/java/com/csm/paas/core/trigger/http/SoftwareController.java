@@ -50,6 +50,22 @@ public class SoftwareController {
     private String namespace;
 
     /**
+     * 厂商 `PUT /v1/software/order/{orderNum}`：软件置顶配置（body `{softwareIds}`）。
+     *
+     * <p>逐个把 `order_top` 设成路径上的 `orderNum`、`order_time` 设成当前毫秒；
+     * 某个 id 不存在 ⇒ 400 `software.id.not.found`（带该 id）；列表为空 ⇒ `data:false`。
+     * 规则见 `ISoftwareCommandService.orderSoftware`（规格 `findings/131`）。
+     */
+    @org.springframework.web.bind.annotation.PutMapping("/order/{orderNum}")
+    public ResponseDTO<Boolean> orderSoftware(
+            @org.springframework.web.bind.annotation.PathVariable Integer orderNum,
+            @org.springframework.web.bind.annotation.RequestBody(required = false)
+            com.csm.paas.core.api.dto.SoftwareIdFormDTO form) {
+        return ResponseDTO.ok(softwareCommandService.orderSoftware(
+                form == null ? null : form.getSoftwareIds(), orderNum));
+    }
+
+    /**
      * 厂商 `PUT /v1/software/update_icon?softwareId=`：修改软件图标。
      *
      * <p>`icon` 与库里相同 ⇒ 不写库直接返回；`icon` 为 **null** ⇒ **清空**；软件不存在 ⇒ 400 `software.not.found`。

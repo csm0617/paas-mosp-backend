@@ -243,6 +243,11 @@ public class SoftwareRepository implements ISoftwareRepository {
     }
 
     @Override
+    public void updateSoftwareOrderTop(String softwareId, Integer orderTop, long orderTime) {
+        softwareDao.updateSoftwareOrderTop(softwareId, orderTop, orderTime);
+    }
+
+    @Override
     public void updateSoftwareIcon(String softwareId, String icon, long updatedAt) {
         softwareDao.updateSoftwareIcon(softwareId, icon, updatedAt);
     }
