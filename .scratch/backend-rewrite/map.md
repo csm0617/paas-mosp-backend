@@ -400,6 +400,8 @@ Label: `wayfinder:map`
 - （**node_port 规格**）[findings/85](docs/findings/85-node-port-spec.md)：把 120 行的 `patchServicePorts` 读到"可直接翻译"（两个分支 + 异常映射 + 三处易错点 + 下一轮的实现与验证计划）。
   - 关键：**返回布尔**（`Response.ok(v1Service != null)`），A 分支"推导不出端口"时**返回 null ⇒ `data:false`**（静默失败）；`name` 公式 `<protocol>-<name>-<i>` **小写**；两分支错误消息不同（A 分支带服务名的中文 `SystemException`）。
   - 同族的 `POST /{serviceName}/nodePort` 只读到头部，**未逐行读完**，实现时不要把两者混为一谈。
+- （**改动后 e2e 复验**）[findings/97](docs/findings/97-e2e-after-token-fix.md)：第 89 轮把 `/v1/user` 的 token 改成 null 后，专门重跑 e2e——**表头/数据行/可见文本与厂商归档页全等**（64/64 行、仅 vendor 有=空）、前端请求**无 4xx/5xx**、脚本退出 0。⇒ 修复没破坏前端。
+  - 经验：**改了前端会读的端点就必须重跑 e2e**——契约比对（L1/L2）只看字段对不对，看不出"页面会不会白屏"。
 - （**工具修正**）[contract-check 增加易变字段模式](docs/findings/96-contract-check-volatile.md)：`/v1/user/info` 的 `createdAt`/`updatedAt` 标为 `mode: volatile`——**只比存在与类型**，不再因样本陈旧误报（**不用 `allowDeviation`**：那是"允许的偏离"会永久豁免，而"易变"只是字段性质）。
   - 用**上一次会误报的那份实时响应**重跑验证 ⇒ 现在 `L1+L2 全部通过 ✅`。
   - 顺带发现工具自带**镜像一致性自检**（`docs/findings/read-paths.json` 与 `paas-core-trigger/src/test/resources/vendor/read-paths.json` 必须一致），已同步。
