@@ -48,6 +48,7 @@
 | B19 | `GET /v1/service/baseEvent`：事件缺 `lastTimestamp` 时**排到最后**（而不是报错） | 厂商 `Comparator.comparing(getLastTimestamp).reversed()` **没有空值保护** ⇒ 比较器抛 **NPE ⇒ 500**。该端点意图是"最新在前"，空值只是没有时间信息 | `findings/125` §4 |
 | B20 | `batch-stop`：`spec.replicas` 为 null 时视为"不是 0"（继续下发 scale） | 厂商 `if (replicas == 0)` 对 `Integer` **拆箱** ⇒ null 时 **NPE ⇒ 500**；API Server 会默认该字段，故实际不可达 | `findings/126` §6 |
 | B21 | `update_screenshot`：请求体为 null 时按**空列表**处理（即清空该列） | 厂商 `if (!screenShotList.isEmpty())` ⇒ null 时 **NPE ⇒ 500**；前端正常传数组 | `findings/130` §3 |
+| B23 | `config_map/relationService`：**省略**厂商开头那次"列 Node 取 master ip"的调用（该 ip 只用于日志） | 厂商在列 Node 失败时**提前返回空列表**——即一个与响应无关的调用失败会丢弃正确的关联结果。判断为不值得照抄 | `findings/143` §4 |
 | B22 | `existConfigmap`：`key` 为 null/空时返回 `false`（**不实现**厂商那个"检查全部软件"的分支） | 厂商写的是 `key != null \|\| key.size() != 0` ⇒ null 时 **NPE ⇒ 500**，且该写法让"不带 key"分支**永不可达**（死代码）；实现它等于替厂商发明一个走不到的行为 | `findings/133` §3 |
 
 ## C. 参考环境限制导致无法对拉（按代码实现 + 标注证据来源）

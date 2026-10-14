@@ -541,6 +541,18 @@ public class ServiceRuntimeGateway {
         return toSnapshot(list);
     }
 
+    /** 读一个 ConfigMap；不存在 ⇒ 空（fabric8 `.get()` 对 404 返回 null）。 */
+    public java.util.Optional<Map<String, Object>> findConfigMap(String namespace, String name) {
+        var cm = kubernetesClient.configMaps().inNamespace(namespace).withName(name).get();
+        return cm == null ? java.util.Optional.empty() : java.util.Optional.of(toSnapshot(cm));
+    }
+
+    /** 全部 Deployment 的原样快照。 */
+    public List<Map<String, Object>> listDeploymentSnapshots(String namespace) {
+        return kubernetesClient.apps().deployments().inNamespace(namespace).list().getItems().stream()
+                .map(this::toSnapshot).toList();
+    }
+
     /** `type=NodePort` 的 Service 原样快照。 */
     public List<Map<String, Object>> listNodePortServices(String namespace) {
         return kubernetesClient.services().inNamespace(namespace).list().getItems().stream()

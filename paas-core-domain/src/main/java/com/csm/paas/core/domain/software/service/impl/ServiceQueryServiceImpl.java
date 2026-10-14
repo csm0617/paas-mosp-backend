@@ -1506,6 +1506,106 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
         return source.stream().skip(Math.max(from, 0)).limit(size).toList();
     }
 
+    /** 厂商 `ConfigMapController.REGEX_CONFIGMAP_NAME`。 */
+    private static final String REGEX_CONFIGMAP_NAME = "[-._a-zA-Z0-9]+";
+
+    @Override
+    public boolean configMapExists(String namespace, String name) {
+        try {
+            return serviceRuntimePort.findConfigMap(namespace, name).isPresent();
+        } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+            log.error("查询异常", e);
+            throw new com.csm.paas.core.types.exception.SystemException("configmap.system.error");
+        }
+    }
+
+    @Override
+    public Map<String, Object> queryConfigMap(String namespace, String name) {
+        if (name == null || name.isBlank()) {
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("configmap.name.must.not.empty");
+        }
+        if (!name.matches(REGEX_CONFIGMAP_NAME)) {
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("configmap.name.not.invalid");
+        }
+        java.util.Optional<Map<String, Object>> found;
+        try {
+            found = serviceRuntimePort.findConfigMap(namespace, name);
+        } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+            log.error("配置组信息接口错误: {}", e.getMessage());
+            throw new com.csm.paas.core.types.exception.SystemException("configmap.find.configmap.api.failed");
+        }
+        return found.orElseThrow(() -> new com.csm.paas.core.types.exception.WrongArgumentException(
+                "configmap.not.exist", name));
+    }
+
+    @Override
+    public List<com.csm.paas.core.domain.software.model.entity.ConfigMapInfoEntity> queryConfigMapRelations(
+            String namespace, String name) {
+        java.util.Optional<Map<String, Object>> found;
+        try {
+            found = serviceRuntimePort.findConfigMap(namespace, name);
+        } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+            log.error("获取configmap失败，异常为:{}", e.getMessage());
+            return List.of();
+        }
+        if (found.isEmpty()) {
+            return List.of();
+        }
+        // data 的 key ⇒ subPath 名（初始空列表）
+        Map<String, List<com.csm.paas.core.domain.software.model.entity.ConfigMapInfoEntity.RelationServiceEntity>>
+                subPathToServices = new java.util.LinkedHashMap<>();
+        Map<String, Object> data = asMap(found.get().get("data"));
+        if (data != null) {
+            for (String key : data.keySet()) {
+                subPathToServices.put(key, new ArrayList<>());
+            }
+        }
+        for (Map<String, Object> deployment : serviceRuntimePort.listDeploymentSnapshots(namespace)) {
+            String deploymentName = configMapName(deployment);
+            Map<String, Object> podTemplate = asMap(asMap(deployment.get("spec")).get("template"));
+            Map<String, Object> podSpec = podTemplate == null ? null : asMap(podTemplate.get("spec"));
+            List<Object> volumes = podSpec == null ? null : (List<Object>) podSpec.get("volumes");
+            if (volumes == null) {
+                continue;
+            }
+            for (Object rawVolume : volumes) {
+                Map<String, Object> volume = asMap(rawVolume);
+                Map<String, Object> configMap = volume == null ? null : asMap(volume.get("configMap"));
+                if (configMap == null || !name.equals(configMap.get("name"))) {
+                    continue;
+                }
+                List<Object> containers = podSpec.get("containers") == null ? null
+                        : (List<Object>) podSpec.get("containers");
+                for (Object rawContainer : containers == null ? List.<Object>of() : containers) {
+                    List<Object> mounts = asMap(rawContainer) == null ? null
+                            : (List<Object>) asMap(rawContainer).get("volumeMounts");
+                    for (Object rawMount : mounts == null ? List.<Object>of() : mounts) {
+                        Map<String, Object> mount = asMap(rawMount);
+                        if (mount == null || !volume.get("name").equals(mount.get("name"))) {
+                            continue;
+                        }
+                        Object subPath = mount.get("subPath");
+                        if (subPath == null || !subPathToServices.containsKey(subPath)) {
+                            continue;
+                        }
+                        subPathToServices.get(subPath).add(
+                                com.csm.paas.core.domain.software.model.entity.ConfigMapInfoEntity
+                                        .RelationServiceEntity.builder()
+                                        .serviceName(deploymentName)
+                                        .mountPath((String) mount.get("mountPath"))
+                                        .build());
+                    }
+                }
+            }
+        }
+        return subPathToServices.entrySet().stream()
+                .map(e -> com.csm.paas.core.domain.software.model.entity.ConfigMapInfoEntity.builder()
+                        .configMapName(e.getKey()).config(e.getValue()).build())
+                .sorted(java.util.Comparator.comparing(
+                        com.csm.paas.core.domain.software.model.entity.ConfigMapInfoEntity::getConfigMapName))
+                .toList();
+    }
+
     /** 厂商 `getStringRandom(length)`：每位 `SecureRandom.nextInt(2)%2==0` 取 `a-z`，否则取 `0-9`。 */
     private static String randomString(int length) {
         java.security.SecureRandom random = new java.security.SecureRandom();

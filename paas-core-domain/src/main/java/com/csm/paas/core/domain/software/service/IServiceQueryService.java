@@ -488,4 +488,34 @@ public interface IServiceQueryService {
      */
     com.csm.paas.core.domain.software.model.entity.ConfigMapListEntity queryConfigMapList(
             String namespace, int page, int size, String keyword);
+
+    /**
+     * 配置组是否存在（厂商 `GET /v1/config_map/{name}/exist` → `isExistConfigmap:98-110`）。
+     * <p>读得到 ⇒ true；**404 ⇒ false**；其它 K8s 错误 ⇒ 500 `configmap.system.error`。
+     */
+    boolean configMapExists(String namespace, String name);
+
+    /**
+     * 配置组详情（厂商 `GET /v1/config_map/{name}` → `configmap:155-182`）。
+     *
+     * <p>`name` 空白 ⇒ 400 `configmap.name.must.not.empty`；不匹配 `[-._a-zA-Z0-9]+` ⇒
+     * 400 `configmap.name.not.invalid`；读不到（404）⇒ 400 `configmap.not.exist`（带 name）；
+     * 其它 K8s 错误 ⇒ 500 `configmap.find.configmap.api.failed`。
+     */
+    java.util.Map<String, Object> queryConfigMap(String namespace, String name);
+
+    /**
+     * 配置组关联的服务（厂商 `GET /v1/config_map/relationService?name=` →
+     * `configMapRelationService:363-432`，规格见 `docs/findings/143`）。
+     *
+     * <p>把 ConfigMap 的 **data key 当作 subPath**，扫描所有 Deployment 的卷挂载：
+     * 卷的 `configMap.name` 命中且 `volumeMount.subPath` 命中某个 key ⇒
+     * 记一条 `{serviceName=<Deployment 名>, mountPath}`。结果按 `configMapName`（即 key）排序。
+     *
+     * <p>ConfigMap 读不到 ⇒ **返回空列表**（200，不报错）。
+     * <p>**一处主动简化**（`deviations.md` B23）：厂商开头还会列 Node 取 master ip，但那个 ip
+     * **只用于打日志**、不影响响应；我们省略这次调用（差异只在"列 Node 失败 ⇒ 厂商提前返回空列表"这条错误路径上）。
+     */
+    java.util.List<com.csm.paas.core.domain.software.model.entity.ConfigMapInfoEntity> queryConfigMapRelations(
+            String namespace, String name);
 }

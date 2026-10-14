@@ -285,4 +285,13 @@ public interface IServiceRuntimePort {
      * <p>返回**整份列表快照**（含 `apiVersion`/`items`/`kind`/`metadata`），因为响应里要带上这些键。
      */
     java.util.Map<String, Object> listConfigMapsWithoutIngressLb(String namespace);
+
+    /**
+     * 读一个 ConfigMap；**不存在返回空 Optional**（其余错误抛 `K8sApiException`）。
+     * <p>厂商用它区分"404 ⇒ 不存在"与"其它异常 ⇒ 500"。
+     */
+    java.util.Optional<java.util.Map<String, Object>> findConfigMap(String namespace, String name);
+
+    /** 列命名空间里**全部 Deployment** 的原样快照（厂商 `getV1Deployments`，`relationService` 用）。 */
+    java.util.List<java.util.Map<String, Object>> listDeploymentSnapshots(String namespace);
 }
