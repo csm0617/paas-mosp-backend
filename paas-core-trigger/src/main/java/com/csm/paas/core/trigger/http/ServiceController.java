@@ -111,6 +111,17 @@ public class ServiceController {
         return ResponseDTO.ok(serviceQueryService.updateServicePriority(namespace, serviceName, level));
     }
 
+    /**
+     * 厂商 `PUT /v1/service/scale?serviceName&scale`：改副本数，返回**整份 patch 后的对象**。
+     * <p>先 strategic-merge-patch Deployment；失败回退 StatefulSet；都失败 → 500/`code=-1`。
+     */
+    @org.springframework.web.bind.annotation.PutMapping("/v1/service/scale")
+    public ResponseDTO<java.util.Map<String, Object>> scale(
+            @org.springframework.web.bind.annotation.RequestParam String serviceName,
+            @org.springframework.web.bind.annotation.RequestParam int scale) {
+        return ResponseDTO.ok(serviceQueryService.scaleService(namespace, serviceName, scale));
+    }
+
     @GetMapping("/v1/service/labels")
     public ResponseDTO<java.util.List<com.csm.paas.core.api.dto.LabelListDTO>> labels() {
         var merged = serviceQueryService.queryNodeLabels();

@@ -69,4 +69,13 @@ public interface IServiceQueryService {
      * `level` 空白时把 `priorityClassName` 设成**空串**（不是 null）；patch 失败 → `service.update.service.config.error`。
      */
     boolean updateServicePriority(String namespace, String serviceName, String level);
+
+    /**
+     * 改副本数（厂商 `PUT /v1/service/scale?serviceName&scale`，`ServiceController:3063-3085`）。
+     *
+     * <p>逐行照抄：用 **strategic-merge-patch** `{"spec":{"replicas":N}}` 打 Deployment，
+     * 成功则返回**整份 patch 后的对象**；**任意异常**都回退 StatefulSet；两者都失败 →
+     * `SystemException(异常消息)`（HTTP 500 / `code=-1`）。
+     */
+    java.util.Map<String, Object> scaleService(String namespace, String serviceName, int replicas);
 }

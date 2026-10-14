@@ -231,6 +231,10 @@ Label: `wayfinder:map`
   - 第二道门（终局）：过门后厂商返回 500/-1，trace 指向它自己：`TenxService.responseContainer:604` 的 `getLimits().get("cpu").getNumber()` —— **只判了 limits 非 null、没判键存在**，本环境工作负载没有完整 limits ⇒ NPE。**是厂商缺陷，不是数据缺失。**
   - 结论：这个端点**无法通过任何手段观测到成功响应**。下一轮取舍建议：**先做服务域里可对拉的端点（3），再照代码实现详情并注明"证据来自列表端点 `/v1/service` 的 `ServicesItem` 形状（已对拉），详情端点本身厂商恒 500"（1）**。
   - 用例总数更正
+- （**scale 端点**）[findings/66](docs/findings/66-service-scale-endpoint.md)：实现 + 独立 namespace（`paas-verify-sc`）e2e——`1→3` 成功且集群实际 replicas=3，**响应是整份 Deployment 对象**（不是布尔）。
+  - **一处刻意保留的偏离**：失败时厂商 500/code=500/`msg` **空**，我们 500/code=500/`msg`=fabric8 原始消息。决定保留消息（清空只会丢诊断信息），**但记在案，不写成"完全一致"**。
+  - **三个写端点边界行为两两不同**（给"不要按上一个套下一个"用）：`hostName` 回退 StatefulSet + 两边空白静默 no-op + 返回布尔；`priority` **不回退** + 空白设空串 + 返回布尔；`scale` 回退 StatefulSet + 都失败 500 + **返回整份对象**。
+  - 服务切片 **8/33**（3 个写端点均有独立 namespace e2e）；全量 **236 条**全绿。
 - （**priority 端点**）[findings/65](docs/findings/65-service-priority-endpoint.md)：实现 + 独立 namespace（`paas-verify-pr`，用完即删）e2e——`high-priority` 真改上、空白 level 变**空串**、不存在→**400 且与厂商文案逐字相同**。
   - **与 hostName 的两处不同**（最容易按上一个套下一个）：`hostName` 读不到 Deployment **回退 StatefulSet**，`priority` **不回退**直接 400；`hostName` 两边空白是**静默 no-op**，`priority` 空白 level 是**主动设空串**。
   - **错误契约一次对上**：这轮键名是从代码抄的（上轮是凭经验猜的，被对拉纠正）。**能从代码抄就别猜；必须猜的一定要对拉。**

@@ -45,4 +45,9 @@ public interface IServiceRuntimePort {
 
     /** 设置 Deployment 的 `priorityClassName`（厂商 `POST /v1/service/priority`）。 */
     void patchDeploymentPriorityClassName(String namespace, String serviceName, String level);
+
+    /** strategic-merge-patch 副本数到 Deployment；**对象不存在返回 null**（厂商据此回退 StatefulSet）。 */
+    java.util.Map<String, Object> patchDeploymentReplicas(String namespace, String serviceName, int replicas);
+
+    java.util.Map<String, Object> patchStatefulSetReplicas(String namespace, String serviceName, int replicas);
 }

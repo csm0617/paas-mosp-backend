@@ -74,6 +74,16 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
     }
 
     @Override
+    public Map<String, Object> patchDeploymentReplicas(String namespace, String serviceName, int replicas) {
+        return serviceRuntimeGateway.patchDeploymentReplicas(namespace, serviceName, replicas);
+    }
+
+    @Override
+    public Map<String, Object> patchStatefulSetReplicas(String namespace, String serviceName, int replicas) {
+        return serviceRuntimeGateway.patchStatefulSetReplicas(namespace, serviceName, replicas);
+    }
+
+    @Override
     public Map<String, List<String>> queryNodeLabels() {
         // 厂商：遍历每个节点的 metadata.labels，按 label 键把"值"塞进一个 set（HashMap 聚合，顺序不可依赖）
         Map<String, java.util.Set<String>> collected = new java.util.HashMap<>();

@@ -95,6 +95,30 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
     }
 
     @Override
+    public java.util.Map<String, Object> scaleService(String namespace, String serviceName, int replicas) {
+        java.util.Map<String, Object> patched = null;
+        try {
+            patched = serviceRuntimePort.patchDeploymentReplicas(namespace, serviceName, replicas);
+        } catch (Exception e) {
+            log.error("scale deployment error", e);
+        }
+        if (patched != null) {
+            return patched;
+        }
+        try {
+            java.util.Map<String, Object> statefulSet = serviceRuntimePort.patchStatefulSetReplicas(
+                    namespace, serviceName, replicas);
+            if (statefulSet != null) {
+                return statefulSet;
+            }
+            throw new IllegalStateException("neither Deployment nor StatefulSet patched");
+        } catch (Exception e) {
+            // 厂商：两者都失败 → SystemException(异常消息) ⇒ 500 / code=-1
+            throw new com.csm.paas.core.types.exception.SystemException(e.getMessage());
+        }
+    }
+
+    @Override
     public boolean updateServicePriority(String namespace, String serviceName, String level) {
         if (!serviceRuntimePort.deploymentExists(namespace, serviceName)) {
             // 厂商：只读 Deployment，读不到就 400（**没有** StatefulSet 回退，与 hostName 端点不同）

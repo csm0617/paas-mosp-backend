@@ -108,6 +108,27 @@ public class ServiceRuntimeGateway {
                 .edit(d -> { d.getSpec().getTemplate().getSpec().setPriorityClassName(level); return d; });
     }
 
+    /**
+     * strategic-merge-patch `{"spec":{"replicas":N}}` 到 Deployment，返回 patch 后的对象快照；
+     * **对象不存在时返回 null**（厂商据此回退 StatefulSet）。
+     */
+    public Map<String, Object> patchDeploymentReplicas(String namespace, String name, int replicas) {
+        var d = kubernetesClient.apps().deployments().inNamespace(namespace).withName(name)
+                .patch(io.fabric8.kubernetes.client.dsl.base.PatchContext.of(
+                        io.fabric8.kubernetes.client.dsl.base.PatchType.STRATEGIC_MERGE),
+                        "{\"spec\":{\"replicas\":" + replicas + "}}");
+        return d == null ? null : toSnapshot(d);
+    }
+
+    /** 同上，打在 StatefulSet 上（厂商失败回退路径）。 */
+    public Map<String, Object> patchStatefulSetReplicas(String namespace, String name, int replicas) {
+        var s = kubernetesClient.apps().statefulSets().inNamespace(namespace).withName(name)
+                .patch(io.fabric8.kubernetes.client.dsl.base.PatchContext.of(
+                        io.fabric8.kubernetes.client.dsl.base.PatchType.STRATEGIC_MERGE),
+                        "{\"spec\":{\"replicas\":" + replicas + "}}");
+        return s == null ? null : toSnapshot(s);
+    }
+
     public List<StatefulSet> listStatefulSets(String namespace) {
         List<StatefulSet> items = kubernetesClient.apps().statefulSets().inNamespace(namespace).list().getItems();
         log.info("fabric8 读到 namespace:{} 的 StatefulSet {} 个", namespace, items.size());
