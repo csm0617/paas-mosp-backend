@@ -102,4 +102,13 @@ public interface IServiceQueryService {
      */
     java.util.List<com.csm.paas.core.domain.software.model.valobj.PodRestartInfoVO> queryRestartInfo(
             String serviceName);
+
+    /**
+     * 取消延时启动（厂商 `POST /v1/service/cancelStartUp` → `ServiceController:4030-4055`）。
+     *
+     * <p>逐个服务：读 Deployment（**读不到 → 400 `service.get.service.config.exception.cancel.delay`**，参数是服务名）
+     * → 删注解 `gaop/serviceInitTime` → `initContainers` 置 null → **整份 `replace`**。
+     * <p>全部成功返回 true；**列表里有一个失败就中断**（厂商在循环里直接抛）。
+     */
+    boolean cancelServiceStartup(String namespace, java.util.List<String> serviceNames);
 }

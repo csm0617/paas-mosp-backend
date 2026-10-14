@@ -212,6 +212,27 @@ public class ServiceRuntimeGateway {
         return true;
     }
 
+    /**
+     * 取消服务的延时启动（厂商 `cancelServiceStartUp:4030-4055`）：删注解 `gaop/serviceInitTime`、
+     * 把 `initContainers` 置 null，然后 **`replaceNamespacedDeployment`（整份替换）**。
+     * <p>Deployment 不存在时返回 false（厂商据此抛 400 `service.get.service.config.exception.cancel.delay`）。
+     */
+    public boolean cancelDeploymentStartup(String namespace, String name) {
+        var d = kubernetesClient.apps().deployments().inNamespace(namespace).withName(name).get();
+        if (d == null) {
+            return false;
+        }
+        var annotations = d.getSpec().getTemplate().getMetadata().getAnnotations();
+        if (annotations != null) {
+            annotations.remove("gaop/serviceInitTime");
+            d.getSpec().getTemplate().getMetadata().setAnnotations(annotations);
+        }
+        d.getSpec().getTemplate().getSpec().setInitContainers(null);
+        // 厂商用的是 replace（整份替换），不是 patch——照抄
+        kubernetesClient.apps().deployments().inNamespace(namespace).withName(name).replace(d);
+        return true;
+    }
+
     public List<StatefulSet> listStatefulSets(String namespace) {
         List<StatefulSet> items = kubernetesClient.apps().statefulSets().inNamespace(namespace).list().getItems();
         log.info("fabric8 读到 namespace:{} 的 StatefulSet {} 个", namespace, items.size());

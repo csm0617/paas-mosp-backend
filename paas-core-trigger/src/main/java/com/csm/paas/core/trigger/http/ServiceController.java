@@ -157,6 +157,17 @@ public class ServiceController {
                 .toList());
     }
 
+    /**
+     * 厂商 `POST /v1/service/cancelStartUp`：取消服务的延时启动（请求体 `{list}`）。
+     * <p>逐个服务删注解 `gaop/serviceInitTime`、清 `initContainers` 并整份 replace；
+     * 任一服务读不到 → 400 `service.get.service.config.exception.cancel.delay`。
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/v1/service/cancelStartUp")
+    public ResponseDTO<Boolean> cancelStartUp(
+            @org.springframework.web.bind.annotation.RequestBody com.csm.paas.core.api.dto.StartUpServiceListDTO form) {
+        return ResponseDTO.ok(serviceQueryService.cancelServiceStartup(namespace, form.getList()));
+    }
+
     @GetMapping("/v1/service/labels")
     public ResponseDTO<java.util.List<com.csm.paas.core.api.dto.LabelListDTO>> labels() {
         var merged = serviceQueryService.queryNodeLabels();

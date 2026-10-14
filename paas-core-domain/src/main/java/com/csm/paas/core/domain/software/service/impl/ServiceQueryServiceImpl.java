@@ -116,6 +116,17 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
     }
 
     @Override
+    public boolean cancelServiceStartup(String namespace, List<String> serviceNames) {
+        for (String serviceName : serviceNames) {
+            if (!serviceRuntimePort.cancelDeploymentStartup(namespace, serviceName)) {
+                throw new com.csm.paas.core.types.exception.WrongArgumentException(
+                        "service.get.service.config.exception.cancel.delay", serviceName);
+            }
+        }
+        return true;
+    }
+
+    @Override
     public Map<String, List<Map<String, Object>>> queryOtherPluginWorkloads() {
         return serviceRuntimePort.listOtherPluginWorkloads();
     }

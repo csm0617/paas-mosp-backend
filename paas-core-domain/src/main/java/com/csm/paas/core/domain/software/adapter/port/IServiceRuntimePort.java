@@ -60,4 +60,7 @@ public interface IServiceRuntimePort {
     /** 给 Deployment 的所有容器设置 command/args；**Deployment 不存在返回 false**（厂商据此 400）。 */
     boolean patchDeploymentCommand(String namespace, String serviceName, java.util.List<String> command,
                                    java.util.List<String> args);
+
+    /** 取消延时启动（删 `gaop/serviceInitTime` 注解 + `initContainers` 置 null + 整份 replace）；不存在返回 false。 */
+    boolean cancelDeploymentStartup(String namespace, String serviceName);
 }

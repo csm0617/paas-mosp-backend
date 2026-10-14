@@ -321,6 +321,9 @@ Label: `wayfinder:map`
 - 当前：46 端点映射、38 测试类 **236 条全绿**、81 提交、63 篇 findings。
 - 下一步优先序：服务切片同模式推进 → K2 跨域（`/auth` 列表可对拉；CS 上传/导入导出需先定边界）→ K3 侧效应 → 把"不可验证项"整理成对外偏离清单。
 
+- （**服务切片 12/33**）[POST /v1/service/cancelStartUp](docs/findings/82-service-cancel-startup.md)：独立 namespace（`paas-verify-su`，用完即删）e2e——注解 `gaop/serviceInitTime` 与 `initContainers` 都被清掉；不存在的服务 → 400 且文案与厂商逐字相同（只差服务名）。
+  - 三处照抄：**整份 `replace` 而不是 patch**（与 `hostName`/`priority`/`patchCommand` 的 merge patch 不同）；`initContainers` 置 **null**（不是空列表）；注解只在 `annotations != null` 时删。另：列表里一个失败就**中断**。
+  - 测试 268 → **270 条**全绿。
 - （**服务切片 + 影像域依赖地图**）[GET /v1/service/restartInfo](docs/findings/81-service-restart-info.md)：三种情形**对拉完全相等**（`gaop-web`/`gaop-gateway-auth` 用库里已有真实数据、`no-such-svc` → 空数组）。
   - 两处照抄点：键顺序 `podName → createTime → restartCount`（厂商声明顺序，我第一版后两个写反）；只取三列、无记录是**空数组**。**服务切片 11/33**。
   - **影像域依赖地图（本轮顺带查清）**：只有 `projectList` 是**纯库读取**（已对拉）；`repositories`/`allProjectImageList`/`existRepositories`/`getImageTagList` 都走 **Docker Registry API**；`imageStorage` 走 **SSH** 取磁盘（厂商自己也连不上 ⇒ 0/0）。⇒ 影像域可验证部分**基本到 projectList 为止**，其余属"依赖外部设施"，**不要在没有对端时硬写**。
