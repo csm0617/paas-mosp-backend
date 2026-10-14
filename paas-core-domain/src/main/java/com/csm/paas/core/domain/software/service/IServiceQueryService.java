@@ -209,4 +209,20 @@ public interface IServiceQueryService {
     java.util.Map<String, Object> updateServiceVolumes(
             String namespace, String serviceName,
             com.csm.paas.core.domain.software.model.valobj.UpdateServiceVolumesVO form);
+
+    /**
+     * 设置/清空服务（Deployment 第一个容器）的健康检查探针
+     * （厂商 `PUT /v1/service/healthCheck` → `ServiceController.healthCheck:2658-2689`，规格见 `docs/findings/121`）。
+     *
+     * <p>`type`：0 = 清空；1 = HTTPGet（`scheme` 写死 `"HTTP"`）；2 = TCPSocket；其它值（含 null，我们收紧）不动。
+     * `readiness`/`liveness` 为 null 表示"该探针不动"。
+     *
+     * <p>错误语义：Deployment 不存在 → 400 `service.not.found.update.image.version`（带服务名）；
+     * patch 的 K8s 异常 → 400 `k8s.call.api.failed.to.change.image.version`；
+     * **容器列表为空 ⇒ 500 `系统错误`/`code=-1`**（厂商没兜这段，我们也不兜）。
+     *
+     * @return 恒为 `true`（厂商 `Response.ok(true)`）
+     */
+    boolean updateHealthCheck(String namespace,
+                              com.csm.paas.core.domain.software.model.valobj.HealthCheckVO form);
 }

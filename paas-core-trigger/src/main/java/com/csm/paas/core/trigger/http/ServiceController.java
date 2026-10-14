@@ -143,6 +143,38 @@ public class ServiceController {
     }
 
     /**
+     * 厂商 `PUT /v1/service/healthCheck`：设置/清空第一个容器的 readiness 与 liveness 探针。
+     *
+     * <p>`type` 0=清空、1=HTTPGet（scheme 写死 HTTP）、2=TCPSocket、其它值不动；返回 `data:true`。
+     * 规则见 `IServiceQueryService.updateHealthCheck`（规格 `findings/121`）。
+     */
+    @org.springframework.web.bind.annotation.PutMapping("/v1/service/healthCheck")
+    public ResponseDTO<Boolean> healthCheck(
+            @org.springframework.web.bind.annotation.RequestBody com.csm.paas.core.api.dto.HealthCheckDTO form) {
+        return ResponseDTO.ok(serviceQueryService.updateHealthCheck(namespace,
+                com.csm.paas.core.domain.software.model.valobj.HealthCheckVO.builder()
+                        .name(form == null ? null : form.getName())
+                        .readiness(toHealthSet(form == null ? null : form.getReadiness()))
+                        .liveness(toHealthSet(form == null ? null : form.getLiveness()))
+                        .build()));
+    }
+
+    private static com.csm.paas.core.domain.software.model.valobj.HealthCheckVO.HealthSetVO toHealthSet(
+            com.csm.paas.core.api.dto.HealthCheckDTO.HealthSetDTO dto) {
+        if (dto == null) {
+            return null;
+        }
+        return com.csm.paas.core.domain.software.model.valobj.HealthCheckVO.HealthSetVO.builder()
+                .type(dto.getType()).path(dto.getPath()).port(dto.getPort())
+                .initialDelaySeconds(dto.getInitialDelaySeconds())
+                .timeoutSeconds(dto.getTimeoutSeconds())
+                .periodSeconds(dto.getPeriodSeconds())
+                .successThreshold(dto.getSuccessThreshold())
+                .failureThreshold(dto.getFailureThreshold())
+                .build();
+    }
+
+    /**
      * 厂商 `PUT /v1/service/scale?serviceName&scale`：改副本数，返回**整份 patch 后的对象**。
      * <p>先 strategic-merge-patch Deployment；失败回退 StatefulSet；都失败 → 500/`code=-1`。
      */

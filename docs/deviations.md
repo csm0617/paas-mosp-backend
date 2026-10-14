@@ -42,6 +42,7 @@
 | B13 | `/v1/user/import` 覆盖分支里 col3/col4 的字面量 JSON `null` 按"无列表"处理 | 厂商 `subRoleList.addAll(roleRelationList)` 会 **NPE → 500**（新用户分支有判空保护，覆盖分支漏了）。模板与 `/export` 都产不出字面量 `null` ⇒ 前端路径上不可达 | `findings/100` 第 (3) 条、`findings/117` |
 | B14 | `PUT /v1/service/patchService` 的 B 分支：`portList` 为空时**先校验再删** | 厂商是**先** `delete g_service_port` **再**让 `insertBatch` 的空 `<foreach>` 拼出非法 SQL 报 400 ⇒ 端口映射被白删（与 B5「厂商无事务会半删」同类）。我们保留 400 与键名，但不做这次破坏性写入 | `findings/118` §3、§6 |
 | B15 | `POST /v1/service/{service}/updateVolumes` 的 `hostPathList[].readOnly` 为 null 时按"非只读"处理 | 厂商写的是 `getReadOnly() == 2`（`Integer` **拆箱**）⇒ null 时 **NPE** ⇒ 500 `service.file.mapping.or.mount.failed`。前端必传该字段 ⇒ 照抄等于故意留一个 NPE | `findings/119` §4、§6.4 |
+| B16 | `PUT /v1/service/healthCheck` 的 `HealthSetInfo.type` 为 null 时按"不改该探针"处理 | 厂商写的是 `getType() == 0`（`Integer` **拆箱**）⇒ null 时 **NPE** ⇒ 500 `系统错误`。同上 | `findings/121` §4、§6.3 |
 
 ## C. 参考环境限制导致无法对拉（按代码实现 + 标注证据来源）
 

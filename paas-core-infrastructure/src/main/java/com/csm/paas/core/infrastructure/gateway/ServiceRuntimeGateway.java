@@ -405,6 +405,35 @@ public class ServiceRuntimeGateway {
         return replaced == null ? null : toSnapshot(replaced);
     }
 
+    /**
+     * 给 Deployment **第一个容器**设置/清空 readiness 与 liveness 探针，然后整份 merge-patch
+     * （厂商 `healthCheck:2658-2689`：读→改 container→`containers.set(0,…)`→整份 merge-patch）。
+     *
+     * @param patchReadiness false 表示"readiness 不动"；true 时用 {@code readiness}（**null = 清空**）
+     * @return false = Deployment 不存在；容器列表为空时抛 `IndexOutOfBoundsException`（照抄厂商）
+     */
+    public boolean patchDeploymentProbes(String namespace, String name,
+                                         boolean patchReadiness, io.fabric8.kubernetes.api.model.Probe readiness,
+                                         boolean patchLiveness, io.fabric8.kubernetes.api.model.Probe liveness) {
+        var d = kubernetesClient.apps().deployments().inNamespace(namespace).withName(name).get();
+        if (d == null) {
+            return false;
+        }
+        // 厂商直接 get(0)，没有判空 ⇒ 容器为空时抛 IndexOutOfBounds（照抄）
+        var container = d.getSpec().getTemplate().getSpec().getContainers().get(0);
+        if (patchReadiness) {
+            container.setReadinessProbe(readiness);
+        }
+        if (patchLiveness) {
+            container.setLivenessProbe(liveness);
+        }
+        d.getSpec().getTemplate().getSpec().getContainers().set(0, container);
+        kubernetesClient.apps().deployments().inNamespace(namespace).withName(name)
+                .patch(io.fabric8.kubernetes.client.dsl.base.PatchContext.of(
+                        io.fabric8.kubernetes.client.dsl.base.PatchType.JSON_MERGE), Serialization.asJson(d));
+        return true;
+    }
+
     /** 该命名空间**所有** Service 已占用的 nodePort（厂商 `getNodePortUsed()`）。 */
     public List<Integer> listUsedNodePorts(String namespace) {
         List<Integer> used = new java.util.ArrayList<>();

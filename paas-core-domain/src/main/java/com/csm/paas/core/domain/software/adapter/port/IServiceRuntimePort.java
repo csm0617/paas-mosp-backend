@@ -129,4 +129,18 @@ public interface IServiceRuntimePort {
             String namespace, String serviceName,
             java.util.List<com.csm.paas.core.domain.software.model.valobj.WorkloadVolumeVO> volumes,
             java.util.List<com.csm.paas.core.domain.software.model.valobj.VolumeMountVO> volumeMounts);
+
+    // ---------- healthCheck（厂商 PUT /v1/service/healthCheck）----------
+
+    /**
+     * 给 Deployment **第一个容器**设置/清空 readiness 与 liveness 探针，然后整份 merge-patch
+     * （厂商 `healthCheck:2658-2689` + `patchReadiness/patchLiveness`）。
+     *
+     * <p>`type`：0 = 清空该探针；1 = HTTPGet（`scheme` 写死 `"HTTP"`）；2 = TCPSocket；其它值不动。
+     * 传 null 表示"该探针不动"。
+     * <p>容器列表为空时会抛 `IndexOutOfBoundsException`（厂商也没兜，走 500 系统错误）。
+     */
+    void patchDeploymentProbes(String namespace, String serviceName,
+                               com.csm.paas.core.domain.software.model.valobj.HealthCheckVO.HealthSetVO readiness,
+                               com.csm.paas.core.domain.software.model.valobj.HealthCheckVO.HealthSetVO liveness);
 }

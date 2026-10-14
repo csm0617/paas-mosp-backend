@@ -186,6 +186,65 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
     }
 
     @Override
+    public void patchDeploymentProbes(String namespace, String serviceName,
+                                      com.csm.paas.core.domain.software.model.valobj.HealthCheckVO.HealthSetVO readiness,
+                                      com.csm.paas.core.domain.software.model.valobj.HealthCheckVO.HealthSetVO liveness) {
+        ProbePatch r = toProbePatch(readiness);
+        ProbePatch l = toProbePatch(liveness);
+        try {
+            if (!serviceRuntimeGateway.patchDeploymentProbes(namespace, serviceName,
+                    r.changed(), r.probe(), l.changed(), l.probe())) {
+                throw new com.csm.paas.core.types.exception.K8sApiException(
+                        "deployment " + serviceName + " not found");
+            }
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    /** 一个探针的"改不改 + 改成什么"（`null` probe 表示清空）。 */
+    private record ProbePatch(boolean changed, io.fabric8.kubernetes.api.model.Probe probe) {
+    }
+
+    /**
+     * 厂商 `patchReadiness/patchLiveness` 的同一套规则：`type` 0=清空、1=HTTPGet（scheme 写死 HTTP）、
+     * 2=TCPSocket、**其它值不动**。
+     * <p>厂商写的是 `getType() == 0`（`Integer` 拆箱）⇒ `type` 为 null 时 NPE；我们按"不动"处理
+     * （`deviations.md` B16）。
+     */
+    private static ProbePatch toProbePatch(
+            com.csm.paas.core.domain.software.model.valobj.HealthCheckVO.HealthSetVO set) {
+        if (set == null || set.getType() == null) {
+            return new ProbePatch(false, null);
+        }
+        if (set.getType() == 0) {
+            return new ProbePatch(true, null);
+        }
+        if (set.getType() != 1 && set.getType() != 2) {
+            return new ProbePatch(false, null);
+        }
+        var builder = new io.fabric8.kubernetes.api.model.ProbeBuilder()
+                .withInitialDelaySeconds(set.getInitialDelaySeconds())
+                .withTimeoutSeconds(set.getTimeoutSeconds())
+                .withPeriodSeconds(set.getPeriodSeconds())
+                .withSuccessThreshold(set.getSuccessThreshold())
+                .withFailureThreshold(set.getFailureThreshold());
+        if (set.getType() == 1) {
+            builder.withNewHttpGet()
+                    .withPath(set.getPath())
+                    .withPort(new io.fabric8.kubernetes.api.model.IntOrString(set.getPort()))
+                    // 厂商把 scheme 写死成 "HTTP"
+                    .withScheme("HTTP")
+                    .endHttpGet();
+        } else {
+            builder.withNewTcpSocket()
+                    .withPort(new io.fabric8.kubernetes.api.model.IntOrString(set.getPort()))
+                    .endTcpSocket();
+        }
+        return new ProbePatch(true, builder.build());
+    }
+
+    @Override
     public List<Integer> listUsedNodePorts(String namespace) {
         return serviceRuntimeGateway.listUsedNodePorts(namespace);
     }

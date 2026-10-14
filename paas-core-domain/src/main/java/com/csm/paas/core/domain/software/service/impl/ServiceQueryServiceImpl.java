@@ -507,6 +507,33 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
         }
     }
 
+    /**
+     * 设置/清空健康检查探针（厂商 `healthCheck:2658-2689`，规格见 `docs/findings/121`）。
+     */
+    @Override
+    public boolean updateHealthCheck(String namespace,
+                                     com.csm.paas.core.domain.software.model.valobj.HealthCheckVO form) {
+        String serviceName = form == null ? null : form.getName();
+        // 厂商：读不到 Deployment ⇒ 400 `service.not.found.update.image.version`（**带服务名**）
+        if (!serviceRuntimePort.deploymentExists(namespace, serviceName)) {
+            throw new com.csm.paas.core.types.exception.WrongArgumentException(
+                    "service.not.found.update.image.version", serviceName);
+        }
+        try {
+            // 探针的"改不改/改成什么"由 infrastructure 翻译（type 0=清空 1=HTTPGet 2=TCPSocket 其它=不动）
+            serviceRuntimePort.patchDeploymentProbes(namespace, serviceName,
+                    form == null ? null : form.getReadiness(),
+                    form == null ? null : form.getLiveness());
+            return true;
+        } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+            log.error("调用API失败: {}", e.getMessage());
+            throw new com.csm.paas.core.types.exception.WrongArgumentException(
+                    "k8s.call.api.failed.to.change.image.version");
+        }
+        // 注意：容器列表为空时端口抛的是 IndexOutOfBoundsException，**厂商也没兜** ⇒ 让它冒到全局
+        // 兜底处理（500 `系统错误`/`code=-1`），所以这里**不**catch Exception。
+    }
+
     /** 厂商 `getStringRandom(length)`：每位 `SecureRandom.nextInt(2)%2==0` 取 `a-z`，否则取 `0-9`。 */
     private static String randomString(int length) {
         java.security.SecureRandom random = new java.security.SecureRandom();
