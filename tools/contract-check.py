@@ -112,7 +112,12 @@ def main():
         vf, vv = resolve(vendor, p)
         mf, mv = resolve(mine, p)
         mode = item.get('mode', 'value')
-        if mode == 'container':
+        if mode == 'volatile':
+            # 易变字段（时间戳等）：只比"两侧都有且同类型"，不比具体值。
+            # 否则样本一陈旧就误报（见 findings/94：/v1/user/info 的 createdAt/updatedAt）。
+            ok = mf and mv and type(mv) is type(vv)
+            detail = f'易变字段：只比存在与类型（{type(mv).__name__}）' if ok else '缺失或类型不同'
+        elif mode == 'container':
             # 容器型：只要求存在且类型一致（内容差异归 L3）
             ok = mf and (type(mv) is type(vv))
             detail = f'存在且类型一致（{type(mv).__name__}）' if ok else '缺失或类型不同'

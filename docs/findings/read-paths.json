@@ -1,529 +1,531 @@
 {
-  "_note": "前端实际读取的字段路径清单（契约门槛的 L2 判定依据）。evidence 指向抽取方法与出处。",
-  "_criterion": "判定标准见 docs/adr/0006-contract-semantic-equivalence.md：L1 形状 / L2 前端读取路径不绿=缺陷；L3 已知偏离=记录在案；任何偏离一旦被证明前端可见即升级为缺陷。",
-  "GET /v1/service": {
-    "itemContainer": "data.services",
-    "evidence": "docs/findings/09-frontend-read-paths.md",
-    "readPaths": [
-      {
-        "path": "data.services",
-        "note": "表格 dataSource（p__ServiceManage）",
-        "mode": "container"
-      },
-      {
-        "path": "data.total",
-        "note": "分页"
-      },
-      {
-        "path": "data.count",
-        "note": "分页"
-      },
-      {
-        "path": "data.services[].deployment.metadata.name",
-        "note": "行 key / 选中服务（×11）"
-      },
-      {
-        "path": "data.services[].deployment.metadata.namespace",
-        "note": "命名空间列"
-      },
-      {
-        "path": "data.services[].restartCount",
-        "note": "重启次数列（`|| 0`，null 无差别）",
-        "allowDeviation": true,
-        "deviationReason": "厂商部分项为 0、部分为 null（走的是 Prometheus/Pod 富化路径 ServiceController.java:1846-1872，本环境数据不全）；前端 `a.restartCount || 0` → 两者显示等价",
-        "deviationKind": "display-equivalent"
-      },
-      {
-        "path": "data.services[].serviceAuth.auth",
-        "note": "认证状态列；serviceAuth 为 null 会直接显示'认证失败'"
-      },
-      {
-        "path": "data.services[].mappingInfo",
-        "note": "映射面板",
-        "allowDeviation": true,
-        "deviationReason": "重写版**恒返回三键对象**（更完整、且修掉厂商对部分服务返回 null 的隐患）；厂商本环境 9 项里 4 项为 null",
-        "deviationKind": "at-least-as-complete"
-      },
-      {
-        "path": "data.services[].nameFr",
-        "note": "多语言名称"
-      },
-      {
-        "path": "data.services[].nameUs",
-        "note": "多语言名称"
-      },
-      {
-        "path": "data.services[].nodePortService",
-        "note": "5328 chunk 使用"
-      },
-      {
-        "path": "data.services[].podInfoList",
-        "note": "主机服务视图"
-      },
-      {
-        "path": "data.services[].belongNodeList",
-        "note": "主机服务视图"
-      }
-    ],
-    "knownDeviations": [
-      {
-        "path": "data.runningDeployment",
-        "reason": "厂商运行态为 0（规则应为 5，原因未定论）；该键在整个前端产物里出现 0 次，不读",
-        "disposition": "记录在案"
-      },
-      {
-        "path": "data.services[].service.metadata.* 的显式 null 噪声",
-        "reason": "client-java 序列化噪声；前端不读",
-        "disposition": "记录在案"
-      },
-      {
-        "path": "data.services[].service 的自造键 proxy",
-        "reason": "厂商自造键，fabric8 模型没有；尚未在产物中检索到读路径",
-        "disposition": "未定论——按 ADR-0006 不得标为永久豁免：若证明前端读它，升级为 L1 缺陷"
-      },
-      {
-        "path": "data.services[].service.spec.clusterIPs 等 4 个新字段",
-        "reason": "fabric8/K8s 新字段，厂商模型没有；前端不读",
-        "disposition": "记录在案"
-      }
-    ]
-  },
-  "GET /v1/role": {
-    "itemContainer": "data.list",
-    "evidence": "docs/findings/09-frontend-read-paths.md（p__software 读 key×21/type×12/softwareList×4/createdAt×2/updatedAt×2；p__user__login__index 读 key×7）",
-    "readPaths": [
-      {
-        "path": "data.list",
-        "mode": "container"
-      },
-      {
-        "path": "data.total"
-      },
-      {
-        "path": "data.list[].key"
-      },
-      {
-        "path": "data.list[].type"
-      },
-      {
-        "path": "data.list[].createdAt"
-      },
-      {
-        "path": "data.list[].updatedAt"
-      },
-      {
-        "path": "data.list[].softwareList",
-        "mode": "container"
-      }
-    ],
-    "knownDeviations": [
-      {
-        "path": "data.list[].name / softwareList[].appName 的文本",
-        "reason": "厂商与重写版**字节一致**——库里的中文是播种期双重编码入库的（hex 实证 C3A8C2BF…），不是契约差异。修数据即可（见 docs/findings/11-own-seed-double-encoding.md）。"
-      },
-      {
-        "path": "data.list[].userList / subRoleList",
-        "reason": "厂商当前数据恒为 null，重写版同为 null；语义来源（在线会话/子战位）未实现，见工单 10/07。"
-      }
-    ]
-  },
-  "GET /v1/user": {
-    "itemContainer": null,
-    "evidence": "docs/findings/17-user-endpoint-returns-userlogined.md（`umG`→GET /v1/user→currentUser，canAdmin 需要 role.key）",
-    "readPaths": [
-      {
-        "path": "data.role.key",
-        "note": "前端 canAdmin/canDev 判定（function $T）"
-      },
-      {
-        "path": "data.id"
-      },
-      {
-        "path": "data.username"
-      },
-      {
-        "path": "data.nickname"
-      },
-      {
-        "path": "data.lastLoginRole"
-      },
-      {
-        "path": "data.avatar"
-      },
-      {
-        "path": "data.token"
-      }
-    ],
-    "knownDeviations": [
-      {
-        "path": "data.password",
-        "reason": "厂商**原样返回 BCrypt 口令摘要**（UserController.java:147 不置空；实测 runtime-samples/v1_user.json）；重写版返回 null。这是**刻意偏离**：不把口令哈希下发到浏览器。该键不在已声明的读取路径里。",
-        "disposition": "记录在案（安全向偏离；不接受\"为逐字节兼容而回吐哈希\"）"
-      },
-      {
-        "path": "data.roles / data.subRoles / data.settingList",
-        "reason": "厂商非 null（roles 是 Role 对象数组、subRoles 是 []、settingList 是设置项数组），重写版为 null。三键均不在已声明读取路径里；`settingList` 在整个前端产物出现 0 次。",
-        "disposition": "未定论——若证明前端读其中任一键，按 ADR-0006 升级为 L1/L2 缺陷"
-      },
-      {
-        "path": "data.style",
-        "reason": "厂商返回 \"508\"（StyleConfig 标题），重写版为 null。产物里 `style` 的 599 次出现全是 DOM `element.style.*`，未见读取该响应字段。",
-        "disposition": "未定论"
-      }
-    ]
-  },
-  "GET /v1/user/info": {
-    "itemContainer": "data.list",
-    "evidence": "docs/findings/25-k1-read-paths.md",
-    "readPaths": [
-      {
-        "path": "data.list",
-        "mode": "container",
-        "note": "用户管理表 dataSource（p__user__user-setting）"
-      },
-      {
-        "path": "data.total",
-        "note": "分页"
-      },
-      {
-        "path": "data.list[].id",
-        "note": "行 key / 编辑删除目标"
-      },
-      {
-        "path": "data.list[].username",
-        "note": "用户名列；admin 行特判"
-      },
-      {
-        "path": "data.list[].nickname",
-        "note": "昵称列 dataIndex=nickname"
-      },
-      {
-        "path": "data.list[].status",
-        "note": "启停开关 checked：`\"1\" === status.toString()`"
-      },
-      {
-        "path": "data.list[].updatedAt",
-        "note": "更新时间列，`updatedAt || createdAt`"
-      },
-      {
-        "path": "data.list[].createdAt",
-        "note": "同上的兜底"
-      },
-      {
-        "path": "data.list[].desc",
-        "note": "描述列 dataIndex=desc"
-      },
-      {
-        "path": "data.list[].roles",
-        "note": "关联战位列 dataIndex=roles（字符串数组；`includes(\"admin\")`）"
-      },
-      {
-        "path": "data.list[].subRoles",
-        "note": "关联子角色列 dataIndex=subRoles；空数组会显示 NONE_RELATE_ROLE"
-      },
-      {
-        "path": "data.list[].belongUsers",
-        "note": "关联角色列 dataIndex=belongUsers；`includes(\"运维管理员\")`——厂商字段名错位，值必须是 g_role.type=2 的名字"
-      }
-    ],
-    "knownDeviations": [
-      {
-        "path": "data.list[].lastLoginRole",
-        "reason": "该页 chunk 出现 0 次，不读",
-        "disposition": "记录在案"
-      }
-    ]
-  },
-  "GET /v1/sub_role/switchRole": {
-    "itemContainer": "data.list",
-    "evidence": "docs/findings/25-k1-read-paths.md（p__user__user-setting：下拉项 `s.map(e => <Option value={e.id} key={e.id}>{e.name}</Option>)` 与 `o.includes(e.name)` 过滤）",
-    "readPaths": [
-      {
-        "path": "data.list",
-        "mode": "container",
-        "note": "子角色下拉/抽屉的数据源（页面先拉它，再拉用户列表）"
-      },
-      {
-        "path": "data.total",
-        "note": "分页"
-      },
-      {
-        "path": "data.list[].id",
-        "note": "下拉 value/key；抽屉里按 id 过滤用户已有子角色"
-      },
-      {
-        "path": "data.list[].name",
-        "note": "下拉显示文案；`o.includes(e.name)` 用它匹配用户已关联的子角色名"
-      }
-    ],
-    "knownDeviations": [
-      {
-        "path": "data.list[].key / nameFr / nameUs / desc / updatedAt / createdAt",
-        "reason": "该页未读（下拉只用 id 与 name）；仍按厂商形状返回",
-        "disposition": "记录在案"
-      },
-      {
-        "path": "data.list[].userList / roleList",
-        "reason": "厂商列表接口恒返回数组（实测样本）；该页未读这两键——注意与\"新增子角色\"接口返回的 null 不同",
-        "disposition": "记录在案"
-      }
-    ]
-  },
-  "GET /v1/role/list": {
-    "itemContainer": "data.list",
-    "evidence": "docs/findings/25-k1-read-paths.md（p__role.61a39591 逐条核对）",
-    "readPaths": [
-      {
-        "path": "data.list",
-        "mode": "container",
-        "note": "战位表格 dataSource（p__role）"
-      },
-      {
-        "path": "data.total",
-        "note": "分页"
-      },
-      {
-        "path": "data.list[].key",
-        "note": "dataIndex=key；`\"admin\" === n.key` 客户端比较"
-      },
-      {
-        "path": "data.list[].name",
-        "note": "dataIndex=name"
-      },
-      {
-        "path": "data.list[].desc",
-        "note": "dataIndex=desc"
-      },
-      {
-        "path": "data.list[].updatedAt",
-        "note": "dataIndex=updatedAt"
-      },
-      {
-        "path": "data.list[].type",
-        "note": "战位/角色分栏"
-      },
-      {
-        "path": "data.list[].nameFr",
-        "note": "表单回填 nameFr"
-      },
-      {
-        "path": "data.list[].nameUs",
-        "note": "表单回填 nameUs"
-      },
-      {
-        "path": "data.list[].softwareList",
-        "mode": "container",
-        "note": "dataIndex=softwareList"
-      },
-      {
-        "path": "data.list[].userList",
-        "mode": "container",
-        "note": "dataIndex=username（关联用户）"
-      },
-      {
-        "path": "data.list[].subRoleList",
-        "mode": "container",
-        "note": "dataIndex=subRoleList"
-      },
-      {
-        "path": "data.list[].onLineUserList",
-        "mode": "container",
-        "note": "dataIndex=onLineUserList（1 次）"
-      }
-    ],
-    "knownDeviations": [
-      {
-        "path": "data.list[].adminOrDev / admin / dev",
-        "reason": "该页 chunk 出现 0 次——页面自己拿 `key` 比字面量，不读这三个布尔",
-        "disposition": "记录在案"
-      }
-    ]
-  },
-  "GET /v1/role/switchRole": {
-    "itemContainer": "data.list",
-    "evidence": "docs/findings/25-k1-read-paths.md（p__role.61a39591 逐条核对）",
-    "readPaths": [
-      {
-        "path": "data.list",
-        "mode": "container",
-        "note": "战位表格 dataSource（p__role）"
-      },
-      {
-        "path": "data.total",
-        "note": "分页"
-      },
-      {
-        "path": "data.list[].key",
-        "note": "dataIndex=key；`\"admin\" === n.key` 客户端比较"
-      },
-      {
-        "path": "data.list[].name",
-        "note": "dataIndex=name"
-      },
-      {
-        "path": "data.list[].desc",
-        "note": "dataIndex=desc"
-      },
-      {
-        "path": "data.list[].updatedAt",
-        "note": "dataIndex=updatedAt"
-      },
-      {
-        "path": "data.list[].type",
-        "note": "战位/角色分栏"
-      },
-      {
-        "path": "data.list[].nameFr",
-        "note": "表单回填 nameFr"
-      },
-      {
-        "path": "data.list[].nameUs",
-        "note": "表单回填 nameUs"
-      },
-      {
-        "path": "data.list[].softwareList",
-        "mode": "container",
-        "note": "dataIndex=softwareList"
-      },
-      {
-        "path": "data.list[].userList",
-        "mode": "container",
-        "note": "dataIndex=username（关联用户）"
-      },
-      {
-        "path": "data.list[].subRoleList",
-        "mode": "container",
-        "note": "dataIndex=subRoleList"
-      },
-      {
-        "path": "data.list[].onLineUserList",
-        "mode": "container",
-        "note": "dataIndex=onLineUserList（1 次）"
-      }
-    ],
-    "knownDeviations": [
-      {
-        "path": "data.list[].subRoleList 的多元素顺序",
-        "reason": "厂商 `getSubRoleListByRoleId` 用 HashSet 去重，**顺序不确定**；重写版按关联行顺序返回，多元素时无法逐字节对齐（本环境为空）",
-        "disposition": "未定论"
-      },
-      {
-        "path": "data.list[].onLineUserList 的来源",
-        "reason": "来自 Redis `login-list*` 扫描，与\"当前谁登录着\"耦合；A/B 对照时两侧必须同一时刻同一会话集合，否则会误判成差异",
-        "disposition": "记录在案"
-      }
-    ]
-  },
-  "GET /v1/role/{id}": {
-    "itemContainer": null,
-    "evidence": "docs/findings/25-k1-read-paths.md（p__role 编辑抽屉回填 key/name/nameFr/nameUs/desc/type）",
-    "readPaths": [
-      {
-        "path": "data.key",
-        "note": "编辑抽屉回填；保留字校验用"
-      },
-      {
-        "path": "data.name",
-        "note": "编辑抽屉回填"
-      },
-      {
-        "path": "data.nameFr",
-        "note": "厂商兜底为 name"
-      },
-      {
-        "path": "data.nameUs",
-        "note": "厂商兜底为 name"
-      },
-      {
-        "path": "data.desc",
-        "note": "编辑抽屉回填"
-      },
-      {
-        "path": "data.type",
-        "note": "战位/角色"
-      }
-    ],
-    "knownDeviations": [
-      {
-        "path": "data.onLineUserList / softwareList / userList / subRoleList",
-        "reason": "厂商该端点**四个集合全为 null**（实测样本），与 switchRole 相反；重写版同为 null",
-        "disposition": "记录在案"
-      }
-    ]
-  },
-  "GET /v1/software": {
-    "itemContainer": "data.softwareList",
-    "evidence": "p__software.3edb99c9.async.js 逐条检索（dataIndex + 字面量计数）；样本 runtime-samples/v1_software_probe.json",
-    "readPaths": [
-      {
-        "path": "data.softwareList",
-        "mode": "container",
-        "note": "软件表格 dataSource"
-      },
-      {
-        "path": "data.total",
-        "note": "分页"
-      },
-      {
-        "path": "data.softwareList[].id",
-        "note": "行 key / 操作目标"
-      },
-      {
-        "path": "data.softwareList[].key",
-        "note": "dataIndex=key；唯一标识"
-      },
-      {
-        "path": "data.softwareList[].name",
-        "note": "dataIndex=name"
-      },
-      {
-        "path": "data.softwareList[].desc",
-        "note": "dataIndex=desc"
-      },
-      {
-        "path": "data.softwareList[].updatedAt",
-        "note": "dataIndex=updatedAt"
-      },
-      {
-        "path": "data.softwareList[].version",
-        "note": "版本（6 次出现）"
-      },
-      {
-        "path": "data.softwareList[].framework",
-        "note": "框架（20 次出现）"
-      },
-      {
-        "path": "data.softwareList[].orderTop",
-        "note": "dataIndex=orderTop"
-      },
-      {
-        "path": "data.softwareList[].icon",
-        "note": "图标（32 次出现）"
-      },
-      {
-        "path": "data.softwareList[].releaseStatus",
-        "note": "发布态（2 次出现）"
-      },
-      {
-        "path": "data.softwareList[].web",
-        "note": "web 入口状态（11 次出现）"
-      },
-      {
-        "path": "data.softwareList[].url",
-        "note": "入口地址（37 次出现）"
-      },
-      {
-        "path": "data.softwareList[].roleList",
-        "mode": "container",
-        "note": "dataIndex=roleList"
-      }
-    ],
-    "knownDeviations": [
-      {
-        "path": "data.softwareList[].appName / screenshot / activeCode / remoteIp / remoteName / remotePassword / location / execName",
-        "reason": "该页 chunk 出现 0 次（未读）；仍按厂商形状返回。注意 CS 类型软件的 url 里**含 remoteName/remotePassword**，那是厂商把远端口令拼进 URL 的设计",
-        "disposition": "记录在案"
-      }
-    ]
-  }
+ "_note": "前端实际读取的字段路径清单（契约门槛的 L2 判定依据）。evidence 指向抽取方法与出处。",
+ "_criterion": "判定标准见 docs/adr/0006-contract-semantic-equivalence.md：L1 形状 / L2 前端读取路径不绿=缺陷；L3 已知偏离=记录在案；任何偏离一旦被证明前端可见即升级为缺陷。",
+ "GET /v1/service": {
+  "itemContainer": "data.services",
+  "evidence": "docs/findings/09-frontend-read-paths.md",
+  "readPaths": [
+   {
+    "path": "data.services",
+    "note": "表格 dataSource（p__ServiceManage）",
+    "mode": "container"
+   },
+   {
+    "path": "data.total",
+    "note": "分页"
+   },
+   {
+    "path": "data.count",
+    "note": "分页"
+   },
+   {
+    "path": "data.services[].deployment.metadata.name",
+    "note": "行 key / 选中服务（×11）"
+   },
+   {
+    "path": "data.services[].deployment.metadata.namespace",
+    "note": "命名空间列"
+   },
+   {
+    "path": "data.services[].restartCount",
+    "note": "重启次数列（`|| 0`，null 无差别）",
+    "allowDeviation": true,
+    "deviationReason": "厂商部分项为 0、部分为 null（走的是 Prometheus/Pod 富化路径 ServiceController.java:1846-1872，本环境数据不全）；前端 `a.restartCount || 0` → 两者显示等价",
+    "deviationKind": "display-equivalent"
+   },
+   {
+    "path": "data.services[].serviceAuth.auth",
+    "note": "认证状态列；serviceAuth 为 null 会直接显示'认证失败'"
+   },
+   {
+    "path": "data.services[].mappingInfo",
+    "note": "映射面板",
+    "allowDeviation": true,
+    "deviationReason": "重写版**恒返回三键对象**（更完整、且修掉厂商对部分服务返回 null 的隐患）；厂商本环境 9 项里 4 项为 null",
+    "deviationKind": "at-least-as-complete"
+   },
+   {
+    "path": "data.services[].nameFr",
+    "note": "多语言名称"
+   },
+   {
+    "path": "data.services[].nameUs",
+    "note": "多语言名称"
+   },
+   {
+    "path": "data.services[].nodePortService",
+    "note": "5328 chunk 使用"
+   },
+   {
+    "path": "data.services[].podInfoList",
+    "note": "主机服务视图"
+   },
+   {
+    "path": "data.services[].belongNodeList",
+    "note": "主机服务视图"
+   }
+  ],
+  "knownDeviations": [
+   {
+    "path": "data.runningDeployment",
+    "reason": "厂商运行态为 0（规则应为 5，原因未定论）；该键在整个前端产物里出现 0 次，不读",
+    "disposition": "记录在案"
+   },
+   {
+    "path": "data.services[].service.metadata.* 的显式 null 噪声",
+    "reason": "client-java 序列化噪声；前端不读",
+    "disposition": "记录在案"
+   },
+   {
+    "path": "data.services[].service 的自造键 proxy",
+    "reason": "厂商自造键，fabric8 模型没有；尚未在产物中检索到读路径",
+    "disposition": "未定论——按 ADR-0006 不得标为永久豁免：若证明前端读它，升级为 L1 缺陷"
+   },
+   {
+    "path": "data.services[].service.spec.clusterIPs 等 4 个新字段",
+    "reason": "fabric8/K8s 新字段，厂商模型没有；前端不读",
+    "disposition": "记录在案"
+   }
+  ]
+ },
+ "GET /v1/role": {
+  "itemContainer": "data.list",
+  "evidence": "docs/findings/09-frontend-read-paths.md（p__software 读 key×21/type×12/softwareList×4/createdAt×2/updatedAt×2；p__user__login__index 读 key×7）",
+  "readPaths": [
+   {
+    "path": "data.list",
+    "mode": "container"
+   },
+   {
+    "path": "data.total"
+   },
+   {
+    "path": "data.list[].key"
+   },
+   {
+    "path": "data.list[].type"
+   },
+   {
+    "path": "data.list[].createdAt"
+   },
+   {
+    "path": "data.list[].updatedAt"
+   },
+   {
+    "path": "data.list[].softwareList",
+    "mode": "container"
+   }
+  ],
+  "knownDeviations": [
+   {
+    "path": "data.list[].name / softwareList[].appName 的文本",
+    "reason": "厂商与重写版**字节一致**——库里的中文是播种期双重编码入库的（hex 实证 C3A8C2BF…），不是契约差异。修数据即可（见 docs/findings/11-own-seed-double-encoding.md）。"
+   },
+   {
+    "path": "data.list[].userList / subRoleList",
+    "reason": "厂商当前数据恒为 null，重写版同为 null；语义来源（在线会话/子战位）未实现，见工单 10/07。"
+   }
+  ]
+ },
+ "GET /v1/user": {
+  "itemContainer": null,
+  "evidence": "docs/findings/17-user-endpoint-returns-userlogined.md（`umG`→GET /v1/user→currentUser，canAdmin 需要 role.key）",
+  "readPaths": [
+   {
+    "path": "data.role.key",
+    "note": "前端 canAdmin/canDev 判定（function $T）"
+   },
+   {
+    "path": "data.id"
+   },
+   {
+    "path": "data.username"
+   },
+   {
+    "path": "data.nickname"
+   },
+   {
+    "path": "data.lastLoginRole"
+   },
+   {
+    "path": "data.avatar"
+   },
+   {
+    "path": "data.token"
+   }
+  ],
+  "knownDeviations": [
+   {
+    "path": "data.password",
+    "reason": "厂商**原样返回 BCrypt 口令摘要**（UserController.java:147 不置空；实测 runtime-samples/v1_user.json）；重写版返回 null。这是**刻意偏离**：不把口令哈希下发到浏览器。该键不在已声明的读取路径里。",
+    "disposition": "记录在案（安全向偏离；不接受\"为逐字节兼容而回吐哈希\"）"
+   },
+   {
+    "path": "data.roles / data.subRoles / data.settingList",
+    "reason": "厂商非 null（roles 是 Role 对象数组、subRoles 是 []、settingList 是设置项数组），重写版为 null。三键均不在已声明读取路径里；`settingList` 在整个前端产物出现 0 次。",
+    "disposition": "未定论——若证明前端读其中任一键，按 ADR-0006 升级为 L1/L2 缺陷"
+   },
+   {
+    "path": "data.style",
+    "reason": "厂商返回 \"508\"（StyleConfig 标题），重写版为 null。产物里 `style` 的 599 次出现全是 DOM `element.style.*`，未见读取该响应字段。",
+    "disposition": "未定论"
+   }
+  ]
+ },
+ "GET /v1/user/info": {
+  "itemContainer": "data.list",
+  "evidence": "docs/findings/25-k1-read-paths.md",
+  "readPaths": [
+   {
+    "path": "data.list",
+    "mode": "container",
+    "note": "用户管理表 dataSource（p__user__user-setting）"
+   },
+   {
+    "path": "data.total",
+    "note": "分页"
+   },
+   {
+    "path": "data.list[].id",
+    "note": "行 key / 编辑删除目标"
+   },
+   {
+    "path": "data.list[].username",
+    "note": "用户名列；admin 行特判"
+   },
+   {
+    "path": "data.list[].nickname",
+    "note": "昵称列 dataIndex=nickname"
+   },
+   {
+    "path": "data.list[].status",
+    "note": "启停开关 checked：`\"1\" === status.toString()`"
+   },
+   {
+    "path": "data.list[].updatedAt",
+    "note": "更新时间列，`updatedAt || createdAt` —— **易变字段**：时间戳随数据变动，只比\"两侧都有且同类型\"（否则样本一陈旧就误报，见 findings/94）",
+    "mode": "volatile"
+   },
+   {
+    "path": "data.list[].createdAt",
+    "note": "同上的兜底 —— **易变字段**：时间戳随数据变动，只比\"两侧都有且同类型\"（否则样本一陈旧就误报，见 findings/94）",
+    "mode": "volatile"
+   },
+   {
+    "path": "data.list[].desc",
+    "note": "描述列 dataIndex=desc"
+   },
+   {
+    "path": "data.list[].roles",
+    "note": "关联战位列 dataIndex=roles（字符串数组；`includes(\"admin\")`）"
+   },
+   {
+    "path": "data.list[].subRoles",
+    "note": "关联子角色列 dataIndex=subRoles；空数组会显示 NONE_RELATE_ROLE"
+   },
+   {
+    "path": "data.list[].belongUsers",
+    "note": "关联角色列 dataIndex=belongUsers；`includes(\"运维管理员\")`——厂商字段名错位，值必须是 g_role.type=2 的名字"
+   }
+  ],
+  "knownDeviations": [
+   {
+    "path": "data.list[].lastLoginRole",
+    "reason": "该页 chunk 出现 0 次，不读",
+    "disposition": "记录在案"
+   }
+  ]
+ },
+ "GET /v1/sub_role/switchRole": {
+  "itemContainer": "data.list",
+  "evidence": "docs/findings/25-k1-read-paths.md（p__user__user-setting：下拉项 `s.map(e => <Option value={e.id} key={e.id}>{e.name}</Option>)` 与 `o.includes(e.name)` 过滤）",
+  "readPaths": [
+   {
+    "path": "data.list",
+    "mode": "container",
+    "note": "子角色下拉/抽屉的数据源（页面先拉它，再拉用户列表）"
+   },
+   {
+    "path": "data.total",
+    "note": "分页"
+   },
+   {
+    "path": "data.list[].id",
+    "note": "下拉 value/key；抽屉里按 id 过滤用户已有子角色"
+   },
+   {
+    "path": "data.list[].name",
+    "note": "下拉显示文案；`o.includes(e.name)` 用它匹配用户已关联的子角色名"
+   }
+  ],
+  "knownDeviations": [
+   {
+    "path": "data.list[].key / nameFr / nameUs / desc / updatedAt / createdAt",
+    "reason": "该页未读（下拉只用 id 与 name）；仍按厂商形状返回",
+    "disposition": "记录在案"
+   },
+   {
+    "path": "data.list[].userList / roleList",
+    "reason": "厂商列表接口恒返回数组（实测样本）；该页未读这两键——注意与\"新增子角色\"接口返回的 null 不同",
+    "disposition": "记录在案"
+   }
+  ]
+ },
+ "GET /v1/role/list": {
+  "itemContainer": "data.list",
+  "evidence": "docs/findings/25-k1-read-paths.md（p__role.61a39591 逐条核对）",
+  "readPaths": [
+   {
+    "path": "data.list",
+    "mode": "container",
+    "note": "战位表格 dataSource（p__role）"
+   },
+   {
+    "path": "data.total",
+    "note": "分页"
+   },
+   {
+    "path": "data.list[].key",
+    "note": "dataIndex=key；`\"admin\" === n.key` 客户端比较"
+   },
+   {
+    "path": "data.list[].name",
+    "note": "dataIndex=name"
+   },
+   {
+    "path": "data.list[].desc",
+    "note": "dataIndex=desc"
+   },
+   {
+    "path": "data.list[].updatedAt",
+    "note": "dataIndex=updatedAt"
+   },
+   {
+    "path": "data.list[].type",
+    "note": "战位/角色分栏"
+   },
+   {
+    "path": "data.list[].nameFr",
+    "note": "表单回填 nameFr"
+   },
+   {
+    "path": "data.list[].nameUs",
+    "note": "表单回填 nameUs"
+   },
+   {
+    "path": "data.list[].softwareList",
+    "mode": "container",
+    "note": "dataIndex=softwareList"
+   },
+   {
+    "path": "data.list[].userList",
+    "mode": "container",
+    "note": "dataIndex=username（关联用户）"
+   },
+   {
+    "path": "data.list[].subRoleList",
+    "mode": "container",
+    "note": "dataIndex=subRoleList"
+   },
+   {
+    "path": "data.list[].onLineUserList",
+    "mode": "container",
+    "note": "dataIndex=onLineUserList（1 次）"
+   }
+  ],
+  "knownDeviations": [
+   {
+    "path": "data.list[].adminOrDev / admin / dev",
+    "reason": "该页 chunk 出现 0 次——页面自己拿 `key` 比字面量，不读这三个布尔",
+    "disposition": "记录在案"
+   }
+  ]
+ },
+ "GET /v1/role/switchRole": {
+  "itemContainer": "data.list",
+  "evidence": "docs/findings/25-k1-read-paths.md（p__role.61a39591 逐条核对）",
+  "readPaths": [
+   {
+    "path": "data.list",
+    "mode": "container",
+    "note": "战位表格 dataSource（p__role）"
+   },
+   {
+    "path": "data.total",
+    "note": "分页"
+   },
+   {
+    "path": "data.list[].key",
+    "note": "dataIndex=key；`\"admin\" === n.key` 客户端比较"
+   },
+   {
+    "path": "data.list[].name",
+    "note": "dataIndex=name"
+   },
+   {
+    "path": "data.list[].desc",
+    "note": "dataIndex=desc"
+   },
+   {
+    "path": "data.list[].updatedAt",
+    "note": "dataIndex=updatedAt"
+   },
+   {
+    "path": "data.list[].type",
+    "note": "战位/角色分栏"
+   },
+   {
+    "path": "data.list[].nameFr",
+    "note": "表单回填 nameFr"
+   },
+   {
+    "path": "data.list[].nameUs",
+    "note": "表单回填 nameUs"
+   },
+   {
+    "path": "data.list[].softwareList",
+    "mode": "container",
+    "note": "dataIndex=softwareList"
+   },
+   {
+    "path": "data.list[].userList",
+    "mode": "container",
+    "note": "dataIndex=username（关联用户）"
+   },
+   {
+    "path": "data.list[].subRoleList",
+    "mode": "container",
+    "note": "dataIndex=subRoleList"
+   },
+   {
+    "path": "data.list[].onLineUserList",
+    "mode": "container",
+    "note": "dataIndex=onLineUserList（1 次）"
+   }
+  ],
+  "knownDeviations": [
+   {
+    "path": "data.list[].subRoleList 的多元素顺序",
+    "reason": "厂商 `getSubRoleListByRoleId` 用 HashSet 去重，**顺序不确定**；重写版按关联行顺序返回，多元素时无法逐字节对齐（本环境为空）",
+    "disposition": "未定论"
+   },
+   {
+    "path": "data.list[].onLineUserList 的来源",
+    "reason": "来自 Redis `login-list*` 扫描，与\"当前谁登录着\"耦合；A/B 对照时两侧必须同一时刻同一会话集合，否则会误判成差异",
+    "disposition": "记录在案"
+   }
+  ]
+ },
+ "GET /v1/role/{id}": {
+  "itemContainer": null,
+  "evidence": "docs/findings/25-k1-read-paths.md（p__role 编辑抽屉回填 key/name/nameFr/nameUs/desc/type）",
+  "readPaths": [
+   {
+    "path": "data.key",
+    "note": "编辑抽屉回填；保留字校验用"
+   },
+   {
+    "path": "data.name",
+    "note": "编辑抽屉回填"
+   },
+   {
+    "path": "data.nameFr",
+    "note": "厂商兜底为 name"
+   },
+   {
+    "path": "data.nameUs",
+    "note": "厂商兜底为 name"
+   },
+   {
+    "path": "data.desc",
+    "note": "编辑抽屉回填"
+   },
+   {
+    "path": "data.type",
+    "note": "战位/角色"
+   }
+  ],
+  "knownDeviations": [
+   {
+    "path": "data.onLineUserList / softwareList / userList / subRoleList",
+    "reason": "厂商该端点**四个集合全为 null**（实测样本），与 switchRole 相反；重写版同为 null",
+    "disposition": "记录在案"
+   }
+  ]
+ },
+ "GET /v1/software": {
+  "itemContainer": "data.softwareList",
+  "evidence": "p__software.3edb99c9.async.js 逐条检索（dataIndex + 字面量计数）；样本 runtime-samples/v1_software_probe.json",
+  "readPaths": [
+   {
+    "path": "data.softwareList",
+    "mode": "container",
+    "note": "软件表格 dataSource"
+   },
+   {
+    "path": "data.total",
+    "note": "分页"
+   },
+   {
+    "path": "data.softwareList[].id",
+    "note": "行 key / 操作目标"
+   },
+   {
+    "path": "data.softwareList[].key",
+    "note": "dataIndex=key；唯一标识"
+   },
+   {
+    "path": "data.softwareList[].name",
+    "note": "dataIndex=name"
+   },
+   {
+    "path": "data.softwareList[].desc",
+    "note": "dataIndex=desc"
+   },
+   {
+    "path": "data.softwareList[].updatedAt",
+    "note": "dataIndex=updatedAt"
+   },
+   {
+    "path": "data.softwareList[].version",
+    "note": "版本（6 次出现）"
+   },
+   {
+    "path": "data.softwareList[].framework",
+    "note": "框架（20 次出现）"
+   },
+   {
+    "path": "data.softwareList[].orderTop",
+    "note": "dataIndex=orderTop"
+   },
+   {
+    "path": "data.softwareList[].icon",
+    "note": "图标（32 次出现）"
+   },
+   {
+    "path": "data.softwareList[].releaseStatus",
+    "note": "发布态（2 次出现）"
+   },
+   {
+    "path": "data.softwareList[].web",
+    "note": "web 入口状态（11 次出现）"
+   },
+   {
+    "path": "data.softwareList[].url",
+    "note": "入口地址（37 次出现）"
+   },
+   {
+    "path": "data.softwareList[].roleList",
+    "mode": "container",
+    "note": "dataIndex=roleList"
+   }
+  ],
+  "knownDeviations": [
+   {
+    "path": "data.softwareList[].appName / screenshot / activeCode / remoteIp / remoteName / remotePassword / location / execName",
+    "reason": "该页 chunk 出现 0 次（未读）；仍按厂商形状返回。注意 CS 类型软件的 url 里**含 remoteName/remotePassword**，那是厂商把远端口令拼进 URL 的设计",
+    "disposition": "记录在案"
+   }
+  ]
+ }
 }
