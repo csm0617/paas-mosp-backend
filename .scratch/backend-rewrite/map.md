@@ -321,6 +321,11 @@ Label: `wayfinder:map`
 - 当前：46 端点映射、38 测试类 **236 条全绿**、81 提交、63 篇 findings。
 - 下一步优先序：服务切片同模式推进 → K2 跨域（`/auth` 列表可对拉；CS 上传/导入导出需先定边界）→ K3 侧效应 → 把"不可验证项"整理成对外偏离清单。
 
+- （**顺着 e2e 线索找到真实缺口**）[GET /v1/image/projectList](docs/findings/77-image-projectlist-divergence.md)：A/B 共享端点后定位到它——**vendor 返回 2 个 Harbor 项目（library/gaop），我们返回空列表（stub）**。其余共享端点（quickStart/mode/lang/settings/switchRole）全部相等。
+  - 线索链：HTML 大小差异 → 可见文本**完全相同**（否掉"多导航条目"的猜测）→ `data:image` 5 vs 15（导航图标）→ **前端调用的端点集合两侧完全相同** → 逐个 A/B → 命中 `projectList`。
+  - 实现路径：`K8sImageServiceImpl.projectList:107-119` = `harbor.allPageProjects` → 过滤 `system_containers`/`system_store` → 按 `creation_time` 倒序 → 分页。
+  - **重要更正**：`findings/52` 把 `imageStorage` 归为"依赖缺失的 Harbor 设施"，但本轮证明 **Harbor 是通的**（厂商从它读出了真实项目）⇒ **影像域应从 C 类挪出，变成可实现的域**（有真实对端、能对拉、前端可见）。
+  - 下一轮：找 Harbor 地址/凭据来源 → 实现 projectList（预期逐字节相同）→ 顺带做 imageStorage。
 - （**端到端复验**）[第 68 轮全栈复验](docs/findings/76-e2e-reverification-round68.md)：距上次 e2e 约 30 轮之后，用**厂商原样前端 + 我们的后端**重跑用户管理页——**表格内容与厂商逐字节相同**（表头 8 列、数据行 `1/admin/管理员/运维管理员门户/添加子角色/…`），前端调到的端点**全部 200**。
   - 两处差异：①WS 通道（我们走 SockJS xhr 回退、厂商走原生 WS，属 harness 代理方式，`findings/20` 已覆盖）。
   - ②HTML 长度（55KB vs 101KB）——**第 69 轮已查清，且上一版的"厂商多若干导航条目"是错的**：两页**可见文本都是 64 行且完全相同**（导航标签两边都在）；真正差异是 **`data:image` 内联图片 5 vs 15**——多的 10 个在**左侧导航项的图标**上（`CH_app_icon/CH_Img`），即**导航项在我们这边没有图标**；`<script>`/`<style>` 两侧完全相同。HTML 已归档。
