@@ -227,6 +227,25 @@ userMapper.updateByPrimaryKeySelective(update);             // 只写 g_user.ava
 ⇒ 实现时必须带上：**默认口令 "123456"**、**口令长度 < 6 跳过该行**、
 **`userConfig.getDefaultAvatar()`**（我们的配置里需要一个同名项）、以及 col4 的 **JSON 子角色列表**。
 
+### 第 118 轮补读：**角色关系的写入规则**（这是最后一块）
+
+`insertSelective(user)` 之后，按该行的 `roleKey` 写 `g_user_role`：
+
+```
+roleKey 为空 ⇒ 不写
+roleKey == "admin" 或 "dev" ⇒ **只**写这一条角色关系
+否则 ⇒ 写 "user" 这一条，**再加** col3（`importUserInfo.getUserToRole()`，JSON 列表）里的每个 key
+        —— 每个 key 都要在 `g_role` 里查得到（查不到就跳过）
+每条：{userId, roleId, createdAt = currentTime}
+```
+
+⇒ **`/import` 的规格至此完整**：入口守卫（非 Excel 400 / 空表 no-op）→ 逐行解析（col0/2/3/4/6/7）→
+跳过规则（空用户名、admin/root、已存在且不覆盖、口令 <6）→ 长度校验（[2,36]）→ 新用户插入
+（UUID/createdAt/默认头像/口令）→ **角色关系**（上表）→（子角色关系）→ 覆盖模式走 `existUpdateUser`。
+
+**实现时仍需确认的最后一小点**：子角色关系（col4 解析出的 `subRoles`）在哪一步写库——
+**下一轮实现前补读一次即可**（不影响主体结构）。
+
 **建议**：把它排在 K1 最后、单独一轮；**不要**与其它端点混做。验证至少覆盖：
 ① 空表 ⇒ 200 且**库无变化**；② 只含 admin 的行 ⇒ 同样无变化；③ 新用户行 ⇒ 插入；
 ④ 已存在用户 + `isCover=false` ⇒ 不变；⑤ `isCover=true` ⇒ 更新；⑥ 用户名长度越界 ⇒ 400。
