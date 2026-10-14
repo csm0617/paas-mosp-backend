@@ -44,6 +44,11 @@ import static org.mockito.Mockito.when;
  * `LicenceKey.parseMachineCode:19-38`、`stringToHashSetStream/hasIntersectionStream:551-565`。
  */
 class LicenceActivationVerifyTest {
+    private final com.csm.paas.core.domain.software.adapter.port.IServiceRuntimePort serviceRuntimePort =
+            org.mockito.Mockito.mock(com.csm.paas.core.domain.software.adapter.port.IServiceRuntimePort.class);
+    private final com.csm.paas.core.domain.licence.adapter.port.IGisLicenseStatusPort gisLicenseStatusPort =
+            org.mockito.Mockito.mock(com.csm.paas.core.domain.licence.adapter.port.IGisLicenseStatusPort.class);
+
 
     private static KeyPair keyPair;
     private static KeyPair otherKeyPair;
@@ -61,7 +66,7 @@ class LicenceActivationVerifyTest {
     }
 
     private LicenceQueryServiceImpl service() {
-        return new LicenceQueryServiceImpl(repository);
+        return new LicenceQueryServiceImpl(repository, serviceRuntimePort, gisLicenseStatusPort);
     }
 
     /** 机器码：`Base64(gaopCode,tenxCode)`，与厂商 `getMachineCodeBase64()` 同形。 */

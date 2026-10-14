@@ -20,6 +20,11 @@ import static org.mockito.Mockito.when;
  * 实测（2026-10-14）：两侧逐字节一致，见 `docs/findings/41` 的更正节。
  */
 class LicenceQueryServiceImplTest {
+    private final com.csm.paas.core.domain.software.adapter.port.IServiceRuntimePort serviceRuntimePort =
+            org.mockito.Mockito.mock(com.csm.paas.core.domain.software.adapter.port.IServiceRuntimePort.class);
+    private final com.csm.paas.core.domain.licence.adapter.port.IGisLicenseStatusPort gisLicenseStatusPort =
+            org.mockito.Mockito.mock(com.csm.paas.core.domain.licence.adapter.port.IGisLicenseStatusPort.class);
+
 
     private static final String RAW = "420DF971-09EC-BA4A-BE74-B4868EB29A53";
 
@@ -29,7 +34,7 @@ class LicenceQueryServiceImplTest {
     void machineCodeHasTrailingComma() {
         when(repository.rawMachineCode()).thenReturn(RAW);
 
-        String code = new LicenceQueryServiceImpl(repository).machineCode();
+        String code = new LicenceQueryServiceImpl(repository, serviceRuntimePort, gisLicenseStatusPort).machineCode();
 
         assertEquals(RAW + ",gaop,", new String(Base64.getDecoder().decode(code), StandardCharsets.US_ASCII));
     }
@@ -38,7 +43,7 @@ class LicenceQueryServiceImplTest {
     void softwareMachineCodeHasNoTrailingComma() {
         when(repository.rawMachineCode()).thenReturn(RAW);
 
-        String code = new LicenceQueryServiceImpl(repository).machineCodeForSoftware();
+        String code = new LicenceQueryServiceImpl(repository, serviceRuntimePort, gisLicenseStatusPort).machineCodeForSoftware();
 
         assertEquals(RAW + ",gaop", new String(Base64.getDecoder().decode(code), StandardCharsets.US_ASCII));
     }

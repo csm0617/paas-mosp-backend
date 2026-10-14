@@ -10,6 +10,7 @@ import com.csm.paas.core.domain.licence.service.ILicenceCommandService;
 import com.csm.paas.core.domain.licence.service.ILicenceQueryService;
 import jakarta.annotation.Resource;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -24,6 +25,20 @@ public class LicenceController {
 
     @Resource
     private ILicenceCommandService licenceCommandService;
+
+    @Value("${gaop.k8s.namespace:gaop-namespace}")
+    private String namespace;
+
+    /**
+     * 厂商 `GET /v1/licence/gisStatus`：GIS 授权状态（0 未授权 / 1 已授权 / 2 无法请求到接口）。
+     *
+     * <p>`gis.url` 的主机名当 Deployment 名读状态；读不到或状态不满足条件 ⇒ 2（不打 GIS 接口）。
+     * 规则见 `ILicenceQueryService.queryGisActiveStatus`（规格 `findings/152`）。
+     */
+    @GetMapping("/v1/licence/gisStatus")
+    public ResponseDTO<Integer> gisStatus() {
+        return ResponseDTO.ok(licenceQueryService.queryGisActiveStatus(namespace));
+    }
 
     /**
      * 厂商 `POST /v1/licence/updateFramework`：更新框架公私钥（body `{encryptInfo}`，AES 密文）。

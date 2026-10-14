@@ -47,6 +47,10 @@ gaop:
   auth:
     # 同一 (用户,战位) 的并发会话上限；厂商默认 1（单点登录）
     max-login: ${MAX_LOGIN:1}
+  gis:
+    # 厂商 `application.yml:121-122` 的默认值 `${GIS_URL:gis-server:8080}`；
+    # 主机名会被当作 **Deployment 名**去读运行状态（`GET /v1/licence/gisStatus`）
+    url: ${GIS_URL:gis-server:8080}
   gateway:
     # 通知网关刷新规则的目标（厂商 `gaop.gateway.*`）：本地 profile 默认 `gateway`、
     # k8s profile 默认 `gaop-gateway-auth`（`application-k8s.yml:38-40`）。这里取 k8s 那个值，

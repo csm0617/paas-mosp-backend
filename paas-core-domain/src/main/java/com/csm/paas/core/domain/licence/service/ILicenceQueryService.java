@@ -78,4 +78,19 @@ public interface ILicenceQueryService {
      */
     com.csm.paas.core.domain.licence.model.valobj.SoftwareActivationPayloadVO verifySoftwareActivationCode(
             String authToken);
+
+    /**
+     * GIS 授权状态（厂商 `GET /v1/licence/gisStatus` → `LicenceService.getGisActiveStatus:1151-1205`，
+     * 规格见 `docs/findings/152`）。
+     *
+     * <p>`gis.url` 的主机名当作 **Deployment 名**去读状态：
+     * <ul>
+     *   <li>读不到（或读到的是 StatefulSet）⇒ **2**；</li>
+     *   <li>读到了但 status 不满足两组"字段全非空"条件之一 ⇒ **2**（不打 GIS 接口）；</li>
+     *   <li>满足 ⇒ 请求 `<gis.url>/earthview/license/getLicenseStatus` 取 `EVServer`，
+     *       调用/解析失败 ⇒ **2**，成功 ⇒ 返回该值。</li>
+     * </ul>
+     * 0 = 未授权、1 = 已授权、2 = 无法请求到授权状态接口。
+     */
+    int queryGisActiveStatus(String namespace);
 }

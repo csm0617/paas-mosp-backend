@@ -43,7 +43,13 @@ public class LicenceQueryServiceImpl implements ILicenceQueryService {
     static final String TRIAL_PERIOD_KEY = "system.active.trial_period";
     static final long TRIAL_DAYS = 30L;
 
+    /** 厂商 `application.yml:121-122` 的默认值 `${GIS_URL:gis-server:8080}`。 */
+    @org.springframework.beans.factory.annotation.Value("${gaop.gis.url:${GIS_URL:gis-server:8080}}")
+    private String gisUrl;
+
     private final ILicenceRepository licenceRepository;
+    private final com.csm.paas.core.domain.software.adapter.port.IServiceRuntimePort serviceRuntimePort;
+    private final com.csm.paas.core.domain.licence.adapter.port.IGisLicenseStatusPort gisLicenseStatusPort;
 
     @Override
     public LicenceInfoEntity queryInfo() {
@@ -281,4 +287,46 @@ public class LicenceQueryServiceImpl implements ILicenceQueryService {
             throw new WrongArgumentException("auth.get.software.activate.public.key.failed");
         }
     }
+    @Override
+    public int queryGisActiveStatus(String namespace) {
+        String finalUrl = gisUrl;
+        if (!gisUrl.matches("^http[s]?://(.*)")) {
+            finalUrl = "http://" + gisUrl;
+        }
+        String gis = finalUrl.replace("http://", "").replace("https://", "");
+        // 厂商：只取冒号前的主机名（端口不要）
+        String gisName = gis.split(":")[0];
+        log.info("拿到gis的服务名称为:{}", gisName);
+        boolean existGisService = false;
+        // 厂商只读 **Deployment**；我们的 readWorkloadState 会回退 StatefulSet ⇒ 要求必须是 Deployment
+        var state = serviceRuntimePort.readWorkloadState(namespace, gisName);
+        if (state != null && state.isDeployment()) {
+            if (state.getAvailableReplicas() != null && state.getReadyReplicas() != null
+                    && state.getReplicas() != null && state.getUpdatedReplicas() != null) {
+                log.info("gis地图服务正常运行，进行请求地图机器码接口");
+                existGisService = true;
+            } else if (state.getReadyReplicas() != null && state.getReplicas() != null
+                    && state.getUpdatedReplicas() != null && state.getUnavailableReplicas() != null) {
+                log.info("gis地图服务正常运行，进行请求地图机器码接口");
+                existGisService = true;
+            } else {
+                log.info("gis地图服务未正常运行，不进行请求地图机器码接口");
+            }
+        } else {
+            log.info("未找到gis地图的服务存在");
+        }
+        if (existGisService) {
+            try {
+                Integer active = gisLicenseStatusPort.queryEvServer(finalUrl);
+                if (active != null) {
+                    log.info("当前GIS地图授权状态为:{}，（1为授权可用，0为授权不可用）", active);
+                    return active;
+                }
+            } catch (Exception e) {
+                log.error("调用Gis地图获取授权状态出现异常，异常为：{}", e.toString());
+            }
+        }
+        return 2;
+    }
+
 }
