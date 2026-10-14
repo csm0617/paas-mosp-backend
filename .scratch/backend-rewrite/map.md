@@ -401,7 +401,7 @@ Label: `wayfinder:map`
   - 关键：**返回布尔**（`Response.ok(v1Service != null)`），A 分支"推导不出端口"时**返回 null ⇒ `data:false`**（静默失败）；`name` 公式 `<protocol>-<name>-<i>` **小写**；两分支错误消息不同（A 分支带服务名的中文 `SystemException`）。
   - 同族的 `POST /{serviceName}/nodePort` 只读到头部，**未逐行读完**，实现时不要把两者混为一谈。
 - （**契约比对复跑**）[findings/94](docs/findings/94-contract-check-rerun.md)：9 条已记录读路径跑 `tools/contract-check.py` ⇒ **7 条 0 失败**（service/role/sub_role/role-list/software 全绿）。
-  - **真差异**：`GET /v1/user` 的 `data.token`——厂商 **null**、我们填了会话 token（厂商只在 `login` 里 `setToken`）。⇒ 下一轮把 `/v1/user` 的 token 置 null（`LoginAssembler` 需区分登录与当前用户两条路径），改完重跑应当 0 失败。
+  - **真差异（B11，已修）**：`GET /v1/user` 的 `data.token`——厂商 **null**、我们填了会话 token（厂商只在 `login` 里 `setToken`）。⇒ [findings/95](docs/findings/95-user-token-fixed.md)：`AuthServiceImpl.currentLogin`（**只被 `/v1/user` 使用**）去掉 `.token(token)`，契约比对 **L1+L2 全部通过（❌=0）**；并**先验证登录响应仍带 token、Set-Cookie 一致**，确认没把相邻正确行为改坏。
   - **工具性问题**：`/v1/user/info` 的 `createdAt/updatedAt` 差异是**样本陈旧**（期间 admin 行被探针改过）⇒ 比对前要么重抓样本、要么显式排除时间类字段。
 - （**已实现**）[GET /v1/user/access_permission](docs/findings/93-access-permission-implemented.md)：**六组用例对拉完全相等**（含 `/whatever` → true：厂商正则里 `[tenx]*`/`[gaop]*`/`[v1]*` 是**字符类**、可匹配 0 次，照抄才一致；改成 `(a|b)` 写法就会不一致）。
   - 无 Cookie：厂商 **500（NPE）**、我们 400 `user.not.logged.in.or.expired`（厂商本意）⇒ B 类偏离。

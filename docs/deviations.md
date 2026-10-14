@@ -45,7 +45,7 @@
 | # | 端点/能力 | 缺什么 | 我们的证据来源 |
 | --- | --- | --- | --- |
 | C1 | `GET /v1/service/{serviceName}` | 厂商自身 500（A1） | `/v1/service` 列表项的 `ServicesItem` 形状（**已对拉**） |
-| B11 | `GET /v1/user` 的 `data.token` | 厂商返回 **null**（只在 `login` 里 `setToken`）；我们填了会话 token | 待修：`/v1/user` 应置 null（`LoginAssembler` 区分登录与当前用户两条路径） | `findings/94` |
+| B11 | `GET /v1/user` 的 `data.token` | 厂商返回 **null**（只在 `login` 里 `setToken`）；我们填了会话 token | **已修**（`findings/95`）：`currentLogin` 不再设 token；契约比对 **L1+L2 全部通过**，且登录响应仍带 token（已验证未被误伤） | `findings/95` |
 | B10 | `GET /v1/user/access_permission` 无 Cookie 时 | 厂商 **NPE → 500 系统错误**（判空写在 `new UserLoginInfo()` 之后，永远不成立）；其**本意**是抛 `user.not.logged.in.or.expired` | 我们实现其本意：400 `user.not.logged.in.or.expired` | `findings/93` |
 | B9 | `GET /v1/role/software` 无 Cookie 时 | 厂商抛 `UnauthorizedException`（401），我们返回 `{list:[],total:0}` | 影响低（前端总带 Cookie），但按"任何输入都一致"的门槛**应当改**；下次动 K1 时处理 | `findings/91` |
 | C2c | 影像域 `repositories`/`tags`/`existRepositories`/`allProjectImageList` | 数据源是 **Docker Registry API**（`dockerRegistryApiService.getImageListByProject`）；参考环境不可达 | 未实现（依赖地图见 `findings/81`） | `findings/81` |

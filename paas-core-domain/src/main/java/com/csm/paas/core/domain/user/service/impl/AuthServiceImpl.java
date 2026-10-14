@@ -105,7 +105,9 @@ public class AuthServiceImpl implements IAuthService {
                             .uuid(user.getUuid()).desc(user.getDesc()).avatar(user.getAvatar())
                             .build())
                     .role(role)
-                    .token(token)
+                    // **不设 token**：厂商 `GET /v1/user`（当前登录用户）走的是另一条构造路径，
+                    // 实测 `data.token` 为 **null**（只有 `login` 会 `setToken`，见 UserService.loginedUser）。
+                    // 见 findings/94 的 B11。
                     .build());
         });
     }
