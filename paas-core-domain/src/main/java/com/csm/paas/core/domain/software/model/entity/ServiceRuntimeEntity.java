@@ -54,6 +54,12 @@ public class ServiceRuntimeEntity {
      * `PUT /v1/service/updateName` 改的也是这个注解。
      */
     private String serviceLabel;
+
+    /**
+     * 注解 `gaop/serviceType`（= 「前台服务」/「后台服务」），厂商 `GET /v1/service/serviceAuth`
+     * 在"该服务没有授权记录"时用它决定要不要保留（`ServiceController:3522-3555`）。
+     */
+    private String serviceType;
     private Map<String, Object> serviceSnapshot;
     private Map<String, Object> deploymentSnapshot;
 }

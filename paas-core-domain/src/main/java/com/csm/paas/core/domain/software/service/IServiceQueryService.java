@@ -33,4 +33,21 @@ public interface IServiceQueryService {
      * <p>`keyword` 长度 &gt; 45 → `service.invalid.service.name.length`（HTTP 400），由调用方（控制器）先判。
      */
     ServiceListEntity queryGaopServiceList(String namespace, int page, int size, Integer type, String keyword);
+
+    /**
+     * 授权视图的服务列表（厂商 `GET /v1/service/serviceAuth`，`ServiceController:3478-3560`）。
+     *
+     * <p>三段过滤（详见 `docs/findings/59`）：
+     * <ol>
+     *   <li>保留 `system/appName` **既不是 `gaop` 也不是 `gis-server`** 的服务
+     *       —— 注意与 `queryGaopServiceList` 的 `appName == "gaop"` **正好互补**；</li>
+     *   <li>keyword 两段式（与 gaop 同款：名字 contains → 否则 `gaop/serviceLabel` contains）；</li>
+     *   <li>`authType` 非空时按授权状态过滤（有授权行按 `auth` 命中；无授权行按三条分支）。</li>
+     * </ol>
+     *
+     * @param authType   逗号分隔的授权状态列表（0未授权 1已授权 2已过期 3授权中 4授权失败）；空=不过滤
+     * @param serviceType 厂商签名里的 `serviceType` 参数，**在过滤链里未被使用**（照抄：它只出现在入参上）
+     */
+    ServiceListEntity queryServiceAuthList(String namespace, int page, int size, String keyword,
+                                          String authType, String serviceType);
 }

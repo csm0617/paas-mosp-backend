@@ -69,6 +69,26 @@ public class ServiceController {
         return ResponseDTO.ok(ServiceListAssembler.toResponse(entity));
     }
 
+    /**
+     * 厂商 `GET /v1/service/serviceAuth`：授权视图的服务列表。
+     * <p>三段过滤见 `IServiceQueryService.queryServiceAuthList`；`keyword > 45` → 400。
+     * <p><b>注意</b>：本环境 `system/appName` 标签缺失 ⇒ 基础过滤全保留 ⇒ 不传 `authType` 时应为 9 条。
+     */
+    @GetMapping("/v1/service/serviceAuth")
+    public ResponseDTO<com.csm.paas.core.api.dto.ServiceListResponseDTO> serviceAuthList(
+            @org.springframework.web.bind.annotation.RequestParam(required = false, defaultValue = "1") Integer page,
+            @org.springframework.web.bind.annotation.RequestParam(required = false, defaultValue = "20") Integer size,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String keyword,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String authType,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String serviceType) {
+        if (keyword != null && keyword.length() > 45) {
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("service.invalid.service.name.length");
+        }
+        return ResponseDTO.ok(ServiceListAssembler.toResponse(serviceQueryService.queryServiceAuthList(
+                namespace, PageUtils.normalizePage(page), PageUtils.normalizeSize(size),
+                keyword, authType, serviceType)));
+    }
+
     @GetMapping("/v1/service/labels")
     public ResponseDTO<java.util.List<com.csm.paas.core.api.dto.LabelListDTO>> labels() {
         var merged = serviceQueryService.queryNodeLabels();

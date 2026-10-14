@@ -118,7 +118,7 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
      * （厂商 `filterServiceName` 用它做 keyword 兜底匹配；`updateName` 改的也是它）。
      */
     @SuppressWarnings("unchecked")
-    private static String serviceLabelOf(Map<String, Object> workloadSnapshot) {
+    private static String annotationOf(Map<String, Object> workloadSnapshot, String annotationKey) {
         if (workloadSnapshot == null) {
             return null;
         }
@@ -138,8 +138,8 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
         if (!(annotations instanceof Map)) {
             return null;   // 厂商：annotations 为 null → false
         }
-        Object label = ((Map<String, Object>) annotations).get("gaop/serviceLabel");
-        return label == null ? null : String.valueOf(label);
+        Object value = ((Map<String, Object>) annotations).get(annotationKey);
+        return value == null ? null : String.valueOf(value);
     }
 
     /** 从 workload 快照里取容器镜像（厂商 `imageInfo`）。 */
@@ -204,7 +204,8 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
                 .serviceSnapshot(svc != null ? serviceRuntimeGateway.toSnapshot(svc) : null)
                 .appType(labelOf(workloadSnapshot, "system/appType"))
                 .appName(labelOf(workloadSnapshot, "system/appName"))
-                .serviceLabel(serviceLabelOf(workloadSnapshot))
+                .serviceLabel(annotationOf(workloadSnapshot, "gaop/serviceLabel"))
+                .serviceType(annotationOf(workloadSnapshot, "gaop/serviceType"))
                 .deploymentSnapshot(workloadSnapshot)
                 .build();
     }

@@ -264,6 +264,9 @@ Label: `wayfinder:map`
     - 分页 + 装配与 `GET /v1/service` **完全同一套**（Pod 列表 + `serviceAuth` 富化）⇒ 形状复用已对拉的 `ServiceListResponseDTO`。
     - **下一轮最容易验证的点**：不带 `authType` 时本环境应为 **9 条**，可拿到**非空对拉**。
     - 实现清单 5 步已列全（实体加 `serviceType`、授权仓按名批量查、域服务方法、控制器、四种情形对拉）。
+  - **`serviceAuth` 已实现且四种情形对拉全部一致**（[findings/60](docs/findings/60-service-auth-endpoint.md)）：无 authType=9/9、authType=0 9/9、**authType=1 0/0**、authType=0,1 9/9、keyword>45 400。**三条授权分支各自都被验证到**，不是"恰好都是 9"。
+    - 服务切片进度 **5/33**。易错点已避开：`gaop` 要 `appName=="gaop"`，`serviceAuth` 要 `appName!="gaop"&&!="gis-server"`（**互补**）。
+    - 插曲：首次探测"无 authType"那条我方空响应，重跑（先验 health）后一致——是探测脚本抢跑，不是实现问题；**对拉前要先确认被测服务就绪**。
   - 下一轮程序：搬常量 → 实现 filter（type=2 照抄缺陷）→ keyword 两段式（兜底 `filterServiceName` 需先补读）→ 复用已对拉的 `ServiceList` 形状 → 对拉 type=1/type=2/带 keyword/keyword>45 四种情形。：我此前逐轮报的「162/174」是**数错了**（grep 只匹配到部分模块的汇总行，且 surefire 报告目录混有旧文件）。按模块汇总行精确求和：**33 个测试类、210 条用例全绿**。教训与「手抄不透明值」「只验形状不验值」同源——**计数也是要验证的量**，必须用可复算的命令。
 
 - （K3 预研结论）`LicenceInfo.expired(code)` = `{end:-1, endIso8601:null, code, expired:true}`，其中 `code = 机器码 + Base64(软件key)`；**"没有激活码"这一支不需要密码学**，可以在做 `GET /v1/software/{id}` 时一并实现（本轮没写，因为详情端点没做就没有调用方，写了是死代码）。

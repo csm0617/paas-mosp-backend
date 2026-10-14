@@ -95,6 +95,65 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
     }
 
     @Override
+    public ServiceListEntity queryServiceAuthList(String namespace, int page, int size, String keyword,
+                                                 String authType, String serviceType) {
+        // ① 基础过滤：appName 既不是 gaop 也不是 gis-server（与 gaop 端点互补！）
+        List<ServiceRuntimeEntity> all = serviceRuntimePort.queryServices(namespace).stream()
+                .filter(s -> !"gis-server".equals(s.getAppName()) && !"gaop".equals(s.getAppName()))
+                .collect(Collectors.toList());
+
+        // ② keyword 两段式（与 gaop 同款）
+        if (keyword != null) {
+            List<ServiceRuntimeEntity> byName = all.stream()
+                    .filter(s -> s.getName() != null && s.getName().contains(keyword))
+                    .collect(Collectors.toList());
+            all = byName.isEmpty()
+                    ? all.stream().filter(s -> filterServiceName(keyword, s)).collect(Collectors.toList())
+                    : byName;
+        }
+
+        // ③ authType 过滤（仅在传了 authType 时执行）
+        if (authType != null && !authType.isBlank() && !all.isEmpty()) {
+            List<Integer> typeList = java.util.Arrays.stream(authType.split(","))
+                    .map(String::trim).filter(v -> !v.isEmpty()).map(Integer::valueOf).toList();
+            Map<String, ServiceAuthEntity> authByName = serviceAuthRepository.queryAll().stream()
+                    .collect(Collectors.toMap(ServiceAuthEntity::getServiceId, Function.identity(), (a, b) -> a));
+            all = all.stream().filter(s -> keepByAuthType(s, typeList, authByName.get(s.getName())))
+                    .collect(Collectors.toList());
+        }
+
+        // ④ 分页 + 装配（与 /v1/service 同一套形状）
+        int total = all.size();
+        int from = Math.max(0, com.csm.paas.core.types.util.PageUtils.offset(page, size));
+        int to = Math.min(total, from + size);
+        List<ServiceRuntimeEntity> pageItems = from >= total ? List.of() : all.subList(from, to);
+        int running = (int) pageItems.stream().filter(s -> s.getReplicas() != null && s.getReplicas() > 0).count();
+        return ServiceListEntity.builder()
+                .runningDeployment(running).total(total).count(pageItems.size()).services(pageItems).build();
+    }
+
+    /**
+     * 厂商 `ServiceController:3524-3555` 的授权状态过滤（逐行照抄，第 2 条按等价式化简）。
+     *
+     * @param auth 该服务在 `g_service_auth` 里的记录，可能为 null
+     */
+    private static boolean keepByAuthType(ServiceRuntimeEntity s, List<Integer> typeList, ServiceAuthEntity auth) {
+        if (auth != null) {
+            return auth.getAuth() != null && typeList.contains(auth.getAuth());
+        }
+        String serviceTypeName = s.getServiceType();
+        if (typeList.size() > 1 && typeList.contains(0) && typeList.contains(1)) {
+            return true;
+        }
+        if (typeList.size() == 1 && typeList.contains(0)) {
+            // 厂商原式：serviceTypeName == null || length != 1 || !"前台服务".equals(serviceTypeName)
+            // 本分支下 length == 1 恒真 ⇒ 化简为下面这句
+            return serviceTypeName == null || !"前台服务".equals(serviceTypeName);
+        }
+        return typeList.contains(1) && "前台服务".equals(serviceTypeName);
+    }
+
+    @Override
     public Map<String, List<String>> queryNodeLabels() {
         return serviceRuntimePort.queryNodeLabels();
     }
