@@ -51,6 +51,8 @@
 | B24 | `sub_role/update`：① id 不存在 ⇒ **400 `sub.role.storage.not.found`**；② `userList` 为 null 按空列表处理 | ① 厂商先调 `getSuRoleById(id)`，而它是 `selectOne(...).orElse(null)).getKey()` ⇒ id 不存在时 **NPE ⇒ 500**，导致后面那句"不存在就抛 400"**永远不可达**；② `userList.addAll(null)` ⇒ **NPE ⇒ 500**。两者都在正常业务路径上 | `findings/148` §4 |
 | B23 | `config_map/relationService`：**省略**厂商开头那次"列 Node 取 master ip"的调用（该 ip 只用于日志） | 厂商在列 Node 失败时**提前返回空列表**——即一个与响应无关的调用失败会丢弃正确的关联结果。判断为不值得照抄 | `findings/143` §4 |
 | B22 | `existConfigmap`：`key` 为 null/空时返回 `false`（**不实现**厂商那个"检查全部软件"的分支） | 厂商写的是 `key != null \|\| key.size() != 0` ⇒ null 时 **NPE ⇒ 500**，且该写法让"不带 key"分支**永不可达**（死代码）；实现它等于替厂商发明一个走不到的行为 | `findings/133` §3 |
+| B25 | `DELETE /v1/role/{roleId}/{userId}` 的 userId 不存在 ⇒ **400 `user.id.not.found`** | 厂商 `userMapper.selectByPrimaryKey(userId).get()` ⇒ `NoSuchElementException` ⇒ **500**（与 B24① 同类：厂商的"查不到"分支写成了未捕获异常） | `findings/156` §5 |
+| B26 | 同一端点上把 `root` 用户从战位移除 ⇒ **正常删关联** | 厂商 `getUserLoginStatusList:1360` 先 `filter(u -> !"root".equals(username))`，再把用户名列表逐个判存在 ⇒ `root` 得到**空列表** ⇒ `userStatusInfos.get(0)` 抛 `IndexOutOfBoundsException` ⇒ **500**。即厂商"不允许删 root 关联"是靠崩而不是靠校验 | `findings/156` §5 |
 
 ## C. 参考环境限制导致无法对拉（按代码实现 + 标注证据来源）
 

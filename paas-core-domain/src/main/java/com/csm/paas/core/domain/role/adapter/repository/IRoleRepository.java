@@ -101,6 +101,28 @@ public interface IRoleRepository {
     /** 用给定用户 id 列表**替换**该战位的用户关联（厂商 `usersRelateRole`）。 */
     void replaceUserRelationsByRoleId(String roleId, List<String> userIds);
 
+    /**
+     * 该战位下的**全量用户实体**（厂商 `UserService.userRolesByRoleId:1353-1362`）。
+     * <p>与 {@link #queryUsersByRoleId} 不同：这里返回的是完整 `User`（含 `password` 等 14 列），
+     * 且**不过滤 `root`、不排序、不分页**——`POST /v1/role/{roleId}/users` 的 `data.list` 用它。
+     */
+    List<com.csm.paas.core.domain.user.model.entity.UserEntity> queryFullUsersByRoleId(String roleId);
+
+    /** 删单条"用户-战位"关联（厂商 `UserService.deleteUserInRole:1391`）。 */
+    void deleteUserRoleRelation(String roleId, String userId);
+
+    /** 删单条"战位-软件"关联（厂商 `RoleService.roleRemoveApp:733`）。 */
+    void deleteSoftwareRelation(String roleId, String appId);
+
     /** 用给定子角色 id 列表**替换**该战位的子角色关联（厂商 `subRolesRelateRole`）。 */
     void replaceSubRoleRelationsByRoleId(String roleId, List<String> subRoleIds);
+
+    /**
+     * 同上，但**额外把每个被关联子角色的 `created_at` 覆盖成 now**——厂商两个入口行为不同：
+     * `POST /v1/role/{roleId}/suRoles` 走 `SubRoleServiceImpl.roleRelateSubRoles:401-424`
+     * （`subRoles.setCreatedAt(now); subRoleMapper.updateByPrimaryKey(subRoles)`），
+     * 而 `POST /v1/role` 走的 `RoleService.subRolesRelateRole:610-623` **没有**这段。
+     * 两个都要照抄，见 `docs/findings/156`。
+     */
+    void replaceSubRoleRelationsTouchingCreatedAt(String roleId, List<String> subRoleIds);
 }

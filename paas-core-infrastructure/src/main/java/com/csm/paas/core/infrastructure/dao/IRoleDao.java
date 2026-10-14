@@ -137,6 +137,14 @@ public interface IRoleDao {
     @Delete("DELETE FROM g_role WHERE id = #{roleId}")
     int deleteById(@Param("roleId") String roleId);
 
+    /** 删单条"用户-战位"关联（厂商 `UserService.deleteUserInRole:1391` 的 `delete`）。 */
+    @Delete("DELETE FROM g_user_role WHERE role_id = #{roleId} AND user_id = #{userId}")
+    int deleteUserRoleByRoleIdAndUserId(@Param("roleId") String roleId, @Param("userId") String userId);
+
+    /** 删单条"战位-软件"关联（厂商 `RoleService.roleRemoveApp:733` 的 `delete`）。 */
+    @Delete("DELETE FROM g_role_software WHERE role_id = #{roleId} AND app_id = #{appId}")
+    int deleteRoleSoftwareByRoleIdAndAppId(@Param("roleId") String roleId, @Param("appId") String appId);
+
     /**
      * 战位下的软件（厂商 `RoleService.roleSoftwareList:418`：`where role_id = ? order by \`order\``）。
      * <p>**按 `order` 升序**——这一点在库里没有数据时看不出来，容易漏。

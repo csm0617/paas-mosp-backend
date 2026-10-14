@@ -1,9 +1,14 @@
 package com.csm.paas.core.domain.role.service.impl;
 
+import com.csm.paas.core.domain.role.adapter.repository.IRoleOnlineUserRepository;
 import com.csm.paas.core.domain.role.adapter.repository.IRoleRepository;
 import com.csm.paas.core.domain.role.model.entity.RoleEntity;
+import com.csm.paas.core.domain.role.model.entity.RoleUsersEntity;
 import com.csm.paas.core.domain.role.model.valobj.RoleFormVO;
 import com.csm.paas.core.domain.role.service.IRoleCommandService;
+import com.csm.paas.core.domain.subrole.adapter.repository.ISubRoleRepository;
+import com.csm.paas.core.domain.subrole.model.entity.SubRoleEntity;
+import com.csm.paas.core.domain.user.adapter.repository.IUserRepository;
 import com.csm.paas.core.types.exception.WrongArgumentException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,8 +28,12 @@ public class RoleCommandServiceImpl implements IRoleCommandService {
 
     private static final String ADMIN_KEY = "admin";
     private static final String DEV_KEY = "dev";
+    private static final String ADMIN_USERNAME = "admin";
 
     private final IRoleRepository roleRepository;
+    private final IUserRepository userRepository;
+    private final ISubRoleRepository subRoleRepository;
+    private final IRoleOnlineUserRepository onlineUserRepository;
 
     @Override
     public List<RoleEntity> validateDeletable(List<String> ids) {
@@ -119,5 +128,74 @@ public class RoleCommandServiceImpl implements IRoleCommandService {
                 .createdAt(existing.getCreatedAt())
                 .updatedAt(System.currentTimeMillis())
                 .build();
+    }
+
+    // ---------- 关联写（四个端点，规则见 IRoleCommandService 的文档）----------
+
+    @Override
+    public RoleUsersEntity relateUsers(String roleId, List<String> userIds) {
+        RoleEntity role = roleRepository.queryById(roleId)
+                .orElseThrow(() -> new WrongArgumentException("role.storage.not.found"));
+        List<String> ids = userIds == null ? new ArrayList<>() : new ArrayList<>(userIds);
+        if (ADMIN_KEY.equals(role.getKey())) {
+            // 厂商：admin 战位强制带上 admin 用户（UserService.usersRelateRole:774-776）
+            userRepository.queryByUsername(ADMIN_USERNAME).ifPresent(u -> ids.add(u.getId()));
+        }
+        roleRepository.replaceUserRelationsByRoleId(roleId, ids);
+        log.info("战位 {} 关联用户 {} 个", roleId, ids.size());
+        return roleUsers(roleId, role);
+    }
+
+    @Override
+    public RoleEntity relateSubRoles(String roleId, List<String> subRoleIds) {
+        roleRepository.queryById(roleId)
+                .orElseThrow(() -> new WrongArgumentException("role.storage.not.found"));
+        List<String> existing = subRoleIds == null ? List.of()
+                : subRoleRepository.queryByIds(new ArrayList<>(new java.util.LinkedHashSet<>(subRoleIds)))
+                .stream().map(SubRoleEntity::getId).toList();
+        // 注意用**带 created_at 覆盖**的那个重载：厂商这条路径走 roleRelateSubRoles
+        roleRepository.replaceSubRoleRelationsTouchingCreatedAt(roleId, existing);
+        log.info("战位 {} 关联子角色 {} 个", roleId, existing.size());
+        return roleWithSubRoles(roleId);
+    }
+
+    @Override
+    public RoleUsersEntity removeUserFromRole(String roleId, String userId) {
+        RoleEntity role = roleRepository.queryById(roleId)
+                .orElseThrow(() -> new WrongArgumentException("role.storage.not.found"));
+        // 厂商这里是 `userMapper.selectByPrimaryKey(userId).get()`（查不到抛 NoSuchElementException ⇒ 500）
+        var user = userRepository.queryById(userId)
+                .orElseThrow(() -> new WrongArgumentException("user.id.not.found"));
+        if (ADMIN_USERNAME.equals(user.getUsername()) && ADMIN_KEY.equals(role.getKey())) {
+            throw new WrongArgumentException("user.cannot.remove.ofc.admin");
+        }
+        onlineUserRepository.evictSessionIfOnline(user.getUsername(), role.getKey());
+        roleRepository.deleteUserRoleRelation(roleId, userId);
+        log.info("已把用户 {} 从战位 {} 移除", userId, roleId);
+        return roleUsers(roleId, role);
+    }
+
+    @Override
+    public void removeAppFromRole(String roleId, String appId) {
+        roleRepository.queryById(roleId)
+                .orElseThrow(() -> new WrongArgumentException("role.storage.not.found"));
+        roleRepository.deleteSoftwareRelation(roleId, appId);
+        log.info("战位 {} 解除关联软件 {}", roleId, appId);
+    }
+
+    /** 重新查 `RoleUsers`：战位标量（重查一次，与厂商 `userRolesByRoleId` 一致）+ 全量用户。 */
+    private RoleUsersEntity roleUsers(String roleId, RoleEntity fallback) {
+        return RoleUsersEntity.builder()
+                .role(roleRepository.queryById(roleId).orElse(fallback))
+                .list(roleRepository.queryFullUsersByRoleId(roleId))
+                .build();
+    }
+
+    /** 重新查"战位 + 子角色列表"（厂商 `SubRoleServiceImpl.subRolesByRoleId:426-434`）。 */
+    private RoleEntity roleWithSubRoles(String roleId) {
+        RoleEntity role = roleRepository.queryById(roleId)
+                .orElseThrow(() -> new WrongArgumentException("role.storage.not.found"));
+        role.setSubRoleList(subRoleRepository.queryByIds(roleRepository.querySubRoleIdsByRoleId(roleId)));
+        return role;
     }
 }

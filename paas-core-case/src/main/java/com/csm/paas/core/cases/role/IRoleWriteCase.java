@@ -27,4 +27,20 @@ public interface IRoleWriteCase {
      * （厂商 `RoleService.editRole`，`:692-705` 只做 selective update；关系由别的端点管）。
      */
     RoleEntity editRole(String id, RoleFormVO form);
+
+    // ---------- 关联写（四个端点，规则在领域层 IRoleCommandService）----------
+
+    /** `POST /v1/role/{roleId}/users`：替换式关联（先删光再插），返回战位 + 全量用户。 */
+    com.csm.paas.core.domain.role.model.entity.RoleUsersEntity relateUsers(
+            String roleId, java.util.List<String> userIds);
+
+    /** `POST /v1/role/{roleId}/suRoles`：替换式关联子角色，返回战位 + `subRoleList`。 */
+    RoleEntity relateSubRoles(String roleId, java.util.List<String> subRoleIds);
+
+    /** `DELETE /v1/role/{roleId}/{userId}`：删单条用户关联（含在线会话踢除）。 */
+    com.csm.paas.core.domain.role.model.entity.RoleUsersEntity removeUserFromRole(
+            String roleId, String userId);
+
+    /** `DELETE /v1/role/{roleId}/app/{appId}`：删单条软件关联，并推 `/topic/software`。 */
+    void removeAppFromRole(String roleId, String appId);
 }

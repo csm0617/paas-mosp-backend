@@ -22,6 +22,7 @@ import java.util.List;
 public class RoleOnlineUserRepository implements IRoleOnlineUserRepository {
 
     private static final String LOGIN_LIST_PREFIX = "login-list";
+    private static final String GATEWAY_TOKEN_PREFIX = "gateway-token";
 
     private final RedisSessionService redisSessionService;
 
@@ -37,5 +38,29 @@ public class RoleOnlineUserRepository implements IRoleOnlineUserRepository {
             online.add(OnlineUserVO.builder().username(parts[1]).roleKey(parts[2]).build());
         }
         return online;
+    }
+
+    @Override
+    public void evictSessionIfOnline(String username, String roleKey) {
+        // 厂商 `getUserLoginStatusList` 的在线判据：login-list 里存在 split(":")[1] == username 的键
+        boolean online = false;
+        for (String key : redisSessionService.scan(LOGIN_LIST_PREFIX + "*")) {
+            String[] parts = key.split(":");
+            if (parts.length >= 2 && username.equals(parts[1])) {
+                online = true;
+                break;
+            }
+        }
+        if (!online) {
+            return;
+        }
+        String userInfo = username + ":" + roleKey;
+        for (String tokenKey : redisSessionService.scan(GATEWAY_TOKEN_PREFIX + "*")) {
+            if (userInfo.equals(redisSessionService.get(tokenKey))) {
+                redisSessionService.delete(tokenKey);
+                break;
+            }
+        }
+        redisSessionService.delete(LOGIN_LIST_PREFIX + ":" + userInfo);
     }
 }

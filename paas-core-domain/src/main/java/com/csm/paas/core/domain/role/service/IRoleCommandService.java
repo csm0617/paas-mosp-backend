@@ -45,4 +45,56 @@ public interface IRoleCommandService {
 
     /** 校验并构造（不落库）修改后的战位实体。 */
     RoleEntity prepareEditedRole(String id, RoleFormVO form);
+
+    // ---------- 关联写（厂商 RoleController:337-411 的四个端点）----------
+
+    /**
+     * `POST /v1/role/{roleId}/users`（厂商 `RoleController.usersRelateRole:339-351` +
+     * `UserService.usersRelateRole:767-790`）。
+     *
+     * <ol>
+     *   <li>战位不存在 → `role.storage.not.found`（**控制器**先查的，不是 service）；</li>
+     *   <li>战位 key 是 `admin` 且存在用户 `admin` → **强制把 admin 用户也塞进列表**；</li>
+     *   <li>去重（厂商 `HashSet`）后**先删光该战位的全部用户关联再逐条插**；不存在的 userId 跳过；</li>
+     *   <li>每插一条还会把该用户的 `created_at` 覆盖成 now（厂商写错字段，照抄）。</li>
+     * </ol>
+     *
+     * @return 重新查出来的 `RoleUsers`（战位标量 + `list` 全量用户）
+     */
+    com.csm.paas.core.domain.role.model.entity.RoleUsersEntity relateUsers(String roleId, java.util.List<String> userIds);
+
+    /**
+     * `POST /v1/role/{roleId}/suRoles`（厂商 `RoleController.suRolesRelateRole:353-367` +
+     * `SubRoleServiceImpl.roleRelateSubRoles:401-424`）。
+     *
+     * <p>战位不存在 → `role.storage.not.found`；去重后先删光该战位的子角色关联再逐条插，
+     * 不存在的 subRoleId 跳过；**并把每个被关联子角色的 `created_at` 覆盖成 now**
+     * （与 `POST /v1/role` 的 `subRolesRelateRole` 不同，见 `IRoleRepository`）。
+     *
+     * @return 战位行 + `subRoleList`
+     */
+    RoleEntity relateSubRoles(String roleId, java.util.List<String> subRoleIds);
+
+    /**
+     * `DELETE /v1/role/{roleId}/{userId}`（厂商 `RoleController.deleteUserInRole:401-411` +
+     * `UserService.deleteUserInRole:1368-1392`）。
+     *
+     * <ol>
+     *   <li>战位不存在 → `role.storage.not.found`；</li>
+     *   <li>用户是 `admin` 且战位 key 是 `admin` → `user.cannot.remove.ofc.admin`；</li>
+     *   <li>该用户**在任一 `login-list:<user>:*` 里出现过**（= ON-LINE）⇒ 删掉匹配的
+     *       `gateway-token*` 键与该角色的 `login-list` 键；</li>
+     *   <li>删 `g_user_role` 单行。</li>
+     * </ol>
+     *
+     * @return 重新查出来的 `RoleUsers`
+     */
+    com.csm.paas.core.domain.role.model.entity.RoleUsersEntity removeUserFromRole(String roleId, String userId);
+
+    /**
+     * `DELETE /v1/role/{roleId}/app/{appId}`（厂商 `RoleController.deleteRoleApp:158-165` +
+     * `RoleService.roleRemoveApp:732-738`）：战位不存在 → `role.storage.not.found`，
+     * 否则删 `g_role_software` 单行。**STOMP 推送由 Case 层负责**（厂商在那之后发 `/topic/software`）。
+     */
+    void removeAppFromRole(String roleId, String appId);
 }

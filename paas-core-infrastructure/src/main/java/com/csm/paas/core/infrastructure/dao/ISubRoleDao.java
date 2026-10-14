@@ -6,6 +6,7 @@ import com.csm.paas.core.infrastructure.dao.po.SubRoleUserPO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 import java.util.List;
 
@@ -211,4 +212,13 @@ public interface ISubRoleDao {
             WHERE srr.sub_role_id = #{subRoleId}
             """)
     List<SubRoleRolePO> selectRolesBySubRoleId(@Param("subRoleId") String subRoleId);
+
+    /**
+     * 把该子角色的 `created_at` 覆盖成 `createdAt`——**照抄厂商的写错字段**
+     * （`SubRoleServiceImpl.roleRelateSubRoles:417`：`subRoles.setCreatedAt(now); updateByPrimaryKey(subRoles)`）。
+     * 只被 `POST /v1/role/{roleId}/suRoles` 用到；`POST /v1/role` 走的是没有这段的
+     * `RoleService.subRolesRelateRole`。见 `docs/findings/156`。
+     */
+    @Update("UPDATE g_sub_role SET created_at = #{createdAt} WHERE id = #{subRoleId}")
+    int touchCreatedAt(@Param("subRoleId") String subRoleId, @Param("createdAt") long createdAt);
 }

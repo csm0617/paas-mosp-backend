@@ -6,6 +6,7 @@ import com.csm.paas.core.api.dto.RoleListResponseDTO;
 import com.csm.paas.core.api.dto.RoleSoftwareDTO;
 import com.csm.paas.core.api.dto.RoleSoftwareListDTO;
 import com.csm.paas.core.api.dto.RoleFormDTO;
+import com.csm.paas.core.api.dto.RoleUsersDTO;
 import com.csm.paas.core.cases.role.IRoleDeleteCase;
 import com.csm.paas.core.cases.role.IRoleWriteCase;
 import com.csm.paas.core.domain.role.service.IRoleQueryService;
@@ -23,6 +24,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 /**
  * 厂商 `/v1/role` 的重写版（切片 3b）。
@@ -204,5 +207,53 @@ public class RoleController {
                         .toList())
                 .orElse(java.util.List.of());
         return ResponseDTO.ok(RoleSoftwareListDTO.builder().list(list).total(list.size()).build());
+    }
+
+    // ---------- 关联写（厂商 RoleController:337-411 的四个端点）----------
+
+    /**
+     * 厂商 `POST /v1/role/{roleId}/users`：**替换式**关联用户（先删光该战位全部用户关联再插）。
+     * <p>body 是**裸 JSON 数组**（`["userId",...]`），不是对象。
+     * <p>照抄点：战位 key 是 `admin` 时**强制把 `admin` 用户也关联上**；每插一条还会把该用户的
+     * `created_at` 覆盖成 now（厂商写错字段，见 `docs/findings/156`）。
+     */
+    @PostMapping("/{roleId}/users")
+    public ResponseDTO<RoleUsersDTO> usersRelateRole(@PathVariable String roleId,
+                                                     @RequestBody List<String> userIdList) {
+        return ResponseDTO.ok(RoleListAssembler.toRoleUsersDTO(
+                roleWriteCase.relateUsers(roleId, userIdList)));
+    }
+
+    /**
+     * 厂商 `POST /v1/role/{roleId}/suRoles`：**替换式**关联子角色，body 是裸数组的子角色 id。
+     * <p>响应是 `Role` 形状（不是 `RoleUsers`）：战位标量 + `subRoleList`，其余三个集合键为 null。
+     */
+    @PostMapping("/{roleId}/suRoles")
+    public ResponseDTO<RoleItemDTO> suRolesRelateRole(@PathVariable String roleId,
+                                                      @RequestBody List<String> subRoleIdList) {
+        return ResponseDTO.ok(RoleListAssembler.toItemDTO(
+                roleWriteCase.relateSubRoles(roleId, subRoleIdList)));
+    }
+
+    /**
+     * 厂商 `DELETE /v1/role/{roleId}/{userId}`：删单条用户关联，返回 `RoleUsers`。
+     * <p>注意与 `DELETE /v1/role?roleId=` 是**两个不同的端点**：这个只删一条关联，不删战位。
+     * <p>`admin` 用户 + `admin` 战位 → 400 `user.cannot.remove.ofc.admin`。
+     */
+    @DeleteMapping("/{roleId}/{userId}")
+    public ResponseDTO<RoleUsersDTO> deleteUserInRole(@PathVariable String roleId,
+                                                      @PathVariable String userId) {
+        return ResponseDTO.ok(RoleListAssembler.toRoleUsersDTO(
+                roleWriteCase.removeUserFromRole(roleId, userId)));
+    }
+
+    /**
+     * 厂商 `DELETE /v1/role/{roleId}/app/{appId}`：删单条"战位-软件"关联，返回 `data:null`。
+     * <p>删完会往 `/topic/software` 推 `{event:"DELETE", roleList:<roleId>}`（厂商 `roleRemoveApp`）。
+     */
+    @DeleteMapping("/{roleId}/app/{appId}")
+    public ResponseDTO<Void> deleteRoleApp(@PathVariable String roleId, @PathVariable String appId) {
+        roleWriteCase.removeAppFromRole(roleId, appId);
+        return ResponseDTO.ok(null);
     }
 }

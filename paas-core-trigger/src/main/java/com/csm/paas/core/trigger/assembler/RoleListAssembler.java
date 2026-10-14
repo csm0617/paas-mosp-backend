@@ -4,10 +4,12 @@ import com.csm.paas.core.api.dto.RoleItemDTO;
 import com.csm.paas.core.api.dto.RoleListResponseDTO;
 import com.csm.paas.core.api.dto.RoleSoftwareDTO;
 import com.csm.paas.core.api.dto.RoleUserDTO;
+import com.csm.paas.core.api.dto.RoleUsersDTO;
 import com.csm.paas.core.api.dto.SubRoleItemDTO;
 import com.csm.paas.core.domain.role.model.entity.RoleEntity;
 import com.csm.paas.core.domain.role.model.entity.RoleListEntity;
 import com.csm.paas.core.domain.role.model.entity.RoleSoftwareEntity;
+import com.csm.paas.core.domain.role.model.entity.RoleUsersEntity;
 import com.csm.paas.core.domain.role.model.valobj.RoleUserVO;
 import com.csm.paas.core.domain.subrole.model.entity.SubRoleEntity;
 
@@ -57,6 +59,37 @@ public final class RoleListAssembler {
                 .admin(isAdmin)
                 .dev(isDev)
                 .adminOrDev(isAdmin || isDev)
+                .build();
+    }
+
+    /**
+     * `RoleUsers` 实体 → DTO（`POST /v1/role/{roleId}/users`、`DELETE /v1/role/{roleId}/{userId}`）。
+     * <p>四个集合键**一律 null**：厂商 `BeanUtils.copyProperties(role, roleUsers)` 只搬标量。
+     * <p>`list` 里的 `password` 走 {@link UserAssembler#toResponse} 统一置 null（既有 L3 偏离账）。
+     */
+    public static RoleUsersDTO toRoleUsersDTO(RoleUsersEntity entity) {
+        RoleEntity role = entity.getRole();
+        boolean isAdmin = role != null && "admin".equals(role.getKey());
+        boolean isDev = role != null && "dev".equals(role.getKey());
+        return RoleUsersDTO.builder()
+                .id(role == null ? null : role.getId())
+                .key(role == null ? null : role.getKey())
+                .name(role == null ? null : role.getName())
+                .nameFr(role == null ? null : role.getNameFr())
+                .nameUs(role == null ? null : role.getNameUs())
+                .updatedAt(role == null ? null : role.getUpdatedAt())
+                .createdAt(role == null ? null : role.getCreatedAt())
+                .desc(role == null ? null : role.getDesc())
+                .type(role == null ? null : role.getType())
+                .onLineUserList(null)
+                .softwareList(null)
+                .userList(null)
+                .subRoleList(null)
+                .admin(isAdmin)
+                .dev(isDev)
+                .adminOrDev(isAdmin || isDev)
+                .list(entity.getList() == null ? null
+                        : entity.getList().stream().map(UserAssembler::toResponse).toList())
                 .build();
     }
 

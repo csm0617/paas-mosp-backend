@@ -3,8 +3,10 @@ package com.csm.paas.core.cases.role.impl;
 import com.csm.paas.core.cases.role.IRoleWriteCase;
 import com.csm.paas.core.domain.role.adapter.repository.IRoleRepository;
 import com.csm.paas.core.domain.role.model.entity.RoleEntity;
+import com.csm.paas.core.domain.role.model.entity.RoleUsersEntity;
 import com.csm.paas.core.domain.role.model.valobj.RoleFormVO;
 import com.csm.paas.core.domain.role.service.IRoleCommandService;
+import com.csm.paas.core.domain.software.adapter.port.ISoftwareRelationBroadcastPort;
 import com.csm.paas.core.domain.subrole.adapter.repository.ISubRoleRepository;
 import com.csm.paas.core.domain.subrole.model.entity.SubRoleEntity;
 import com.csm.paas.core.domain.user.adapter.repository.IUserRepository;
@@ -31,6 +33,7 @@ public class RoleWriteCaseImpl implements IRoleWriteCase {
     private final IRoleRepository roleRepository;
     private final IUserRepository userRepository;
     private final ISubRoleRepository subRoleRepository;
+    private final ISoftwareRelationBroadcastPort softwareRelationBroadcastPort;
 
     @Override
     @Transactional
@@ -77,5 +80,36 @@ public class RoleWriteCaseImpl implements IRoleWriteCase {
         List<String> existing = subRoleRepository.queryByIds(new ArrayList<>(new LinkedHashSet<>(subRoleIds)))
                 .stream().map(SubRoleEntity::getId).toList();
         roleRepository.replaceSubRoleRelationsByRoleId(role.getId(), existing);
+    }
+
+    // ---------- 关联写（四个端点；规则在 IRoleCommandService，这里只加事务与推送）----------
+
+    @Override
+    @Transactional
+    public RoleUsersEntity relateUsers(String roleId, List<String> userIds) {
+        return roleCommandService.relateUsers(roleId, userIds);
+    }
+
+    @Override
+    @Transactional
+    public RoleEntity relateSubRoles(String roleId, List<String> subRoleIds) {
+        return roleCommandService.relateSubRoles(roleId, subRoleIds);
+    }
+
+    @Override
+    @Transactional
+    public RoleUsersEntity removeUserFromRole(String roleId, String userId) {
+        return roleCommandService.removeUserFromRole(roleId, userId);
+    }
+
+    /**
+     * 厂商 `RoleService.roleRemoveApp:732-738`：删关联**之后**往 `/topic/software` 推
+     * `{event:"DELETE", roleList:roleId}`。推送失败不影响主流程（见实现类注释）。
+     */
+    @Override
+    @Transactional
+    public void removeAppFromRole(String roleId, String appId) {
+        roleCommandService.removeAppFromRole(roleId, appId);
+        softwareRelationBroadcastPort.softwareRelationDeleted(roleId);
     }
 }

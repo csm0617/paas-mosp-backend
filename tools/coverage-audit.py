@@ -42,7 +42,8 @@ def normalize(p: str) -> str:
     p = re.sub(r"\$\{[^}]*\}", "X", p)
     p = re.sub(r"\{[^}]*\}", "X", p)
     p = re.sub(r"/:[A-Za-z_][A-Za-z0-9_]*", "/X", p)
-    p = re.sub(r"(?:/X)+", "/X", p)
+    # 注意：**不要**折叠连续的 `/X`。`/v1/role/{roleId}/{userId}` 与 `/v1/role/{id}` 是
+    # 两个不同的端点（前者 DELETE 删用户关联、后者 GET 取详情），折叠会把前者的缺口吃掉。
     return p.rstrip("/") or p
 
 

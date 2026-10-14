@@ -5,6 +5,8 @@ import com.csm.paas.core.domain.role.model.entity.RoleEntity;
 import com.csm.paas.core.domain.role.model.entity.RoleSoftwareEntity;
 import com.csm.paas.core.domain.role.model.valobj.RoleUserVO;
 import com.csm.paas.core.infrastructure.dao.IRoleDao;
+import com.csm.paas.core.infrastructure.dao.ISubRoleDao;
+import com.csm.paas.core.infrastructure.dao.IUserDao;
 import com.csm.paas.core.infrastructure.dao.po.RolePO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,6 +23,8 @@ import java.util.Optional;
 public class RoleRepository implements IRoleRepository {
 
     private final IRoleDao roleDao;
+    private final IUserDao userDao;
+    private final ISubRoleDao subRoleDao;
 
     @Override
     public List<RoleEntity> queryOrderByCreatedAtDesc() {
@@ -216,8 +220,29 @@ public class RoleRepository implements IRoleRepository {
         }
         long now = System.currentTimeMillis();
         for (String userId : new java.util.LinkedHashSet<>(userIds)) {
+            // 厂商 `UserService.usersRelateRole:781` 对每个 userId 先 selectByPrimaryKey，查不到就 continue
+            if (userDao.selectById(userId) == null) {
+                continue;
+            }
             roleDao.insertUserRole(userId, roleId, now);
+            // 照抄厂商的"写错字段"：`users.setCreatedAt(now); updateByPrimaryKey(users)`（findings/156）
+            userDao.touchCreatedAt(userId, now);
         }
+    }
+
+    @Override
+    public List<com.csm.paas.core.domain.user.model.entity.UserEntity> queryFullUsersByRoleId(String roleId) {
+        return userDao.selectAllByRoleId(roleId).stream().map(this::toUserEntity).toList();
+    }
+
+    @Override
+    public void deleteUserRoleRelation(String roleId, String userId) {
+        roleDao.deleteUserRoleByRoleIdAndUserId(roleId, userId);
+    }
+
+    @Override
+    public void deleteSoftwareRelation(String roleId, String appId) {
+        roleDao.deleteRoleSoftwareByRoleIdAndAppId(roleId, appId);
     }
 
     @Override
@@ -231,6 +256,32 @@ public class RoleRepository implements IRoleRepository {
         for (String subRoleId : new java.util.LinkedHashSet<>(subRoleIds)) {
             roleDao.insertSubRoleRole(subRoleId, roleId, now);
         }
+    }
+
+    @Override
+    @Transactional
+    public void replaceSubRoleRelationsTouchingCreatedAt(String roleId, List<String> subRoleIds) {
+        roleDao.deleteSubRoleRoleByRoleId(roleId);
+        if (subRoleIds == null || subRoleIds.isEmpty()) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        for (String subRoleId : new java.util.LinkedHashSet<>(subRoleIds)) {
+            roleDao.insertSubRoleRole(subRoleId, roleId, now);
+            // 厂商 `SubRoleServiceImpl.roleRelateSubRoles:417` 会把子角色的 created_at 覆盖成 now
+            subRoleDao.touchCreatedAt(subRoleId, now);
+        }
+    }
+
+    private com.csm.paas.core.domain.user.model.entity.UserEntity toUserEntity(
+            com.csm.paas.core.infrastructure.dao.po.UserPO po) {
+        return com.csm.paas.core.domain.user.model.entity.UserEntity.builder()
+                .id(po.getId()).username(po.getUsername()).password(po.getPassword()).status(po.getStatus())
+                .email(po.getEmail()).birth(po.getBirth()).phone(po.getPhone())
+                .updatedAt(po.getUpdatedAt()).createdAt(po.getCreatedAt())
+                .lastLoginRole(po.getLastLoginRole()).nickname(po.getNickname()).uuid(po.getUuid())
+                .desc(po.getDesc()).avatar(po.getAvatar())
+                .build();
     }
 
     private RolePO toPO(RoleEntity role) {

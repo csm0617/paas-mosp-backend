@@ -25,9 +25,16 @@ import static org.mockito.Mockito.when;
 class RoleCommandServiceImplTest {
 
     private final IRoleRepository roleRepository = mock(IRoleRepository.class);
+    private final com.csm.paas.core.domain.user.adapter.repository.IUserRepository userRepository =
+            mock(com.csm.paas.core.domain.user.adapter.repository.IUserRepository.class);
+    private final com.csm.paas.core.domain.subrole.adapter.repository.ISubRoleRepository subRoleRepository =
+            mock(com.csm.paas.core.domain.subrole.adapter.repository.ISubRoleRepository.class);
+    private final com.csm.paas.core.domain.role.adapter.repository.IRoleOnlineUserRepository onlineUserRepository =
+            mock(com.csm.paas.core.domain.role.adapter.repository.IRoleOnlineUserRepository.class);
 
     private RoleCommandServiceImpl service() {
-        return new RoleCommandServiceImpl(roleRepository);
+        return new RoleCommandServiceImpl(roleRepository, userRepository, subRoleRepository,
+                onlineUserRepository);
     }
 
     @Test

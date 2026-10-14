@@ -204,4 +204,28 @@ public interface IUserDao {
             """)
     int insertUserRole(@Param("userId") String userId, @Param("roleId") String roleId,
                        @Param("createdAt") long createdAt);
+
+    /**
+     * 某战位下的**全量**用户实体（厂商 `UserService.userRolesByRoleId:1353-1362` 的
+     * `leftJoin g_user_role on user_id = id where role_id = ?`）。
+     * <p>与 {@link #selectPageByRoleId} 的三点差别，都是厂商原样行为：**不过滤 `root`**、
+     * **没有 `ORDER BY`**、**不分页**。
+     */
+    @Select("""
+            SELECT u.id, u.username, u.password, u.status, u.email, u.birth, u.phone,
+                   u.updated_at, u.created_at, u.last_login_role, u.nickname, u.uuid, u.`desc`, u.avatar
+            FROM g_user u
+            LEFT JOIN g_user_role ur ON ur.user_id = u.id
+            WHERE ur.role_id = #{roleId}
+            """)
+    java.util.List<UserPO> selectAllByRoleId(@Param("roleId") String roleId);
+
+    /**
+     * 把该用户的 `created_at` 覆盖成 `createdAt`——**照抄厂商的写错字段**
+     * （`UserService.usersRelateRole:783-788`：`users.setCreatedAt(now); updateByPrimaryKey(users)`，
+     * 本意大概是 `updated_at`）。其它列都是刚从库里读出来的原值，所以整行 update 的净效果
+     * 等价于这条单列 UPDATE。见 `docs/findings/156`。
+     */
+    @Update("UPDATE g_user SET created_at = #{createdAt} WHERE id = #{userId}")
+    int touchCreatedAt(@Param("userId") String userId, @Param("createdAt") long createdAt);
 }
