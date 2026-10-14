@@ -247,7 +247,8 @@ Label: `wayfinder:map`
     - 另标注一处**近似**：厂商兜底 `filterServiceName` 未读全，暂按"名字或显示名忽略大小写包含"实现，注释已写明未经对拉。
   - **两个问题都定论**（[findings/55](docs/findings/55-gaop-rootcause-and-known-fix.md)）：
     - **问题 B 已修并验证**：根因是上一轮那个补丁脚本**断言失败中途退出**，装配器那处从未改（半成品状态却像成功）。修复后 `gaop` 返回中文显示名（框架授权/框架后端/网关/…），**并回归确认 `/v1/service` 的 fixedName 仍是服务名**（已对拉行为一字未变）。
-    - **问题 A 已定论**：`allPageService` 是 `@RequestLine("GET /api/v2/clusters/{id}/services")` —— **对 TenX 云 API 的远程调用**；本环境无该外部服务 ⇒ 恒空。**与 `/v1/service` 本质不同**（后者直读 K8s）。
+    - ~~问题 A 已定论~~ → **该结论已被 findings/57 否掉**（同一数据源在 `serviceAuth` 返回 9 条）；真因**仍未定论**。错法：从正确前提推出错误结论，漏了"该方法可能被覆盖"这一步验证。可复用自查：**凡"X 所以 Y 必然为 Z"的推论，若 Y 是关键结论，必须先用一次独立观测证实**。
+    - **问题 A 原（已否）结论**：`allPageService` 是 `@RequestLine("GET /api/v2/clusters/{id}/services")` —— **对 TenX 云 API 的远程调用**；本环境无该外部服务 ⇒ 恒空。**与 `/v1/service` 本质不同**（后者直读 K8s）。
     - **处置**：保留我们的 K8s 直读实现 + 记录成因。**不为了"本环境看起来一致"去模仿返回空列表**——那等于把可用功能改成空壳以迎合坏参考。真实部署里 TenX 存在时两者的集合应当相同。
     - 仍欠：厂商 keyword 兜底 `filterServiceName` 未读全，当前是"名字/显示名忽略大小写包含"的**近似**（注释已标）。
   - **keyword 兜底规则已精确实现**（[findings/56](docs/findings/56-filter-service-name-exact.md)）：读全 `filterServiceName:2070-2081` 后确认我上一版的近似**三条全错**——它匹配的是注解 **`gaop/serviceLabel`**（用户改过的显示名）而不是 `fixedName`（平台内置显示名），第二段**只看注解不看名字**，且**大小写敏感**。
