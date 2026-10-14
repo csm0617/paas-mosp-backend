@@ -57,7 +57,8 @@
 | C2d | `imageStorage` | 通过 **SSH** 连 `sshConfig.host` 取磁盘信息；参考环境连不上 ⇒ 厂商自己返回 `{free:0,total:0}` | 未实现 | `findings/81` |
 | C2b | `GET /v1/image/projectList` 的实现数据源 | 参考环境实际生效的是 `K3sImageServiceImpl`（查库 `g_image_group`），而我第一版照着 `K8sImageServiceImpl`（Harbor）实现 | 待按 K3s 实现重写；Harbor 版保留并标注"K8s 变体、参考环境不生效" | `findings/79` |
 | C2 | `imageStorage` | 早期判断为"**Harbor 未接入**"；**`findings/77` 已更正**：Harbor 在集群内是可达的（厂商从中读出了真实项目），只是**本机到不了**（`192.168.1.52:30002` 超时） | `projectList` 已实现（`findings/78`）；`imageStorage` 待做；**在线对拉需要把后端部署进集群** |
-| C3 | TenX 侧效应（激活后通知、时速云授权时间） | 无 TenX 对端 | 未实现，记录为待办 |
+| C3 | ~~TenX 侧效应（激活后通知、时速云授权时间）~~ **已撤回（2026-10-14 第 127 轮）** | ~~无 TenX 对端~~ ⇒ **前提不成立**：`TenxCloud` 的唯一实现 `controller/cloud/TenxCloudImpl.java` 是**本地 K8s 适配层**（`clusters()` 硬编码 `CID-4f081ba297ba`；`existService`/`service`/`existApp`/`getDeploymentYaml` 全部 → `TenxService`，后者有 54 处 `k8sApiClientManager` 调用；`server.host.tenx` 只用于拼下发给前端的 `TenxUserToken`）。**全模块唯一的真实远程依赖是 Loki**（见 C7） | `findings/120`（含更正说明） |
+| C7 | `POST /v1/service/logs`（服务历史日志） | 厂商走 **Loki**（`TenxCloudImpl:181` 是 `TenxCloudImpl` 里唯一的真实 HTTP：`GET <logMonitoring>/loki/api/v1/query_range?...`） | 参考环境无 Loki ⇒ 未实现（与 C6 同类：需外部系统） | `findings/120` §2 |
 | C4 | GIS 在线激活 | 无 GIS 服务 | `checkAndActiveGis` 如实返回 false |
 | C5 | `serviceInfoByNode` | 单 master 集群（A5） | 参考值可解释（0） |
 | C6 | CS 上传 / 导入导出 | 需文件与远端 SSH | 未实现（边界待定） |
