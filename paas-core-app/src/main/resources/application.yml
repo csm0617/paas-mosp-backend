@@ -47,6 +47,12 @@ gaop:
   auth:
     # 同一 (用户,战位) 的并发会话上限；厂商默认 1（单点登录）
     max-login: ${MAX_LOGIN:1}
+  gateway:
+    # 通知网关刷新规则的目标（厂商 `gaop.gateway.*`）：本地 profile 默认 `gateway`、
+    # k8s profile 默认 `gaop-gateway-auth`（`application-k8s.yml:38-40`）。这里取 k8s 那个值，
+    # 因为本后端的目标是替换集群里的 gaop-be。调用是 fire-and-forget，解析不了也不影响响应。
+    host: ${GAOP_GATEWAY_HOST:gaop-gateway-auth}
+    port: ${GAOP_GATEWAY_PORT:5000}
 
 logging:
   level:

@@ -97,4 +97,21 @@ public interface IServiceRuntimePort {
     /** patch 已存在的 `<name>-nodeport` 的 ports。 */
     java.util.Map<String, Object> patchNodePortServicePorts(String namespace, String name,
                                                             java.util.List<com.csm.paas.core.domain.software.model.valobj.ServicePortSpecVO> ports);
+
+    // ---------- patchService 的 B 分支（厂商 PUT /v1/service/patchService，type != "Service"）----------
+
+    /**
+     * 读工作负载的"身份"（Deployment 优先，读不到回退 StatefulSet）：
+     * 返回 `metadata.name` 与种类；**两者都不存在返回 null**（厂商据此抛 500）。
+     */
+    com.csm.paas.core.domain.software.model.valobj.WorkloadRefVO readWorkloadRef(String namespace, String serviceName);
+
+    /**
+     * 把工作负载**所有容器**的 `ports` 设成给定列表（厂商 `containers.forEach(c -> c.setPorts(ports))`）
+     * 并整份 merge-patch。注意厂商构造容器端口时**只带 `protocol` 与 `containerPort`**（`name` 被丢掉）。
+     *
+     * @param deployment true 打 Deployment，false 打 StatefulSet
+     */
+    void patchWorkloadContainerPorts(String namespace, String serviceName, boolean deployment,
+                                     java.util.List<com.csm.paas.core.domain.software.model.valobj.ContainerPortVO> ports);
 }

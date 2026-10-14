@@ -339,6 +339,48 @@ public class ServiceRuntimeGateway {
                 ? java.util.List.of() : containers.get(0).getPorts();
     }
 
+    /**
+     * 读工作负载的"身份"（Deployment 优先，读不到回退 StatefulSet）：
+     * 返回 `[isDeployment, metadata.name]`；**两者都不存在返回 null**。
+     * <p>厂商出处：`updateServiceDiscovery:1088-1105`（Deployment 读不到再读 StatefulSet，都读不到抛 500）。
+     */
+    public Object[] readWorkloadRef(String namespace, String name) {
+        var d = kubernetesClient.apps().deployments().inNamespace(namespace).withName(name).get();
+        if (d != null) {
+            return new Object[]{Boolean.TRUE, d.getMetadata() == null ? name : d.getMetadata().getName()};
+        }
+        var s = kubernetesClient.apps().statefulSets().inNamespace(namespace).withName(name).get();
+        if (s != null) {
+            return new Object[]{Boolean.FALSE, s.getMetadata() == null ? name : s.getMetadata().getName()};
+        }
+        return null;
+    }
+
+    /**
+     * 把工作负载**所有容器**的 `ports` 设成给定列表并 patch（厂商 `:1140-1152`：先
+     * `containers.forEach(c -> c.setPorts(ports))`，再整份 merge-patch）。
+     * <p>用 fabric8 的 `edit` 表达"读→改→patch"同一语义（只动 `ports` 这一个字段）。
+     *
+     * @return patch 后的对象快照；**对象不存在返回 null**（厂商此时抛 ApiException）
+     */
+    public Map<String, Object> patchWorkloadContainerPorts(String namespace, String name, boolean deployment,
+                                                           List<io.fabric8.kubernetes.api.model.ContainerPort> ports) {
+        if (deployment) {
+            var d = kubernetesClient.apps().deployments().inNamespace(namespace).withName(name)
+                    .edit(x -> {
+                        x.getSpec().getTemplate().getSpec().getContainers().forEach(c -> c.setPorts(ports));
+                        return x;
+                    });
+            return d == null ? null : toSnapshot(d);
+        }
+        var s = kubernetesClient.apps().statefulSets().inNamespace(namespace).withName(name)
+                .edit(x -> {
+                    x.getSpec().getTemplate().getSpec().getContainers().forEach(c -> c.setPorts(ports));
+                    return x;
+                });
+        return s == null ? null : toSnapshot(s);
+    }
+
     /** 该命名空间**所有** Service 已占用的 nodePort（厂商 `getNodePortUsed()`）。 */
     public List<Integer> listUsedNodePorts(String namespace) {
         List<Integer> used = new java.util.ArrayList<>();

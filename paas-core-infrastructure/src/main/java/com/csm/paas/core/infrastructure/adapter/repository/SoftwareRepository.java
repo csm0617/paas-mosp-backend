@@ -227,6 +227,34 @@ public class SoftwareRepository implements ISoftwareRepository {
         return softwareDao.selectServicePathsBySoftware(softwareId);
     }
 
+    @Override
+    public List<String> querySoftwareIdsByAppName(String appName) {
+        return softwareDao.selectSoftwareIdsByAppName(appName);
+    }
+
+    @Override
+    public void deleteServicePorts(String softwareId, String serviceName) {
+        softwareDao.deleteServicePortsBySoftwareIdAndServiceName(softwareId, serviceName);
+    }
+
+    @Override
+    public void insertServicePorts(List<com.csm.paas.core.domain.software.model.valobj.ServicePortVO> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return;   // 空列表：厂商会拼出非法 SQL（由领域层显式抛 400），这里不制造坏 SQL
+        }
+        softwareDao.insertServicePorts(rows.stream().map(r -> {
+            var po = new com.csm.paas.core.infrastructure.dao.po.ServicePortPO();
+            po.setSoftwareId(r.getSoftwareId());
+            po.setServiceName(r.getServiceName());
+            po.setPort(r.getPort());
+            po.setPathName(r.getPathName());
+            po.setWebEntry(r.getWebEntry());
+            po.setAllow(r.getAllow());
+            po.setUpdatedAt(r.getUpdatedAt());
+            return po;
+        }).toList());
+    }
+
     private SoftwarePO toPO(SoftwareEntity s) {
         SoftwarePO po = new SoftwarePO();
         po.setId(s.getId());

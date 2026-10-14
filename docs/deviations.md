@@ -40,6 +40,7 @@
 | B7 | `GET /v1/service/gaop` 的排序列白名单化 | 厂商把用户输入拼进 ORDER BY | `findings/37`（软件域同款） |
 | B8 | `scale` 失败时保留 fabric8 原始消息 | 厂商 `msg` 为空，清空只丢诊断 | `findings/66` |
 | B13 | `/v1/user/import` 覆盖分支里 col3/col4 的字面量 JSON `null` 按"无列表"处理 | 厂商 `subRoleList.addAll(roleRelationList)` 会 **NPE → 500**（新用户分支有判空保护，覆盖分支漏了）。模板与 `/export` 都产不出字面量 `null` ⇒ 前端路径上不可达 | `findings/100` 第 (3) 条、`findings/117` |
+| B14 | `PUT /v1/service/patchService` 的 B 分支：`portList` 为空时**先校验再删** | 厂商是**先** `delete g_service_port` **再**让 `insertBatch` 的空 `<foreach>` 拼出非法 SQL 报 400 ⇒ 端口映射被白删（与 B5「厂商无事务会半删」同类）。我们保留 400 与键名，但不做这次破坏性写入 | `findings/118` §3、§6 |
 
 ## C. 参考环境限制导致无法对拉（按代码实现 + 标注证据来源）
 

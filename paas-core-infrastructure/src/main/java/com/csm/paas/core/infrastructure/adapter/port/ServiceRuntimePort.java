@@ -150,6 +150,40 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
     }
 
     @Override
+    public com.csm.paas.core.domain.software.model.valobj.WorkloadRefVO readWorkloadRef(String namespace,
+                                                                                        String serviceName) {
+        var ref = serviceRuntimeGateway.readWorkloadRef(namespace, serviceName);
+        if (ref == null) {
+            return null;
+        }
+        return com.csm.paas.core.domain.software.model.valobj.WorkloadRefVO.builder()
+                .deployment(Boolean.TRUE.equals(ref[0]))
+                .name((String) ref[1])
+                .build();
+    }
+
+    @Override
+    public void patchWorkloadContainerPorts(String namespace, String serviceName, boolean deployment,
+                                            List<com.csm.paas.core.domain.software.model.valobj.ContainerPortVO> ports) {
+        // 厂商只把 protocol 与 containerPort 塞进容器端口（`name` 被丢掉），照抄
+        List<io.fabric8.kubernetes.api.model.ContainerPort> k8sPorts = ports.stream()
+                .map(p -> new io.fabric8.kubernetes.api.model.ContainerPortBuilder()
+                        .withProtocol(p.getProtocol())
+                        .withContainerPort(p.getContainerPort())
+                        .build())
+                .toList();
+        try {
+            if (serviceRuntimeGateway.patchWorkloadContainerPorts(namespace, serviceName, deployment, k8sPorts) == null) {
+                // 厂商：对象不存在时 patch 抛 ApiException ⇒ 由 domain 翻成 400
+                throw new com.csm.paas.core.types.exception.K8sApiException(
+                        "workload " + serviceName + " not found");
+            }
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    @Override
     public Map<String, Object> createNodePortService(String namespace, String name, String type,
                                                      List<com.csm.paas.core.domain.software.model.valobj.ServicePortSpecVO> ports,
                                                      String workloadName) {

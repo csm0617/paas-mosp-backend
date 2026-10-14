@@ -41,6 +41,14 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
     @Resource
     private com.csm.paas.core.domain.setting.adapter.repository.ISettingRepository i18nRepository;
 
+    /** `patchService` 的 B 分支要按 `g_software_app.app_name` 找软件。 */
+    @Resource
+    private com.csm.paas.core.domain.software.adapter.repository.ISoftwareRepository softwareRepository;
+
+    /** `patchService` 的 B 分支写完 `g_service_port` 后通知网关刷新。 */
+    @Resource
+    private com.csm.paas.core.domain.software.adapter.port.IGatewayRefreshPort gatewayRefreshPort;
+
     @Override
     public boolean updateServiceName(String namespace, String serviceKey, String name, String nameUs, String nameFr) {
         try {
@@ -285,12 +293,7 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
                                           com.csm.paas.core.domain.software.model.valobj.UpdateServiceDiscoveryVO form) {
         String serviceName = form == null ? null : form.getServiceName();
         if (!"Service".equals(form == null ? null : form.getType())) {
-            // 厂商的另一条分支（写 g_service_port + patch 工作负载容器端口 + 通知网关）**尚未实现**：
-            // 规格已齐（docs/findings/118 第 3 节）。这里明确抛错而不是静默成功——静默成功会让前端以为改好了。
-            // 注意**不能**新造 i18n 键：`i18n/` 是厂商只读契约数据。厂商自己也有"把消息当键传"的写法
-            // （如 `new SystemException("设置NodePort失败：service为空")`），解析失败回退成文本本身。
-            throw new com.csm.paas.core.types.exception.SystemException(
-                    "patchService 的 type != \"Service\" 分支尚未实现（见 docs/findings/118 第 3 节）");
+            return updateServiceDiscoveryPorts(namespace, form, serviceName);
         }
         try {
             // 1) Service 必须存在。厂商 fabric8/openapi 的 `readNamespacedService` 对 404 **抛异常**（不是返回 null），
@@ -332,6 +335,82 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
             log.error("修改服务发现配置失败", e);
             throw new com.csm.paas.core.types.exception.WrongArgumentException(
                     "service.update.service.discovery.failed");
+        }
+    }
+
+    /**
+     * `patchService` 的 **B 分支**（`type != "Service"`，厂商 `updateServiceDiscovery:1088-1162`）：
+     * 写 `g_service_port` + patch 工作负载容器端口 + 通知网关。
+     *
+     * <p>照抄的四处（`docs/findings/118` §3）：
+     * <ol>
+     *   <li>工作负载读不到 → **500**（厂商这个 `SystemException` 抛在 try **外面**，与 A 分支的 400 形成对照）；</li>
+     *   <li>`g_software_app` 为空 ⇒ 不写库、不通知网关，但**仍然 patch 工作负载**（容器端口照样改）；</li>
+     *   <li>`path_name = "<deploymentName>-<port>"`、`allow` 恒 true、`web_entry` 恒 false（表单里那两个字段不读）；</li>
+     *   <li>所有容器（不只第一个）的 `ports` 都设成同一份列表，且容器端口**只带 protocol 与 containerPort**。</li>
+     * </ol>
+     */
+    private boolean updateServiceDiscoveryPorts(String namespace,
+                                                com.csm.paas.core.domain.software.model.valobj.UpdateServiceDiscoveryVO form,
+                                                String serviceName) {
+        // 1) 工作负载必须存在。厂商在 try **外面**抛 SystemException ⇒ 真的 500
+        var ref = serviceRuntimePort.readWorkloadRef(namespace, serviceName);
+        if (ref == null) {
+            throw new com.csm.paas.core.types.exception.SystemException("修改dployment/statefulSet失败，找不到该服务");
+        }
+        try {
+            if (form.getPortList() == null) {
+                // 厂商 `:1108` 直接 `.forEach` ⇒ NPE ⇒ 被 catch(Exception) 吞成 400
+                throw new com.csm.paas.core.types.exception.WrongArgumentException(
+                        "service.update.service.details.failed");
+            }
+            String deploymentName = ref.getName();
+            List<String> softwareIds = softwareRepository.querySoftwareIdsByAppName(deploymentName);
+            if (!softwareIds.isEmpty()) {
+                if (form.getPortList().isEmpty()) {
+                    // 厂商 `insertBatch` 是 `<foreach>` 单条 insert：空列表会拼出非法 SQL ⇒ 400。
+                    // 显式抛同一个键，而不是靠"制造坏 SQL"来触发（见 `findings/118` §3 第 2 条）。
+                    throw new com.csm.paas.core.types.exception.WrongArgumentException(
+                            "service.update.service.details.failed");
+                }
+                for (String softwareId : softwareIds) {
+                    softwareRepository.deleteServicePorts(softwareId, deploymentName);
+                    List<com.csm.paas.core.domain.software.model.valobj.ServicePortVO> rows = new ArrayList<>();
+                    for (var item : form.getPortList()) {
+                        Integer port = item.getPort();
+                        rows.add(com.csm.paas.core.domain.software.model.valobj.ServicePortVO.builder()
+                                .softwareId(softwareId)
+                                .serviceName(deploymentName)
+                                .port(port)
+                                .pathName(deploymentName + "-" + port)
+                                .webEntry(false)
+                                .allow(true)
+                                // 厂商是逐行 `System.currentTimeMillis()`，不是一次取一个 now
+                                .updatedAt(System.currentTimeMillis())
+                                .build());
+                    }
+                    softwareRepository.insertServicePorts(rows);
+                }
+                gatewayRefreshPort.refresh();
+            }
+            // 2) 所有容器的 ports 都换成表单里的（只带 protocol + containerPort）
+            List<com.csm.paas.core.domain.software.model.valobj.ContainerPortVO> containerPorts = form.getPortList()
+                    .stream()
+                    .map(p -> com.csm.paas.core.domain.software.model.valobj.ContainerPortVO.builder()
+                            .protocol(p.getProtocol())
+                            .containerPort(p.getContainerPort())
+                            .build())
+                    .toList();
+            serviceRuntimePort.patchWorkloadContainerPorts(namespace, serviceName, ref.isDeployment(), containerPorts);
+            return true;
+        } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+            log.error("修改服务配置失败（K8s API）: {}", e.getMessage());
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("service.update.service.config.error");
+        } catch (com.csm.paas.core.types.exception.WrongArgumentException e) {
+            throw e;   // 上面显式抛的两条（portList 为 null / 为空）
+        } catch (Exception e) {
+            log.error("修改服务详情失败", e);
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("service.update.service.details.failed");
         }
     }
 

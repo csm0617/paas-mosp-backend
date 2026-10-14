@@ -262,6 +262,36 @@ public interface ISoftwareDao {
     @org.apache.ibatis.annotations.Delete("DELETE FROM g_software WHERE id = #{softwareId}")
     int deleteById(@Param("softwareId") String softwareId);
 
+    // ---------- patchService 的 B 分支（厂商 ServiceController.updateServiceDiscovery:1107-1136）----------
+
+    /** `g_software_app` 里 `app_name` 命中的软件 id（厂商 `where app_name = ?` 再 map `getSoftwareId`）。 */
+    @Select("SELECT software_id FROM g_software_app WHERE app_name = #{appName}")
+    List<String> selectSoftwareIdsByAppName(@Param("appName") String appName);
+
+    /** 删某软件在某服务下的**全部**端口映射（厂商 `where software_id = ? and service_name = ?`）。 */
+    @org.apache.ibatis.annotations.Delete("""
+            DELETE FROM g_service_port WHERE software_id = #{softwareId} AND service_name = #{serviceName}
+            """)
+    int deleteServicePortsBySoftwareIdAndServiceName(@Param("softwareId") String softwareId,
+                                                     @Param("serviceName") String serviceName);
+
+    /**
+     * 批量插端口映射（厂商 `ServicePortMapper.insertBatch`，`:139-140` 的 `<foreach>` 单条 insert）。
+     * <p>**空列表由调用方拦下**：厂商那个 `<foreach>` 对空列表会拼出 `INSERT … VALUES`（非法 SQL）⇒ 400；
+     * 我们在领域层显式抛同一个键（`findings/118` §3 的第 2 条怪点），所以这里对空列表直接返回 0。
+     */
+    @org.apache.ibatis.annotations.Insert("""
+            <script>
+            INSERT INTO g_service_port (software_id, service_name, port, path_name, web_entry, allow, updated_at)
+            VALUES
+            <foreach collection='list' item='item' separator=','>
+              (#{item.softwareId}, #{item.serviceName}, #{item.port}, #{item.pathName},
+               #{item.webEntry}, #{item.allow}, #{item.updatedAt})
+            </foreach>
+            </script>
+            """)
+    int insertServicePorts(@Param("list") List<com.csm.paas.core.infrastructure.dao.po.ServicePortPO> rows);
+
     /**
      * 软件当前版本对应的上传记录（厂商 `getCurrentSoftwareVersionInfo`）：
      * `left join g_software s on ur.id = s.version where s.id = ?`。

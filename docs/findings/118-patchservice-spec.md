@@ -142,7 +142,46 @@ Service 不存在 ⇒ `k8s.call.api.failed`、工作负载不存在 ⇒ `service
 
 ## 6. 遗留
 
-- **B 分支**（`type != "Service"`）：规格已齐（§3），需要 5 样新东西（§3.1）——下一轮实现；
-- 当前 B 分支返回 **500 + 明确文案**（不是 404 也不是假成功）；前端若在"端口映射"页保存会看到这条提示；
+- **B 分支**（`type != "Service"`）：**第 124 轮已实现**（见 §7）；
 - `@AuditLog`（厂商两条分支上都有）——与其它端点同一笔账。
+
+## 7. 第 124 轮：B 分支实现 + 真集群实测
+
+### 7.1 补上的 5 样（规格 §3.1 列的）
+
+| 缺的东西 | 落地 |
+| --- | --- |
+| 读工作负载名字/种类 | `IServiceRuntimePort.readWorkloadRef` → `WorkloadRefVO{deployment, name}`（`metadata.name`） |
+| patch 工作负载容器端口 | `IServiceRuntimePort.patchWorkloadContainerPorts`（**所有容器**都设成同一份；只带 `protocol`+`containerPort`） |
+| `g_software_app` 按 `app_name` 查 | `ISoftwareDao.selectSoftwareIdsByAppName` + 仓储 `querySoftwareIdsByAppName` |
+| `g_service_port` 删 + 批插 | `deleteServicePortsBySoftwareIdAndServiceName` / `insertServicePorts`（`<foreach>` 单条 insert） |
+| 网关刷新通知 | 新端口 `IGatewayRefreshPort` + 实现 `GatewayRefreshPort`（异步 daemon 线程 GET `/refresh`，吞异常；配置 `gaop.gateway.host/port`） |
+
+### 7.2 离线：`ServicePatchServiceTest` 16 例（A 6 + B 10），全量 **358** 条 0 失败
+
+B 分支锁住的点：写库用 **`port`**（映射端口）而 patch 容器用 **`containerPort`**；`path_name = "<metadata.name>-<port>"`；
+`allow=true`/`web_entry=false`；每个 `softwareId` 各删各插；`software_app` 不命中时**不写库不通知但仍 patch 工作负载**；
+空 `portList` 在"不命中"时**允许**（会清空容器端口）、在"命中"时 **400**；`portList` 为 null ⇒ 400；
+工作负载不存在 ⇒ **500**（与 A 分支的 400 对照）；K8s 异常 ⇒ `service.update.service.config.error`；库异常 ⇒ `details.failed`。
+
+### 7.3 在线：独立命名空间 `paas-verify-patchsvc2` + 真库（造 `g_software_app` 行，验完删）
+
+前置：Deployment `nps-svc`（`8080/TCP`+`9090/UDP`，**带 name**）、Deployment `other-deploy`（**两个容器**）、
+`g_software_app{id=sa-probe, software_id=sw-probe, app_name=nps-svc}`。
+
+| 例 | 请求 | 实测 |
+| --- | --- | --- |
+| ① 单端口 | `type=ClusterIP, portList=[{containerPort:8080,port:80,TCP}]` | `200 data:true`；容器端口变成 `[{"containerPort":8080,"protocol":"TCP"}]`——**原来的 `name` 被丢掉了**（厂商构造时就没带 name）；`g_service_port` 写入 `sw-probe / nps-svc / 80 / nps-svc-80 / web_entry=0 / allow=1`；网关通知 1 次 |
+| ② 两个端口 | 两个 `containerPort` 都**不带 name** | `200 data:true`；容器端口 `[8080/TCP, 9090/UDP]`；`g_service_port` 变成 2 行（旧的 80 被删、重插 80+90）⇒ **delete+insert 语义实测正确** |
+| ③ 空 `portList` + 命中 | `portList=[]` | `400 更新服务详情失败,请查看错误日志`（`service.update.service.details.failed`）；**端口映射 2 行仍在**（我们的硬化 B14；厂商会先删掉） |
+| ④' `software_app` 不命中 | `serviceName=other-deploy`（存在的工作负载，无 app_name 行） | `200 data:true`；**两个容器都被换成同一个端口**（"所有容器"这条实测到）；库里 `other-deploy` 的映射 0 行；网关通知**没有增加** |
+| ⑤ 工作负载不存在 | `serviceName=no-such-workload` | `500 修改dployment/statefulSet失败，找不到该服务`（厂商原文，且**真的**是 500——它抛在 try 外面） |
+
+**一个被实测推翻的推测**（记下来免得下次再猜）：我原以为"容器端口多于一个时必须带 `name`，否则 K8s 422"，
+于是②会失败——**实测 200**。"多端口必须命名"是 **Service** 的规则，不是容器端口的。所以 B 分支**不存在**"多端口必失败"的坑。
+
+### 7.4 收尾
+
+实验室数据已还原（`g_service_port`=0、`g_software_app`=0、`g_user`=1）；验证命名空间、临时 NodePort、代理、后端进程全部回收。
+
 

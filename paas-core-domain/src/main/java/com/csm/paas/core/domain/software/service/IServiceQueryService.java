@@ -162,17 +162,27 @@ public interface IServiceQueryService {
      *
      * <p>按 `type` 分两条路径：
      * <ul>
-     *   <li><b>`type == "Service"`（本方法已实现）</b>：读 Service 与工作负载的第一个容器端口 →
+     *   <li><b>`type == "Service"`</b>：读 Service 与工作负载的第一个容器端口 →
      *       用容器端口重建 `spec.ports`（`name` = `"<protocol>-<serviceName>-<i>"` 小写、`appProtocol` = protocol、
      *       `nodePort` = null、`targetPort` = containerPort）→ `spec.type` **写死 `ClusterIP`** → 整份 merge-patch；</li>
-     *   <li>其它 `type`（**未实现**，规格已齐）：写 `g_service_port` + patch 工作负载容器端口 + 通知网关。</li>
+     *   <li><b>其它 `type`</b>：按 `g_software_app.app_name`（用工作负载的 **`metadata.name`**）找软件 →
+     *       删光并重写 `g_service_port`（`path_name = "<name>-<port>"`、`allow=true`、`web_entry=false`）→
+     *       通知网关刷新 → 把**所有容器**的 `ports` 换成入参的 `containerPort`/`protocol`（**`name` 被丢掉**）。</li>
      * </ul>
      *
-     * <p><b>错误语义（照抄厂商，注意它的 500 是发不出去的）</b>：
-     * Service 不存在 → 400 `k8s.call.api.failed`（厂商 fabric8/openapi 的 `readNamespacedService` 对 404 **抛异常**
-     * 而不是返回 null，被外层 `catch (ApiException)` 接住；源码里那句「设置NodePort失败：service为空」是死代码）；
-     * 工作负载不存在、以及其它任何异常 → 400 `service.update.service.discovery.failed`
-     * （厂商内层抛的 `SystemException` 被外层 `catch (Exception)` 吞掉）。
+     * <p><b>错误语义（两条路径不同，都是照抄厂商）</b>：
+     * <ul>
+     *   <li>A：Service 不存在 → 400 `k8s.call.api.failed`（厂商 `readNamespacedService` 对 404 **抛异常**而不是返回 null，
+     *       被外层 `catch (ApiException)` 接住；源码里那句「设置NodePort失败：service为空」是死代码）；
+     *       工作负载不存在、以及其它任何异常 → 400 `service.update.service.discovery.failed`
+     *       （厂商内层抛的 `SystemException` 被外层 `catch (Exception)` 吞掉）；</li>
+     *   <li>B：工作负载不存在 → **500**「修改dployment/statefulSet失败，找不到该服务」（这个 `SystemException`
+     *       抛在 try **外面**，所以真的发得出去）；K8s API 异常 → 400 `service.update.service.config.error`；
+     *       其它（含 `portList` 为 null/空）→ 400 `service.update.service.details.failed`。</li>
+     * </ul>
+     *
+     * <p><b>一处主动收紧</b>（`docs/deviations.md` B14）：B 分支 `portList` 为空时**先校验再删**——
+     * 厂商是先删 `g_service_port` 再让 `insertBatch` 拼出坏 SQL 报错，会白丢端口映射。
      *
      * @return 恒为 `true`（厂商 `Response.ok(true)`；成功路径）
      */

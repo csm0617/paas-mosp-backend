@@ -127,4 +127,18 @@ public interface ISoftwareRepository {
 
     /** 某软件下所有服务的路径名（厂商 `allServicePathBySoftware`，三表 join）。 */
     List<String> queryServicePathsBySoftware(String softwareId);
+
+    // ---------- patchService 的 B 分支（厂商 updateServiceDiscovery:1107-1136）----------
+
+    /** `g_software_app` 里 `app_name` 命中的软件 id 列表（厂商 `where app_name = ?` 再取 `softwareId`）。 */
+    List<String> querySoftwareIdsByAppName(String appName);
+
+    /** 删某软件在某服务下的全部端口映射（厂商 `where software_id = ? and service_name = ?`）。 */
+    void deleteServicePorts(String softwareId, String serviceName);
+
+    /**
+     * 批量插端口映射（厂商 `insertBatch`）。**空列表由调用方拦下**——厂商的 `<foreach>` 对空列表会拼出
+     * 非法 SQL 并报 400，我们在领域层显式抛同一个键（见 `findings/118` §3）。
+     */
+    void insertServicePorts(List<com.csm.paas.core.domain.software.model.valobj.ServicePortVO> rows);
 }
