@@ -79,4 +79,22 @@ public interface IServiceRuntimePort {
     /** 整份 merge-patch Service 的 `spec.ports`/`spec.type`；Service 不存在返回 null。 */
     java.util.Map<String, Object> patchServicePorts(String namespace, String serviceName, String type,
                                                     java.util.List<com.csm.paas.core.domain.software.model.valobj.ServicePortSpecVO> ports);
+
+    // ---------- nodePort（厂商 POST /v1/service/{serviceName}/nodePort）----------
+
+    /** 读 Deployment **或** StatefulSet 第一个容器的端口；**两者都不存在返回 null**。 */
+    java.util.List<com.csm.paas.core.domain.software.model.valobj.ContainerPortVO> readWorkloadContainerPorts(
+            String namespace, String serviceName);
+
+    /** 该命名空间所有 Service 已占用的 nodePort（厂商 `getNodePortUsed`）。 */
+    java.util.List<Integer> listUsedNodePorts(String namespace);
+
+    /** 创建 `<name>-nodeport`（骨架照厂商 `generateServiceDoc`）；返回创建后的快照。 */
+    java.util.Map<String, Object> createNodePortService(String namespace, String name, String type,
+                                                        java.util.List<com.csm.paas.core.domain.software.model.valobj.ServicePortSpecVO> ports,
+                                                        String workloadName);
+
+    /** patch 已存在的 `<name>-nodeport` 的 ports。 */
+    java.util.Map<String, Object> patchNodePortServicePorts(String namespace, String name,
+                                                            java.util.List<com.csm.paas.core.domain.software.model.valobj.ServicePortSpecVO> ports);
 }

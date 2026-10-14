@@ -213,6 +213,29 @@ public class ServiceController {
                 namespace, serviceName, config.getType(), nodePorts));
     }
 
+    /**
+     * 厂商 `POST /v1/service/{serviceName}/nodePort`：设置 NodePort，并管理 `<name>-nodeport` Service。
+     * <p>规则与四处怪点见 `IServiceQueryService.updateServiceNodePortsEndpoint`（`findings/88`）。
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/v1/service/{serviceName}/nodePort")
+    public ResponseDTO<Boolean> updateNodePorts(
+            @org.springframework.web.bind.annotation.PathVariable String serviceName,
+            @org.springframework.web.bind.annotation.RequestBody com.csm.paas.core.api.dto.ServiceConfigDTO config) {
+        if (serviceName == null) {
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("service.name.not.null");
+        }
+        if (config == null) {
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("service.config.not.null");
+        }
+        var nodePorts = config.getNodePorts() == null ? java.util.List.<com.csm.paas.core.domain.software.model.valobj.NodePortConfigVO>of()
+                : config.getNodePorts().stream()
+                .map(p -> com.csm.paas.core.domain.software.model.valobj.NodePortConfigVO.builder()
+                        .port(p.getPort()).protocol(p.getProtocol()).nodePort(p.getNodePort()).build())
+                .toList();
+        return ResponseDTO.ok(serviceQueryService.updateServiceNodePortsEndpoint(
+                namespace, serviceName, config.getType(), nodePorts));
+    }
+
     @GetMapping("/v1/service/labels")
     public ResponseDTO<java.util.List<com.csm.paas.core.api.dto.LabelListDTO>> labels() {
         var merged = serviceQueryService.queryNodeLabels();

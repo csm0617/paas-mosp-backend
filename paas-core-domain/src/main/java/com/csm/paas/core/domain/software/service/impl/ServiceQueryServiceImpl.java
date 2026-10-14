@@ -203,6 +203,96 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
     }
 
     @Override
+    public boolean updateServiceNodePortsEndpoint(String namespace, String serviceName, String type,
+                                                  List<com.csm.paas.core.domain.software.model.valobj.NodePortConfigVO> nodePorts) {
+        String effectiveType = (type == null || type.isBlank()) ? "ClusterIP" : type;
+
+        // 1) 主 Service 必须存在
+        if (!serviceRuntimePort.serviceExists(namespace, serviceName)) {
+            throw new com.csm.paas.core.types.exception.SystemException("设置NodePort失败：service为空");
+        }
+        // 2-3) 读工作负载（Deployment 优先，回退 StatefulSet），用容器端口推导主 Service 的 ports
+        var containerPorts = serviceRuntimePort.readWorkloadContainerPorts(namespace, serviceName);
+        if (containerPorts == null) {
+            throw new com.csm.paas.core.types.exception.SystemException(
+                    "设置NodePort失败：该服务" + serviceName + "无法获取deployment信息");
+        }
+        List<com.csm.paas.core.domain.software.model.valobj.ServicePortSpecVO> mainSpecs = new ArrayList<>();
+        for (int i = 0; i < containerPorts.size(); i++) {
+            var cp = containerPorts.get(i);
+            mainSpecs.add(com.csm.paas.core.domain.software.model.valobj.ServicePortSpecVO.builder()
+                    .appProtocol(cp.getProtocol())
+                    .name((cp.getProtocol() + "-" + serviceName + "-" + i).toLowerCase())
+                    .port(cp.getContainerPort())
+                    .protocol(cp.getProtocol())
+                    .targetPort(cp.getContainerPort())
+                    .nodePort(null)   // 厂商在步骤 3 里**显式置 null**
+                    .build());
+        }
+        // 4-5) 主 Service 的 type 写死 ClusterIP，然后 merge-patch（ports 为空时不改 ports，照抄）
+        serviceRuntimePort.patchServicePorts(namespace, serviceName, "ClusterIP",
+                mainSpecs.isEmpty() ? List.of() : mainSpecs);
+
+        // 6) 只有请求 type 是 ClusterIP 才继续处理 <name>-nodeport
+        if (!"ClusterIP".equals(effectiveType)) {
+            return false;
+        }
+        String nodePortServiceName = serviceName + "-nodeport";
+        boolean exists = serviceRuntimePort.serviceExists(namespace, nodePortServiceName);
+        // 复制一份再改：端口分配要往里面加值，不能依赖 port 返回的集合可写
+        List<Integer> used = new ArrayList<>(serviceRuntimePort.listUsedNodePorts(namespace));
+
+        List<com.csm.paas.core.domain.software.model.valobj.ServicePortSpecVO> specs = new ArrayList<>();
+        if (nodePorts != null) {
+            for (int i = 0; i < nodePorts.size(); i++) {
+                var np = nodePorts.get(i);
+                Integer port = np.getNodePort();
+                if (port == null) {
+                    port = randomFreeNodePort(used);   // 厂商：随机 [10000, 75534]，≤10 次
+                    used.add(port);
+                }
+                specs.add(com.csm.paas.core.domain.software.model.valobj.ServicePortSpecVO.builder()
+                        .appProtocol(np.getProtocol())
+                        .name((np.getProtocol() + "-" + serviceName + "-" + i).toLowerCase())
+                        .nodePort(port)
+                        .port(np.getPort())
+                        .protocol(np.getProtocol())
+                        .targetPort(np.getPort())
+                        .build());
+            }
+        }
+        try {
+            if (exists) {
+                serviceRuntimePort.patchNodePortServicePorts(namespace, nodePortServiceName, specs);
+            } else {
+                serviceRuntimePort.createNodePortService(namespace, nodePortServiceName, effectiveType, specs, serviceName);
+            }
+        } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+            // 厂商：K8s ApiException → service.port.occupied.error（**消息其实会误导**：
+            // 我们实测这条分支最常见的原因是 `type=ClusterIP` 却带了 nodePort ⇒ K8s 422。
+            // 但键名照抄，不改。）
+            log.error("创建/更新 {}-nodeport 失败（K8s API）: {}", serviceName, e.getMessage());
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("service.port.occupied.error");
+        } catch (Exception e) {
+            log.error("创建/更新 {}-nodeport 失败: {}", serviceName, e.getMessage(), e);
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("service.create.node.port.failed");
+        }
+        return true;
+    }
+
+    /** 厂商的随机端口分配：`rand.nextInt(65535) + 10000`，命中已用则重试，最多 10 次。 */
+    private static int randomFreeNodePort(List<Integer> used) {
+        java.security.SecureRandom rand = new java.security.SecureRandom();
+        for (int j = 0; j < 10; j++) {
+            int candidate = rand.nextInt(65535) + 10000;
+            if (!used.contains(candidate)) {
+                return candidate;
+            }
+        }
+        return rand.nextInt(65535) + 10000;
+    }
+
+    @Override
     public Map<String, List<Map<String, Object>>> queryOtherPluginWorkloads() {
         return serviceRuntimePort.listOtherPluginWorkloads();
     }

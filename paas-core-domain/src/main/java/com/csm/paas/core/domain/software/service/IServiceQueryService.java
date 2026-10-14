@@ -141,4 +141,18 @@ public interface IServiceQueryService {
      */
     boolean updateServiceNodePort(String namespace, String serviceName, String type,
                                   java.util.List<com.csm.paas.core.domain.software.model.valobj.NodePortConfigVO> nodePorts);
+
+    /**
+     * 设置 NodePort（厂商 `POST /v1/service/{serviceName}/nodePort` → `updateServicePort:482-670`，详见 `findings/88`）。
+     *
+     * <p>与 `updateServiceNodePort`（`/node_port`）的区别：**本端点还管理另一个 `<serviceName>-nodeport` Service**
+     * （不存在则按 `generateServiceDoc` 骨架创建，存在则 patch）。
+     * <p>四处照抄的怪点：主 Service 的 type **写死 `ClusterIP`**、`<name>-nodeport` 用请求的 type；
+     * `nodePort` 为空时**随机**取 [10000, 75534]（≤10 次重试避开已用端口）；请求 type 不是 `ClusterIP` 时
+     * **返回 false**；主 Service 的端口里 `nodePort` 显式置 null。
+     *
+     * @return 是否真的创建/更新了 `<name>-nodeport`
+     */
+    boolean updateServiceNodePortsEndpoint(String namespace, String serviceName, String type,
+                                           java.util.List<com.csm.paas.core.domain.software.model.valobj.NodePortConfigVO> nodePorts);
 }

@@ -400,6 +400,12 @@ Label: `wayfinder:map`
 - （**node_port 规格**）[findings/85](docs/findings/85-node-port-spec.md)：把 120 行的 `patchServicePorts` 读到"可直接翻译"（两个分支 + 异常映射 + 三处易错点 + 下一轮的实现与验证计划）。
   - 关键：**返回布尔**（`Response.ok(v1Service != null)`），A 分支"推导不出端口"时**返回 null ⇒ `data:false`**（静默失败）；`name` 公式 `<protocol>-<name>-<i>` **小写**；两分支错误消息不同（A 分支带服务名的中文 `SystemException`）。
   - 同族的 `POST /{serviceName}/nodePort` 只读到头部，**未逐行读完**，实现时不要把两者混为一谈。
+- （**服务切片 15/33**）[POST /{serviceName}/nodePort 实现](docs/findings/89-nodePort-implemented-vendor-broken.md)：实现完成，**并发现这个端点在厂商侧无法成功**。
+  - 实测三种输入：`type=ClusterIP`+带 nodePort → K8s 422「nodePort Forbidden when type is ClusterIP」；不带 nodePort → K8s 422「spec.ports: Required value」；`type!=ClusterIP` → `data:false`。⇒ **永远拿不到 `true`**，且 `service.port.occupied.error` 是**误报**（真实原因是 ClusterIP 不允许 nodePort）。**照抄其可观测行为，不修正**。
+  - 主 Service 部分正确（type 写死 ClusterIP、ports 推导、nodePort 显式 null）；`<name>-nodeport` 按 `generateServiceDoc` 骨架创建/patch；随机端口 [10000,75534]。
+  - 分层：domain 不依赖 fabric8 ⇒ 新增 `K8sApiException`，由 port 翻译 fabric8 异常。
+  - 单测暴露并修复一个隐患：`listUsedNodePorts` 返回集合被直接 add ⇒ 改为先复制。
+  - 测试 278 → **283 条**全绿。
 - （**nodePort 规格**）[findings/88](docs/findings/88-nodePort-spec.md)：把 ~150 行读到"可直接翻译"。
   - **与 `node_port` 不是近重复**：本端点还管**另一个 `<name>-nodeport` Service**（不存在则 `generateServiceDoc` 造、存在则 patch）。
   - 四处怪点：主 Service 的 type **写死 `ClusterIP`** 而 `<name>-nodeport` 用 `cfg.type`；**`nodePort` 为空时随机分配**（[10000,75534]、≤10 次重试）⇒ **结果不可复现**，对拉只能比结构/区间/不冲突；`cfg.type != "ClusterIP"` 时**返回 false**；步骤 3 里 `nodePort` 是**显式置 null**。

@@ -315,6 +315,93 @@ public class ServiceRuntimeGateway {
         return patched == null ? null : toSnapshot(patched);
     }
 
+    /**
+     * 读 Deployment **或** StatefulSet 第一个容器的端口（厂商 `updateServicePort` 第 2-3 步：
+     * Deployment 读不到才回退 StatefulSet）。**两者都不存在返回 null**；存在但没声明端口返回空列表。
+     */
+    public List<io.fabric8.kubernetes.api.model.ContainerPort> readWorkloadContainerPorts(String namespace, String name) {
+        // Deployment 优先，读不到再 StatefulSet；两者都不存在返回 null（与"存在但没声明端口"区分）
+        var d = kubernetesClient.apps().deployments().inNamespace(namespace).withName(name).get();
+        if (d != null) {
+            return firstContainerPorts(d.getSpec().getTemplate().getSpec().getContainers());
+        }
+        var st = kubernetesClient.apps().statefulSets().inNamespace(namespace).withName(name).get();
+        if (st != null) {
+            return firstContainerPorts(st.getSpec().getTemplate().getSpec().getContainers());
+        }
+        return null;
+    }
+
+    /** 第一个容器的端口声明；没有容器或没有 ports 时返回空列表。 */
+    private static List<io.fabric8.kubernetes.api.model.ContainerPort> firstContainerPorts(
+            List<io.fabric8.kubernetes.api.model.Container> containers) {
+        return containers == null || containers.isEmpty() || containers.get(0).getPorts() == null
+                ? java.util.List.of() : containers.get(0).getPorts();
+    }
+
+    /** 该命名空间**所有** Service 已占用的 nodePort（厂商 `getNodePortUsed()`）。 */
+    public List<Integer> listUsedNodePorts(String namespace) {
+        List<Integer> used = new java.util.ArrayList<>();
+        for (var svc : listServices(namespace)) {
+            if (svc.getSpec() == null || svc.getSpec().getPorts() == null) {
+                continue;
+            }
+            for (var p : svc.getSpec().getPorts()) {
+                if (p.getNodePort() != null) {
+                    used.add(p.getNodePort());
+                }
+            }
+        }
+        return used;
+    }
+
+    /**
+     * 创建 `<name>-nodeport` Service（厂商 `AppService.generateServiceDoc` + 覆盖 name/type/ports）。
+     * <p>骨架照抄：`kind=Service`、`apiVersion=v1`、labels `{name, system/appName, system/svcName, system/appType}`、
+     * annotations `{system/lbgroup: none}`、**selector `{name: <deployment 名>}`**、ports 由调用方给。
+     */
+    public Map<String, Object> createNodePortService(String namespace, String name, String type,
+                                                     List<io.fabric8.kubernetes.api.model.ServicePort> ports,
+                                                     String deploymentName, Map<String, String> deploymentLabels) {
+        Map<String, String> labels = new java.util.LinkedHashMap<>();
+        labels.put("name", deploymentName);
+        labels.put("system/appName", deploymentLabels == null ? null : deploymentLabels.get("system/appName"));
+        labels.put("system/svcName", deploymentName);
+        labels.put("system/appType", deploymentLabels == null ? null : deploymentLabels.get("system/appType"));
+        var svc = new io.fabric8.kubernetes.api.model.ServiceBuilder()
+                .withNewMetadata().withName(name).withLabels(labels)
+                .addToAnnotations("system/lbgroup", "none").endMetadata()
+                .withNewSpec().withType(type).withPorts(ports)
+                .addToSelector("name", deploymentName).endSpec()
+                .build();
+        var created = kubernetesClient.services().inNamespace(namespace).resource(svc).create();
+        return created == null ? null : toSnapshot(created);
+    }
+
+    /** patch 已存在的 `<name>-nodeport` 的 ports（厂商 6b 分支）。 */
+    public Map<String, Object> patchNodePortServicePorts(String namespace, String name,
+                                                         List<io.fabric8.kubernetes.api.model.ServicePort> ports) {
+        var svc = kubernetesClient.services().inNamespace(namespace).withName(name).get();
+        if (svc == null) {
+            return null;
+        }
+        svc.getSpec().setPorts(ports);
+        var patched = kubernetesClient.services().inNamespace(namespace).withName(name)
+                .patch(io.fabric8.kubernetes.client.dsl.base.PatchContext.of(
+                        io.fabric8.kubernetes.client.dsl.base.PatchType.JSON_MERGE), Serialization.asJson(svc));
+        return patched == null ? null : toSnapshot(patched);
+    }
+
+    /** 读工作负载的 labels（`generateServiceDoc` 要用）。 */
+    public Map<String, String> workloadLabels(String namespace, String name) {
+        var d = kubernetesClient.apps().deployments().inNamespace(namespace).withName(name).get();
+        if (d != null) {
+            return d.getMetadata().getLabels();
+        }
+        var s = kubernetesClient.apps().statefulSets().inNamespace(namespace).withName(name).get();
+        return s == null ? Map.of() : s.getMetadata().getLabels();
+    }
+
     public List<StatefulSet> listStatefulSets(String namespace) {
         List<StatefulSet> items = kubernetesClient.apps().statefulSets().inNamespace(namespace).list().getItems();
         log.info("fabric8 读到 namespace:{} 的 StatefulSet {} 个", namespace, items.size());

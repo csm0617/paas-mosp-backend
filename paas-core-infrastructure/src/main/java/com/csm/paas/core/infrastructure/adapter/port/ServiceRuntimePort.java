@@ -124,7 +124,52 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
     @Override
     public Map<String, Object> patchServicePorts(String namespace, String serviceName, String type,
                                                  List<com.csm.paas.core.domain.software.model.valobj.ServicePortSpecVO> ports) {
-        List<io.fabric8.kubernetes.api.model.ServicePort> k8sPorts = ports.stream()
+        return serviceRuntimeGateway.patchServicePorts(namespace, serviceName, type, toK8sPorts(ports));
+    }
+
+    @Override
+    public List<com.csm.paas.core.domain.software.model.valobj.ContainerPortVO> readWorkloadContainerPorts(
+            String namespace, String serviceName) {
+        var ports = serviceRuntimeGateway.readWorkloadContainerPorts(namespace, serviceName);
+        if (ports == null) {
+            return null;
+        }
+        return ports.stream().map(p -> com.csm.paas.core.domain.software.model.valobj.ContainerPortVO.builder()
+                .protocol(p.getProtocol()).containerPort(p.getContainerPort()).build()).toList();
+    }
+
+    @Override
+    public List<Integer> listUsedNodePorts(String namespace) {
+        return serviceRuntimeGateway.listUsedNodePorts(namespace);
+    }
+
+    @Override
+    public Map<String, Object> createNodePortService(String namespace, String name, String type,
+                                                     List<com.csm.paas.core.domain.software.model.valobj.ServicePortSpecVO> ports,
+                                                     String workloadName) {
+        try {
+            return serviceRuntimeGateway.createNodePortService(namespace, name, type, toK8sPorts(ports), workloadName,
+                    serviceRuntimeGateway.workloadLabels(namespace, workloadName));
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            // 分层：domain 不认识 fabric8，这里翻译成领域可见的 K8sApiException
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    @Override
+    public Map<String, Object> patchNodePortServicePorts(String namespace, String name,
+                                                         List<com.csm.paas.core.domain.software.model.valobj.ServicePortSpecVO> ports) {
+        try {
+            return serviceRuntimeGateway.patchNodePortServicePorts(namespace, name, toK8sPorts(ports));
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    /** 领域端口规格 → K8s ServicePort（两个端点共用）。 */
+    private static List<io.fabric8.kubernetes.api.model.ServicePort> toK8sPorts(
+            List<com.csm.paas.core.domain.software.model.valobj.ServicePortSpecVO> ports) {
+        return ports.stream()
                 .map(p -> new io.fabric8.kubernetes.api.model.ServicePortBuilder()
                         .withAppProtocol(p.getAppProtocol())
                         .withName(p.getName())
@@ -134,7 +179,6 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
                         .withNodePort(p.getNodePort())
                         .build())
                 .toList();
-        return serviceRuntimeGateway.patchServicePorts(namespace, serviceName, type, k8sPorts);
     }
 
     @Override
