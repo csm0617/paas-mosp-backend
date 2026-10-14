@@ -231,6 +231,10 @@ Label: `wayfinder:map`
   - 第二道门（终局）：过门后厂商返回 500/-1，trace 指向它自己：`TenxService.responseContainer:604` 的 `getLimits().get("cpu").getNumber()` —— **只判了 limits 非 null、没判键存在**，本环境工作负载没有完整 limits ⇒ NPE。**是厂商缺陷，不是数据缺失。**
   - 结论：这个端点**无法通过任何手段观测到成功响应**。下一轮取舍建议：**先做服务域里可对拉的端点（3），再照代码实现详情并注明"证据来自列表端点 `/v1/service` 的 `ServicesItem` 形状（已对拉），详情端点本身厂商恒 500"（1）**。
   - 用例总数更正
+- （**hostName 端点**）[findings/64](docs/findings/64-service-hostname-endpoint.md)：**实现 + 独立 namespace（`paas-verify-hn`，用完即删）端到端验证**——两边空白→200 true 且不改（静默 no-op）；设 `myhost`→真改；`old-host`→`new-host`；不存在→400。
+  - **关键修正**：厂商只在"**读不到** Deployment"时回退 StatefulSet，不是"hostname 为空"时。我第一版把两者混成一个返回值（null 既表示不存在又表示空），被用例 A 照出（预期 200 实为 500）；端口拆成 `deploymentExists` + `deploymentHostname`。同族：`edit()`vs`patch`、`fixedName`vs`gaop/serviceLabel`——**两个语义接近的东西被合并，差异只在边界暴露**。
+  - **错误契约我猜错了**：先写 500/`...host.name`，对拉实测是 **400**/`...host.pod`，已改。**错误契约也必须对拉。**
+  - 服务切片 **6/33**；测试 229 → **233 条**全绿。
 - （**serviceInfoByNode 勘查**）[findings/62](docs/findings/62-service-info-by-node.md)：`/v1/service` 是 9 条、它是 **0 条** ⇒ **不是同一份数据**（上一轮"同形⇒可复用"只对了形状）。算法已读完（masterNodeName → 按 `(nodeName|keyword|masterNodeName)` 缓存 → `getServicesItems` → order 1..6 排序 → 分页）；**关键未读**：`getServicesItems` 的节点归属规则（"为什么是 0"的答案）。
   - 定位：**可观测但参考退化**（同 `baseComponent`）。按 `gaop` 的经验，**只有能解释"为什么是 0"，这个 0 才算证据** ⇒ 下一轮先读 `getServicesItems`，能解释 0 再实现。
   - **服务域工作量判断更新**：能拿到**非空对拉**的存量基本用完（已对拉 5 个）。往后只剩三类：退化参考+能解释的 0 / 独立 namespace 里的写验证 / 按代码实现+标注证据来源。**这个判断要在下一轮先确认，别再逐个端点试。**
