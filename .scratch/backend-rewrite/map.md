@@ -417,6 +417,9 @@ Label: `wayfinder:map`
 - （**工具修正**）[contract-check 增加易变字段模式](docs/findings/96-contract-check-volatile.md)：`/v1/user/info` 的 `createdAt`/`updatedAt` 标为 `mode: volatile`——**只比存在与类型**，不再因样本陈旧误报（**不用 `allowDeviation`**：那是"允许的偏离"会永久豁免，而"易变"只是字段性质）。
   - 用**上一次会误报的那份实时响应**重跑验证 ⇒ 现在 `L1+L2 全部通过 ✅`。
   - 顺带发现工具自带**镜像一致性自检**（`docs/findings/read-paths.json` 与 `paas-core-trigger/src/test/resources/vendor/read-paths.json` 必须一致），已同步。
+- （**WS 推送端到端验证**）[findings/114](docs/findings/114-ws-push-verified.md)：补上第 109 轮的验证缺口——当时只验到"日志打了 `广播 userInfo`"（**证明不了订阅端收到**）。本轮用真实 STOMP 订阅（`tools/ws-userinfo-probe.js` 连 SockJS 裸 WS `/ws/websocket` → CONNECT/SUBSCRIBE `/topic/userInfo` → HTTP 触发 update_avatar）**收到 MESSAGE 帧**，载荷与厂商 `UserStatus` 形状一致；探针写库后已恢复。
+  - 顺带确认：SockJS 裸 WS 端点 `/ws/websocket` 可用；目的地 `/topic/userInfo` 与厂商 `sendInfo(text,"userInfo")` 对齐。
+  - 方法点：**"代码走到推送那一行"≠"订阅端收到"**——`convertAndSend` 到不存在的目的地也会打日志。
 - （**契约比对复跑（第 113 轮）**）[findings/113](docs/findings/113-contract-rerun-round113.md)：**7/7 条已记录读路径全部 0 失败**（第 88 轮是 5/7）⇒ 第 88 轮发现的两处（`/v1/user` token 真差异、`/v1/user/info` 样本陈旧）**都已解决**，且这 25 轮新增改动**未引入回归**。
   - 方法点：**用同一条命令复跑确认"修完真的好了"**，而不是相信"改完了应该就好"。
 - （**契约比对复跑**）[findings/94](docs/findings/94-contract-check-rerun.md)：9 条已记录读路径跑 `tools/contract-check.py` ⇒ **7 条 0 失败**（service/role/sub_role/role-list/software 全绿）。
