@@ -454,4 +454,19 @@ public interface IServiceQueryService {
      * </ol>
      */
     boolean updateSoftwareServicePorts(java.util.List<com.csm.paas.core.domain.software.model.valobj.ServicePortItemVO> form);
+
+    /**
+     * 已被占用的 NodePort 列表（厂商 `GET /v1/pub/nodePortUsed?port=` →
+     * `UserService.getNodePortUsedList:2120-2240`，规格见 `docs/findings/141`）。
+     *
+     * <p>三段来源：① 带非空 `ingress-lb` 标签的 Deployment 的 `httpPort`/`httpsPort` **注解**
+     * （各一条，**两条都叫"框架内部"**）；② 该标签值按 `-` 拆开取**第 2 段**当 ingress 名，
+     * 读 `tcp-services-<名>`/`udp-services-<名>` 两个 ConfigMap 的 data
+     * （`key=nodePort`、`value=<proto>/<serviceName>` ⇒ `{name=serviceName, port=key}`）；
+     * ③ `type=NodePort` 的 Service ⇒ `{name = <标签 name 或 app> + ":" + <service port>, port = <nodePort>}`。
+     *
+     * <p>`port` 非空时只保留 port 相等的条目；第 ③ 段读失败 ⇒ 记日志并**直接返回**（保留前两段）。
+     */
+    java.util.List<com.csm.paas.core.domain.software.model.valobj.NodePortUsedVO> queryNodePortUsed(
+            String namespace, Integer port);
 }

@@ -263,4 +263,18 @@ public interface IServiceRuntimePort {
      * **读不到的跳过**（只记日志），不抛异常。
      */
     java.util.List<java.util.Map<String, Object>> readConfigMaps(String namespace, java.util.List<String> names);
+
+    // ---------- nodePortUsed（厂商 GET /v1/pub/nodePortUsed）----------
+
+    /** 带**非空** `ingress-lb` 标签的 Deployment 的**标签值**列表（厂商 `getNodePortUsedList:2128-2134`）。 */
+    java.util.List<String> listIngressLbValues(String namespace);
+
+    /** 读 Deployment 的 `metadata.annotations`（不存在/无注解 ⇒ 空 Map）。 */
+    java.util.Map<String, String> readDeploymentAnnotations(String namespace, String name);
+
+    /** 读 ConfigMap 的 `data`（不存在 ⇒ **null**，厂商按 null 处理）。 */
+    java.util.Map<String, String> readConfigMapData(String namespace, String name);
+
+    /** 列命名空间里 `type=NodePort` 的 Service 原样快照。 */
+    java.util.List<java.util.Map<String, Object>> listNodePortServices(String namespace);
 }

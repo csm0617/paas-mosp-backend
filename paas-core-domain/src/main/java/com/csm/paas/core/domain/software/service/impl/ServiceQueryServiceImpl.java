@@ -27,6 +27,9 @@ import java.util.stream.Collectors;
 @Service
 public class ServiceQueryServiceImpl implements IServiceQueryService {
 
+    /** 厂商 `getNodePortUsedList` 里写死的条目名（http/https 两条都用它）。 */
+    private static final String FRAMEWORK_INTERNAL = "框架内部";
+
     @Resource
     private IServiceRuntimePort serviceRuntimePort;
 
@@ -1362,6 +1365,87 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
         }
         gatewayRefreshPort.refresh();
         return true;
+    }
+
+    /**
+     * 已被占用的 NodePort（厂商 `getNodePortUsedList:2120-2240`，规格见 `docs/findings/141`）。
+     */
+    @Override
+    public List<com.csm.paas.core.domain.software.model.valobj.NodePortUsedVO> queryNodePortUsed(
+            String namespace, Integer port) {
+        List<com.csm.paas.core.domain.software.model.valobj.NodePortUsedVO> result = new ArrayList<>();
+        List<String> ingressNameList = new ArrayList<>();
+        try {
+            ingressNameList = serviceRuntimePort.listIngressLbValues(namespace);
+            for (String ingressName : ingressNameList) {
+                Map<String, String> annotations = serviceRuntimePort.readDeploymentAnnotations(namespace, ingressName);
+                if (annotations.isEmpty()) {
+                    continue;
+                }
+                // 厂商直接 Integer.valueOf(注解值)：缺失/非数字会抛（照抄，不额外兜）
+                Integer httpPort = Integer.valueOf(annotations.get("httpPort"));
+                result.add(com.csm.paas.core.domain.software.model.valobj.NodePortUsedVO.builder()
+                        .name(FRAMEWORK_INTERNAL).port(httpPort).build());
+                Integer httpsPort = Integer.valueOf(annotations.get("httpsPort"));
+                result.add(com.csm.paas.core.domain.software.model.valobj.NodePortUsedVO.builder()
+                        .name(FRAMEWORK_INTERNAL).port(httpsPort).build());
+            }
+        } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+            log.error("ingress列表下暴露的tcp,udp相关端口失败，异常为:{}", e.getMessage());
+        }
+        for (String ingressName : ingressNameList) {
+            String[] parts = ingressName.split("-");
+            String endName = parts[1];   // 厂商：取第 2 段（没有 `-` 会 IndexOutOfBounds，照抄）
+            for (String proto : List.of("tcp", "udp")) {
+                Map<String, String> data = serviceRuntimePort.readConfigMapData(namespace,
+                        proto + "-services-" + endName);
+                if (data == null) {
+                    continue;
+                }
+                for (Map.Entry<String, String> entry : data.entrySet()) {
+                    String serviceName = entry.getValue().split("/")[1];
+                    result.add(com.csm.paas.core.domain.software.model.valobj.NodePortUsedVO.builder()
+                            .port(Integer.parseInt(entry.getKey())).name(serviceName).build());
+                }
+            }
+        }
+        try {
+            for (Map<String, Object> svc : serviceRuntimePort.listNodePortServices(namespace)) {
+                Map<String, Object> metadata = asMap(svc.get("metadata"));
+                Map<String, Object> spec = asMap(svc.get("spec"));
+                String name = metadata == null ? null : (String) metadata.get("name");
+                Map<String, Object> labels = metadata == null ? null : asMap(metadata.get("labels"));
+                if (labels != null) {
+                    // 厂商：name = labels["name"]；为空再取 labels["app"]
+                    String labelName = (String) labels.get("name");
+                    name = (labelName == null || labelName.isBlank()) ? (String) labels.get("app") : labelName;
+                }
+                List<Object> ports = spec == null ? null : (List<Object>) spec.get("ports");
+                for (Object rawPort : ports == null ? List.<Object>of() : ports) {
+                    Map<String, Object> p = asMap(rawPort);
+                    if (p == null) {
+                        continue;
+                    }
+                    // 厂商：条目名是 `<name>:<service port>`，而 port 字段是 nodePort
+                    result.add(com.csm.paas.core.domain.software.model.valobj.NodePortUsedVO.builder()
+                            .name(name + ":" + p.get("port"))
+                            .port(p.get("nodePort") instanceof Number n ? n.intValue() : null)
+                            .build());
+                }
+            }
+        } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+            log.error("获取nodeport服务列表出错，异常为:{}", e.getMessage());
+            return result;   // 厂商：直接返回（前两段结果保留）
+        }
+        if (port != null) {
+            return result.stream().filter(d -> port.equals(d.getPort())).toList();
+        }
+        return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> asMap(Object value) {
+        return value instanceof Map<?, ?> map ? (Map<String, Object>) map : null;
     }
 
     /** 厂商 `getStringRandom(length)`：每位 `SecureRandom.nextInt(2)%2==0` 取 `a-z`，否则取 `0-9`。 */

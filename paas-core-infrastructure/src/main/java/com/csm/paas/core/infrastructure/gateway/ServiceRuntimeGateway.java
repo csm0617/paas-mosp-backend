@@ -511,6 +511,38 @@ public class ServiceRuntimeGateway {
         }
     }
 
+    /** 带非空 `ingress-lb` 标签的 Deployment 的标签值（厂商把它当"ingress 名"用）。 */
+    public List<String> listIngressLbValues(String namespace) {
+        return kubernetesClient.apps().deployments().inNamespace(namespace).list().getItems().stream()
+                .filter(d -> d.getMetadata() != null && d.getMetadata().getLabels() != null)
+                .map(d -> d.getMetadata().getLabels().get("ingress-lb"))
+                .filter(v -> v != null && !v.isBlank())
+                .toList();
+    }
+
+    /** Deployment 的 annotations（不存在/无注解 ⇒ 空 Map）。 */
+    public Map<String, String> readDeploymentAnnotations(String namespace, String name) {
+        var d = kubernetesClient.apps().deployments().inNamespace(namespace).withName(name).get();
+        if (d == null || d.getMetadata() == null || d.getMetadata().getAnnotations() == null) {
+            return Map.of();
+        }
+        return d.getMetadata().getAnnotations();
+    }
+
+    /** ConfigMap 的 data（不存在 ⇒ null）。 */
+    public Map<String, String> readConfigMapData(String namespace, String name) {
+        var cm = kubernetesClient.configMaps().inNamespace(namespace).withName(name).get();
+        return cm == null ? null : cm.getData();
+    }
+
+    /** `type=NodePort` 的 Service 原样快照。 */
+    public List<Map<String, Object>> listNodePortServices(String namespace) {
+        return kubernetesClient.services().inNamespace(namespace).list().getItems().stream()
+                .filter(s -> s.getSpec() != null && "NodePort".equals(s.getSpec().getType()))
+                .map(this::toSnapshot)
+                .toList();
+    }
+
     /** 按名字读 ConfigMap 快照；**读不到的跳过**（厂商 `exportConfigMap` 的行为）。 */
     public List<Map<String, Object>> readConfigMaps(String namespace, List<String> names) {
         List<Map<String, Object>> result = new java.util.ArrayList<>();

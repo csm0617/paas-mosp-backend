@@ -263,6 +263,42 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
     }
 
     @Override
+    public java.util.List<String> listIngressLbValues(String namespace) {
+        try {
+            return serviceRuntimeGateway.listIngressLbValues(namespace);
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    @Override
+    public java.util.Map<String, String> readDeploymentAnnotations(String namespace, String name) {
+        try {
+            return serviceRuntimeGateway.readDeploymentAnnotations(namespace, name);
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    @Override
+    public java.util.Map<String, String> readConfigMapData(String namespace, String name) {
+        try {
+            return serviceRuntimeGateway.readConfigMapData(namespace, name);
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    @Override
+    public java.util.List<java.util.Map<String, Object>> listNodePortServices(String namespace) {
+        try {
+            return serviceRuntimeGateway.listNodePortServices(namespace);
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    @Override
     public java.util.List<java.util.Map<String, Object>> readConfigMaps(String namespace, java.util.List<String> names) {
         try {
             return serviceRuntimeGateway.readConfigMaps(namespace, names);
