@@ -1271,6 +1271,41 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
         return status instanceof Map<?, ?> statusMap ? (String) ((Map<String, Object>) statusMap).get("phase") : null;
     }
 
+    /**
+     * 检测软件/服务是否有 ConfigMap 配置组（厂商 `existConfigMapBySoftwareOrService:3834-3913`，规格见 `docs/findings/133`）。
+     */
+    @Override
+    public boolean existConfigMap(String namespace, String type, List<String> keys) {
+        // 厂商：`key != null || key.size() != 0` ⇒ key 缺失时 NPE（且使"检查全部软件"分支永不可达）。
+        // 我们按"没有 key ⇒ false"处理（deviations B22）。
+        if (keys == null || keys.isEmpty()) {
+            return false;
+        }
+        if ("software".equals(type)) {
+            for (String key : keys) {
+                java.util.Set<String> names = new java.util.LinkedHashSet<>();
+                softwareRepository.queryById(key).ifPresent(software -> {
+                    for (String appName : softwareRepository.queryAppNamesBySoftwareId(software.getId())) {
+                        names.addAll(serviceRuntimePort.readDeploymentConfigMapNames(namespace, appName));
+                    }
+                });
+                if (!names.isEmpty()) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if ("service".equals(type)) {
+            for (String key : keys) {
+                if (!serviceRuntimePort.readDeploymentConfigMapNames(namespace, key).isEmpty()) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        return false;
+    }
+
     /** 厂商 `getStringRandom(length)`：每位 `SecureRandom.nextInt(2)%2==0` 取 `a-z`，否则取 `0-9`。 */
     private static String randomString(int length) {
         java.security.SecureRandom random = new java.security.SecureRandom();

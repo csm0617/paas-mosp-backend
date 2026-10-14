@@ -244,6 +244,11 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
     }
 
     @Override
+    public java.util.List<String> readDeploymentConfigMapNames(String namespace, String serviceName) {
+        return serviceRuntimeGateway.readDeploymentConfigMapNames(namespace, serviceName);
+    }
+
+    @Override
     public java.util.List<java.util.Map<String, Object>> listAllPods(String namespace) {
         try {
             return serviceRuntimeGateway.listAllPods(namespace);

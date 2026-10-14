@@ -404,4 +404,18 @@ public interface IServiceQueryService {
      * </ol>
      */
     com.csm.paas.core.domain.software.model.entity.SoftwareOverviewEntity querySoftwareOverview(String namespace);
+
+    /**
+     * 检测软件或服务是否存在 ConfigMap 配置组（厂商 `POST /v1/software/existConfigmap` →
+     * `SoftwareService.existConfigMapBySoftwareOrService:3834-3913`，规格见 `docs/findings/133`）。
+     *
+     * <p>`type == "software"`：逐个 `key`（软件 id）→ 取该软件的 `g_software_app` → 逐个 Deployment
+     * 收集 `volumes[*].configMap.name`；`type == "service"`：逐个 `key`（Deployment 名）直接收集。
+     * **只要有一个 key 收集到名字就返回 true**（边收集边判）。
+     *
+     * <p><b>一处主动收紧</b>（`deviations.md` B22）：厂商写的是 `key != null || key.size() != 0`——
+     * 用 `||` 且后面直接调 `size()` ⇒ `key` 缺失时 **NPE ⇒ 500**；而且这让"不带 key ⇒ 检查全部软件"
+     * 那个分支**永远不可达**。我们按"没有 key ⇒ 返回 false"处理（**不实现**那个死分支）。
+     */
+    boolean existConfigMap(String namespace, String type, java.util.List<String> keys);
 }

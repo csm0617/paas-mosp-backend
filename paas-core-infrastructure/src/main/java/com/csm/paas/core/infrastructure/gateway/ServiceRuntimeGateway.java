@@ -490,6 +490,27 @@ public class ServiceRuntimeGateway {
         return ds == null ? null : toSnapshot(ds);
     }
 
+    /**
+     * 读 Deployment 的 configMap 卷名（厂商逐卷看 `volume.getConfigMap()` 那段）。
+     * <p>不存在或读取失败 ⇒ 空列表（调用方按"没收集到"处理）。
+     */
+    public List<String> readDeploymentConfigMapNames(String namespace, String name) {
+        try {
+            var d = kubernetesClient.apps().deployments().inNamespace(namespace).withName(name).get();
+            if (d == null || d.getSpec() == null || d.getSpec().getTemplate() == null
+                    || d.getSpec().getTemplate().getSpec() == null
+                    || d.getSpec().getTemplate().getSpec().getVolumes() == null) {
+                return List.of();
+            }
+            return d.getSpec().getTemplate().getSpec().getVolumes().stream()
+                    .filter(v -> v.getConfigMap() != null && v.getConfigMap().getName() != null)
+                    .map(v -> v.getConfigMap().getName())
+                    .toList();
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            return List.of();
+        }
+    }
+
     /** 列命名空间里全部 pod 的原样快照。 */
     public List<Map<String, Object>> listAllPods(String namespace) {
         return kubernetesClient.pods().inNamespace(namespace).list().getItems().stream()

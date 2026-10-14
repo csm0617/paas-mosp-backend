@@ -50,6 +50,20 @@ public class SoftwareController {
     private String namespace;
 
     /**
+     * 厂商 `POST /v1/software/existConfigmap`：检测软件或服务是否存在 ConfigMap 配置组。
+     *
+     * <p>`type=software` 时 `key` 是软件 id（取其关联服务）、`type=service` 时 `key` 是 Deployment 名；
+     * **只要有一个 key 收集到 configMap 名就返回 true**。规则见
+     * `IServiceQueryService.existConfigMap`（规格 `findings/133`）。
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/existConfigmap")
+    public ResponseDTO<Boolean> existConfigmap(
+            @org.springframework.web.bind.annotation.RequestBody com.csm.paas.core.api.dto.ExportConfigDTO form) {
+        return ResponseDTO.ok(serviceQueryService.existConfigMap(namespace,
+                form == null ? null : form.getType(), form == null ? null : form.getKey()));
+    }
+
+    /**
      * 厂商 `POST /v1/software/image_base64`（multipart `file`）：把上传的图片转成 base64 字符串。
      *
      * <p>格式守卫照抄厂商 `imageToBase64Str:2543-2554`：Tika 探测 MIME，只有

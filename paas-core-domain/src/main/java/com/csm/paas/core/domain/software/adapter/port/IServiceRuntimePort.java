@@ -242,4 +242,12 @@ public interface IServiceRuntimePort {
 
     /** 列命名空间里**全部** pod 的原样快照（厂商 `overView` 的 pod 统计用 `listNamespacedPod` 无选择器）。 */
     java.util.List<java.util.Map<String, Object>> listAllPods(String namespace);
+
+    /**
+     * 读某个 Deployment 的 `spec.template.spec.volumes[*].configMap.name`（厂商
+     * `existConfigMapBySoftwareOrService` / `setNameSetBySoftware` 里逐卷收集的那段）。
+     *
+     * <p>Deployment 不存在或读取失败 ⇒ **空列表**（厂商那两处对 ApiException 都是"记日志后跳过"）。
+     */
+    java.util.List<String> readDeploymentConfigMapNames(String namespace, String serviceName);
 }
