@@ -43,6 +43,14 @@ public class ServiceRuntimeEntity {
      * <p>**只在这个端点里赋值**；为空时装配器回退服务名，从而不影响已对拉通过的 `/v1/service` 列表行为。
      */
     private String fixedName;
+
+    /**
+     * 工作负载 pod 模板上的注解 `gaop/serviceLabel`（= 用户在界面上设置的**服务显示名**）。
+     * <p>两个用途：厂商 `GET /v1/service/gaop` 的 keyword **兜底匹配**就打在它上面
+     * （`ServiceController.filterServiceName:2070-2081`，**大小写敏感的 contains**）；
+     * `PUT /v1/service/updateName` 改的也是这个注解。
+     */
+    private String serviceLabel;
     private Map<String, Object> serviceSnapshot;
     private Map<String, Object> deploymentSnapshot;
 }

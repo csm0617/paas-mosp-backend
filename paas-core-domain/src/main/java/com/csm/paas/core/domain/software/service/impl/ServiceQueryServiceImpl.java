@@ -84,14 +84,14 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
     }
 
     /**
-     * 厂商 `ServiceController.filterServiceName(keyword, e)` 的兜底匹配。
-     * <p><b>待补读</b>：厂商那个方法的规则还没读全——这里先按"名字或显示名包含 keyword（忽略大小写）"实现，
-     * 并在 `docs/findings/54` 里标注为**未经对拉的近似**。
+     * 厂商 `ServiceController.filterServiceName:2070-2081` 的**精确实现**：
+     * 取 pod 模板注解 `gaop/serviceLabel`，**大小写敏感的 contains**；注解或该键缺失 → false。
+     * <p>注意它不是匹配 i18n 名、也不是匹配 `fixedName`——第一版我按"名字/显示名忽略大小写包含"实现，
+     * 是**错的**（`findings/56`）。
      */
     private static boolean filterServiceName(String keyword, ServiceRuntimeEntity s) {
-        String k = keyword.toLowerCase();
-        return (s.getName() != null && s.getName().toLowerCase().contains(k))
-                || (s.getFixedName() != null && s.getFixedName().toLowerCase().contains(k));
+        String label = s.getServiceLabel();
+        return label != null && label.contains(keyword);
     }
 
     @Override

@@ -113,6 +113,35 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
         return appType == null ? null : String.valueOf(appType);
     }
 
+    /**
+     * 从工作负载快照里取注解 `spec.template.metadata.annotations["gaop/serviceLabel"]`
+     * （厂商 `filterServiceName` 用它做 keyword 兜底匹配；`updateName` 改的也是它）。
+     */
+    @SuppressWarnings("unchecked")
+    private static String serviceLabelOf(Map<String, Object> workloadSnapshot) {
+        if (workloadSnapshot == null) {
+            return null;
+        }
+        Object spec = workloadSnapshot.get("spec");
+        if (!(spec instanceof Map)) {
+            return null;
+        }
+        Object template = ((Map<String, Object>) spec).get("template");
+        if (!(template instanceof Map)) {
+            return null;
+        }
+        Object metadata = ((Map<String, Object>) template).get("metadata");
+        if (!(metadata instanceof Map)) {
+            return null;
+        }
+        Object annotations = ((Map<String, Object>) metadata).get("annotations");
+        if (!(annotations instanceof Map)) {
+            return null;   // 厂商：annotations 为 null → false
+        }
+        Object label = ((Map<String, Object>) annotations).get("gaop/serviceLabel");
+        return label == null ? null : String.valueOf(label);
+    }
+
     /** 从 workload 快照里取容器镜像（厂商 `imageInfo`）。 */
     @SuppressWarnings("unchecked")
     private String imageOf(Map<String, Object> snapshot) {
@@ -174,6 +203,7 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
                 .createdAt(creationTimestampOf(workloadSnapshot))
                 .serviceSnapshot(svc != null ? serviceRuntimeGateway.toSnapshot(svc) : null)
                 .appType(appTypeOf(workloadSnapshot))
+                .serviceLabel(serviceLabelOf(workloadSnapshot))
                 .deploymentSnapshot(workloadSnapshot)
                 .build();
     }

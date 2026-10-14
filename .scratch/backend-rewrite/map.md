@@ -250,7 +250,10 @@ Label: `wayfinder:map`
     - **问题 A 已定论**：`allPageService` 是 `@RequestLine("GET /api/v2/clusters/{id}/services")` —— **对 TenX 云 API 的远程调用**；本环境无该外部服务 ⇒ 恒空。**与 `/v1/service` 本质不同**（后者直读 K8s）。
     - **处置**：保留我们的 K8s 直读实现 + 记录成因。**不为了"本环境看起来一致"去模仿返回空列表**——那等于把可用功能改成空壳以迎合坏参考。真实部署里 TenX 存在时两者的集合应当相同。
     - 仍欠：厂商 keyword 兜底 `filterServiceName` 未读全，当前是"名字/显示名忽略大小写包含"的**近似**（注释已标）。
-  - 下一轮顺序：读全 `filterServiceName` → 转 `serviceAuth`/`baseComponent`。
+  - **keyword 兜底规则已精确实现**（[findings/56](docs/findings/56-filter-service-name-exact.md)）：读全 `filterServiceName:2070-2081` 后确认我上一版的近似**三条全错**——它匹配的是注解 **`gaop/serviceLabel`**（用户改过的显示名）而不是 `fixedName`（平台内置显示名），第二段**只看注解不看名字**，且**大小写敏感**。
+    - 改动：`ServiceRuntimeEntity.serviceLabel` + 端口取 `spec.template.metadata.annotations["gaop/serviceLabel"]` + `filterServiceName` 精确实现；3 条用例，其中"没有注解的服务永不命中兜底"正是我上一版会答错的那题。
+    - 教训：**标注"这是近似"不等于核对过了**——近似值本身可能就是错的。
+  - 下一轮顺序：转 `serviceAuth`/`baseComponent`（两个已确认可观测的端点）。
   - 下一轮程序：搬常量 → 实现 filter（type=2 照抄缺陷）→ keyword 两段式（兜底 `filterServiceName` 需先补读）→ 复用已对拉的 `ServiceList` 形状 → 对拉 type=1/type=2/带 keyword/keyword>45 四种情形。：我此前逐轮报的「162/174」是**数错了**（grep 只匹配到部分模块的汇总行，且 surefire 报告目录混有旧文件）。按模块汇总行精确求和：**33 个测试类、210 条用例全绿**。教训与「手抄不透明值」「只验形状不验值」同源——**计数也是要验证的量**，必须用可复算的命令。
 
 - （K3 预研结论）`LicenceInfo.expired(code)` = `{end:-1, endIso8601:null, code, expired:true}`，其中 `code = 机器码 + Base64(软件key)`；**"没有激活码"这一支不需要密码学**，可以在做 `GET /v1/software/{id}` 时一并实现（本轮没写，因为详情端点没做就没有调用方，写了是死代码）。
