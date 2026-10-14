@@ -63,4 +63,21 @@ public interface ILanguageVersionDao {
             """)
     int deleteLanguageEntries(@org.apache.ibatis.annotations.Param("lang") String lang,
                               @org.apache.ibatis.annotations.Param("version") String version);
+
+    /**
+     * 某语言+版本下的词条（厂商 `getLanguages:485-490`：`where lang=? and lang_version=?`
+     * **加上可选的 module**——module 为空白时不过滤）。
+     */
+    @Select("""
+            <script>
+            SELECT id, text_key, content, lang, lang_version, module, abbr, description
+            FROM g_language
+            WHERE lang = #{lang} AND lang_version = #{version}
+            <if test="module != null and module != ''">AND module = #{module}</if>
+            </script>
+            """)
+    java.util.List<com.csm.paas.core.infrastructure.dao.po.LanguageEntryPO> selectLanguages(
+            @org.apache.ibatis.annotations.Param("lang") String lang,
+            @org.apache.ibatis.annotations.Param("version") String version,
+            @org.apache.ibatis.annotations.Param("module") String module);
 }

@@ -1,5 +1,6 @@
 package com.csm.paas.core.trigger.http;
 
+import com.csm.paas.core.api.dto.LanguageInfoDTO;
 import com.csm.paas.core.api.dto.LanguageVersionInfoDTO;
 import com.csm.paas.core.api.dto.ResponseDTO;
 import com.csm.paas.core.domain.language.service.ILanguageCommandService;
@@ -14,10 +15,10 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * 厂商 `LanguageController`（`/v1/lang`）——本轮实现其中的 **`GET /version`**。
+ * 厂商 `LanguageController`（`/v1/lang`）。
  *
- * <p>已实现 `GET /version`（`findings/137`）与 `DELETE /remove`（`findings/138`）；
- * 其余端点（`/cur`、`/current`、`/import`、`POST /version`、`/detail`）尚未实现。
+ * <p>已实现 `GET /version`（`findings/137`）、`DELETE /remove`（`findings/138`）、
+ * `GET /detail`（`findings/139`）；其余端点（`/cur`、`/current`、`/import`、`POST /version`）尚未实现。
  */
 @RestController
 @RequestMapping("/v1/lang")
@@ -43,6 +44,31 @@ public class LanguageController {
     public ResponseDTO<Boolean> removeLangVersion(
             @RequestParam String lang, @RequestParam String version) {
         return ResponseDTO.ok(languageCommandService.deleteLanguageVersion(lang, version));
+    }
+
+    /**
+     * 厂商 `GET /v1/lang/detail?lang=&version=&module=`：语言包详情。
+     *
+     * <p>`version` 为空 ⇒ 用当前版本；`version=default` ⇒ 读**内置**语言包（`classpath:i18n/messages*.properties`）；
+     * 否则查 `g_language`（`module` 非空时再按 module 过滤）。规则见
+     * `ILanguageQueryService.queryLanguageDetail`（规格 `findings/139`）。
+     */
+    @GetMapping("/detail")
+    public ResponseDTO<LanguageInfoDTO> langDetail(
+            @RequestParam String lang,
+            @RequestParam(required = false) String version,
+            @RequestParam(required = false) String module) {
+        var info = languageQueryService.queryLanguageDetail(lang, version, module);
+        return ResponseDTO.ok(LanguageInfoDTO.builder()
+                .languageList(info.getLanguageList().stream()
+                        .map(e -> LanguageInfoDTO.LanguageEntryDTO.builder()
+                                .id(e.getId()).description(e.getDescription()).textKey(e.getTextKey())
+                                .module(e.getModule()).content(e.getContent()).abbr(e.getAbbr())
+                                .build())
+                        .toList())
+                .total(info.getTotal()).module(info.getModule())
+                .lang(info.getLang()).langVersion(info.getLangVersion())
+                .build());
     }
 
     @GetMapping("/version")

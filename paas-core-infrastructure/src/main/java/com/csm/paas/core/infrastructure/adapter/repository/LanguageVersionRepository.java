@@ -65,4 +65,15 @@ public class LanguageVersionRepository implements ILanguageVersionRepository {
     public void deleteLanguageEntries(String lang, String version) {
         languageVersionDao.deleteLanguageEntries(lang, version);
     }
+
+    @Override
+    public java.util.List<com.csm.paas.core.domain.language.model.entity.LanguageEntryEntity> queryLanguages(
+            String lang, String version, String module) {
+        return languageVersionDao.selectLanguages(lang, version, module).stream()
+                .map(po -> com.csm.paas.core.domain.language.model.entity.LanguageEntryEntity.builder()
+                        .id(po.getId()).description(po.getDescription()).textKey(po.getTextKey())
+                        .module(po.getModule()).content(po.getContent()).abbr(po.getAbbr())
+                        .build())
+                .toList();
+    }
 }

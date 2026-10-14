@@ -18,4 +18,21 @@ public interface ILanguageQueryService {
      */
     com.csm.paas.core.domain.language.model.entity.LanguageVersionPageEntity queryLanguageVersionList(
             int page, int size, String keyword);
+
+    /**
+     * 语言包详情（厂商 `GET /v1/lang/detail` → `LanguageServiceImpl.getLangList:284-294`，规格见 `docs/findings/139`）。
+     *
+     * <p>规则：
+     * <ol>
+     *   <li>`lang` 先 `-` → `_` 归一化；</li>
+     *   <li>`version` 为空白 ⇒ 用**当前版本**（`used=1` 那一行的 `lang_version`，没有则 `default`）；</li>
+     *   <li>`version == "default"` ⇒ 读**内置**语言包（`classpath:i18n/messages*.properties`），
+     *       每条映射成 `{textKey, content, module="gaop", langVersion="default"}`（`id`/`description`/`abbr` 为 null），
+     *       `module` 字段固定回填 `"gaop"`；</li>
+     *   <li>否则查 `g_language`（`module` 非空白时再按 module 过滤）；</li>
+     *   <li>`total` 就是**列表长度**（不是 COUNT 查询）。</li>
+     * </ol>
+     */
+    com.csm.paas.core.domain.language.model.entity.LanguageInfoEntity queryLanguageDetail(
+            String lang, String version, String module);
 }

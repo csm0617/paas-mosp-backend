@@ -23,9 +23,11 @@ import static org.mockito.Mockito.when;
 class LanguageVersionListTest {
 
     private final ILanguageVersionRepository repository = mock(ILanguageVersionRepository.class);
+    private final com.csm.paas.core.domain.language.adapter.port.ILanguagePropertiesPort propertiesPort =
+            mock(com.csm.paas.core.domain.language.adapter.port.ILanguagePropertiesPort.class);
 
     private LanguageQueryServiceImpl service() {
-        return new LanguageQueryServiceImpl(repository);
+        return new LanguageQueryServiceImpl(repository, propertiesPort);
     }
 
     private void page(String expectedLike, List<LanguageVersionEntity> rows, long total) {
