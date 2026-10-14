@@ -38,6 +38,11 @@ public interface IRoleRepository {
 
     List<RoleSoftwareEntity> querySoftwareByRoleId(String roleId);
 
+    /** 分页版（厂商 `roleSoftwareList` 用 `PageHelper.startPage` + `order by order`）。 */
+    List<RoleSoftwareEntity> querySoftwarePage(String roleId, int offset, int size);
+
+    long countSoftwareByRoleId(String roleId);
+
     /** 按 `g_role.type` 分页、`created_at` 倒序（厂商 `RoleService.java:196`）。 */
     List<RoleEntity> queryPageByType(int type, int offset, int size);
 

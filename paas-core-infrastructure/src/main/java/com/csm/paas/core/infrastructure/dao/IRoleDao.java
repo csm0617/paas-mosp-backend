@@ -137,8 +137,21 @@ public interface IRoleDao {
     @Delete("DELETE FROM g_role WHERE id = #{roleId}")
     int deleteById(@Param("roleId") String roleId);
 
-    @Select("SELECT id, role_id, app_id, app_name, url, updated_at, created_at FROM g_role_software WHERE role_id = #{roleId}")
+    /**
+     * 战位下的软件（厂商 `RoleService.roleSoftwareList:418`：`where role_id = ? order by \`order\``）。
+     * <p>**按 `order` 升序**——这一点在库里没有数据时看不出来，容易漏。
+     */
+    @Select("SELECT id, role_id, app_id, app_name, url, updated_at, created_at FROM g_role_software "
+            + "WHERE role_id = #{roleId} ORDER BY `order`")
     List<RoleSoftwarePO> selectSoftwareByRoleId(@Param("roleId") String roleId);
+
+    @Select("SELECT id, role_id, app_id, app_name, url, updated_at, created_at FROM g_role_software "
+            + "WHERE role_id = #{roleId} ORDER BY `order` LIMIT #{size} OFFSET #{offset}")
+    List<RoleSoftwarePO> selectSoftwarePage(@Param("roleId") String roleId,
+                                            @Param("offset") int offset, @Param("size") int size);
+
+    @Select("SELECT COUNT(*) FROM g_role_software WHERE role_id = #{roleId}")
+    long countSoftwareByRoleId(@Param("roleId") String roleId);
 
     /**
      * 用户名关联的战位/角色名，按 {@code g_role.type} 过滤、按 {@code g_role.created_at} 倒序。

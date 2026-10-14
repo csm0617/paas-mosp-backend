@@ -77,6 +77,17 @@ public class RoleQueryServiceImpl implements IRoleQueryService {
     }
 
     @Override
+    public com.csm.paas.core.domain.role.model.entity.RoleSoftwareListEntity querySoftwareList(
+            String roleId, int page, int size) {
+        int offset = com.csm.paas.core.types.util.PageUtils.offset(page, size);
+        var list = roleRepository.querySoftwarePage(roleId, offset, size);
+        long total = roleRepository.countSoftwareByRoleId(roleId);
+        log.info("查询战位 {} 的软件列表 page={} size={} 共 {} 条", roleId, page, size, total);
+        return com.csm.paas.core.domain.role.model.entity.RoleSoftwareListEntity.builder()
+                .list(list).total(total).build();
+    }
+
+    @Override
     public RoleListEntity queryAllRoleList(String roleName, int page, int size) {
         List<RoleEntity> roles;
         long total;

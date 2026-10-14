@@ -98,6 +98,22 @@ public class RoleRepository implements IRoleRepository {
     }
 
     @Override
+    public List<RoleSoftwareEntity> querySoftwarePage(String roleId, int offset, int size) {
+        return roleDao.selectSoftwarePage(roleId, offset, size).stream().map(RoleRepository::toSoftwareEntity).toList();
+    }
+
+    @Override
+    public long countSoftwareByRoleId(String roleId) {
+        return roleDao.countSoftwareByRoleId(roleId);
+    }
+
+    private static RoleSoftwareEntity toSoftwareEntity(com.csm.paas.core.infrastructure.dao.po.RoleSoftwarePO po) {
+        return RoleSoftwareEntity.builder()
+                .id(po.getId()).roleId(po.getRoleId()).appId(po.getAppId()).appName(po.getAppName())
+                .url(po.getUrl()).updatedAt(po.getUpdatedAt()).createdAt(po.getCreatedAt())
+                .build();
+    }
+
     public List<RoleSoftwareEntity> querySoftwareByRoleId(String roleId) {
         return roleDao.selectSoftwareByRoleId(roleId).stream()
                 .map(po -> RoleSoftwareEntity.builder()

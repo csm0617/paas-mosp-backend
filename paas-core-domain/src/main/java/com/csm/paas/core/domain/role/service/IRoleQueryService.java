@@ -34,4 +34,15 @@ public interface IRoleQueryService {
 
     /** 战位下的软件列表（厂商 `GET /v1/role/software`）。 */
     List<RoleSoftwareEntity> querySoftwareByRoleId(String roleId);
+
+    /**
+     * 战位下的软件列表（厂商 `GET /v1/role/{roleId}/software` → `RoleService.roleSoftwareList:416-...`）。
+     *
+     * <p>分页 + **按 `order` 升序**；每行还会按软件类型补 `appName`（i18n 名）与 `url`：
+     * `CS` 类型拼 `gaop://cs?...`（含请求头 `x-forwarded-host`），非 CS 用 `routerKey`。
+     * <p>**当前实现只做到"查库 + 分页 + 排序"**：`appName` 的 i18n 解析与 `url` 的两种拼法尚未实现
+     * （库里 `g_role_software` 为空，无法用真实数据对拉这两段）——已记在 `findings/90`。
+     */
+    com.csm.paas.core.domain.role.model.entity.RoleSoftwareListEntity querySoftwareList(
+            String roleId, int page, int size);
 }

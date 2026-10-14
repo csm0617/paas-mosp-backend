@@ -400,6 +400,10 @@ Label: `wayfinder:map`
 - （**node_port 规格**）[findings/85](docs/findings/85-node-port-spec.md)：把 120 行的 `patchServicePorts` 读到"可直接翻译"（两个分支 + 异常映射 + 三处易错点 + 下一轮的实现与验证计划）。
   - 关键：**返回布尔**（`Response.ok(v1Service != null)`），A 分支"推导不出端口"时**返回 null ⇒ `data:false`**（静默失败）；`name` 公式 `<protocol>-<name>-<i>` **小写**；两分支错误消息不同（A 分支带服务名的中文 `SystemException`）。
   - 同族的 `POST /{serviceName}/nodePort` 只读到头部，**未逐行读完**，实现时不要把两者混为一谈。
+- （**K1 边界**）[GET /v1/role/{roleId}/software](docs/findings/90-role-software-list.md)：实现"管理员校验 + 分页 + `order by \`order\`` + `{list,total}`"；`appName` 的 i18n 与 `url` 两种拼法**未实现**（库里 0 行无法对拉那两段）。
+  - **顺带修掉一个潜伏问题**：`g_role_software` 的查询原来**没有 ORDER BY**，而厂商是 `order by \`order\``——因为库里 0 行，`/v1/role`、`/v1/role/list`、`/v1/role/software` 三个已完成端点从未暴露该差异。**这是"零行数据下的假通过"**，已给该查询补上排序（同时修了那三个端点）。
+  - **认证路径无法对拉**：同一个 `gateway-token` 在 `/v1/user/info` 两侧都 200，但在厂商的 `/v1/role/{id}/software` 上返回 **401 未认证**（我们 200/400）。⇒ 厂商这里取用户的路径与其它端点不同，差异在认证层、不在业务规则；**下一轮可查厂商 `getCurrentUser(req)` 从哪取用户**。
+  - 测试 283 → **285 条**全绿。
 - （**服务切片 15/33**）[POST /{serviceName}/nodePort 实现](docs/findings/89-nodePort-implemented-vendor-broken.md)：实现完成，**并发现这个端点在厂商侧无法成功**。
   - 实测三种输入：`type=ClusterIP`+带 nodePort → K8s 422「nodePort Forbidden when type is ClusterIP」；不带 nodePort → K8s 422「spec.ports: Required value」；`type!=ClusterIP` → `data:false`。⇒ **永远拿不到 `true`**，且 `service.port.occupied.error` 是**误报**（真实原因是 ClusterIP 不允许 nodePort）。**照抄其可观测行为，不修正**。
   - 主 Service 部分正确（type 写死 ClusterIP、ports 推导、nodePort 显式 null）；`<name>-nodeport` 按 `generateServiceDoc` 骨架创建/patch；随机端口 [10000,75534]。

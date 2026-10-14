@@ -158,6 +158,35 @@ public class RoleController {
      * 厂商 `GET /v1/role/software`：**当前会话战位**下的软件列表。
      * <p>与厂商一致：读 `g_role_software`（本环境为空）。
      */
+    /**
+     * 厂商 `GET /v1/role/{roleId}/software?page&size`：指定战位下的软件列表。
+     * <p>**需要管理员**：非管理员（或未登录）→ 400 `role.no.permission.view`（厂商 `RoleController:114-117`）。
+     * <p>注意：`appName` 的 i18n 名与 `url` 的两种拼法**尚未实现**（见 `findings/90`）。
+     */
+    @GetMapping("/{roleId}/software")
+    public ResponseDTO<RoleSoftwareListDTO> roleSoftwareList(
+            @PathVariable String roleId,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            HttpServletRequest request) {
+        var session = authSupport.currentSession(request);
+        // 厂商 userService.isAdmin(user)：战位 key 为 admin 才算管理员（与本项目其它地方的判定一致）
+        if (session.isEmpty() || !"admin".equals(session.get().getRoleKey())) {
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("role.no.permission.view");
+        }
+        var result = roleQueryService.querySoftwareList(roleId,
+                PageUtils.normalizePage(page), PageUtils.normalizeSize(size));
+        return ResponseDTO.ok(RoleSoftwareListDTO.builder()
+                .list(result.getList().stream()
+                        .map(s -> RoleSoftwareDTO.builder()
+                                .id(s.getId()).roleId(s.getRoleId()).appId(s.getAppId()).appName(s.getAppName())
+                                .url(s.getUrl()).updatedAt(s.getUpdatedAt()).createdAt(s.getCreatedAt())
+                                .build())
+                        .toList())
+                .total(result.getTotal())
+                .build());
+    }
+
     @GetMapping("/software")
     public ResponseDTO<RoleSoftwareListDTO> currentRoleSoftware(HttpServletRequest request) {
         String roleKey = authSupport.currentSession(request)
