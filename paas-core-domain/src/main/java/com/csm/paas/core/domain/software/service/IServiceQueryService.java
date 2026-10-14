@@ -25,4 +25,12 @@ public interface IServiceQueryService {
      * 所以只用**离线单测**钉住"patch 报文内容 + 回退顺序 + i18n 落库"，线上只对拉了"服务不存在时的错误契约"。
      */
     boolean updateServiceName(String namespace, String serviceKey, String name, String nameUs, String nameFr);
+
+    /**
+     * 框架/基础服务列表（厂商 `GET /v1/service/gaop?page&size&type&keyword`，`ServiceController:1563-1660`）。
+     * <p>过滤与 `fixedName` 见 `GaopServiceFilter` / `GaopServiceNames`（含照抄的厂商缺陷）；
+     * `keyword` 两段式匹配；分页用厂商同款 `PageUtils` 口径。
+     * <p>`keyword` 长度 &gt; 45 → `service.invalid.service.name.length`（HTTP 400），由调用方（控制器）先判。
+     */
+    ServiceListEntity queryGaopServiceList(String namespace, int page, int size, Integer type, String keyword);
 }

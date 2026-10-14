@@ -5,6 +5,8 @@ import com.csm.paas.core.domain.software.adapter.repository.IServiceAuthReposito
 import com.csm.paas.core.domain.software.model.entity.ServiceAuthEntity;
 import com.csm.paas.core.domain.software.model.entity.ServiceListEntity;
 import com.csm.paas.core.domain.software.model.entity.ServiceRuntimeEntity;
+import com.csm.paas.core.domain.software.valobj.GaopServiceFilter;
+import com.csm.paas.core.domain.software.valobj.GaopServiceNames;
 import com.csm.paas.core.domain.software.service.IServiceQueryService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -50,6 +52,46 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
         i18nRepository.upsertValue("i18n.service.en_US." + serviceKey, nameUs, "service name en_US");
         i18nRepository.upsertValue("i18n.service.fr_FR." + serviceKey, nameFr, "service name fr_FR");
         return true;
+    }
+
+    @Override
+    public ServiceListEntity queryGaopServiceList(String namespace, int page, int size, Integer type, String keyword) {
+        List<ServiceRuntimeEntity> all = serviceRuntimePort.queryServices(namespace).stream()
+                .filter(s -> GaopServiceFilter.matches(type, s.getName(), s.getAppType()))
+                .peek(s -> s.setFixedName(GaopServiceNames.fixedName(s.getName())))
+                .collect(Collectors.toList());
+
+        if (keyword != null) {
+            // 厂商两段式：先按 deployment 名 contains；若为空，再用 filterServiceName 兜底一次
+            List<ServiceRuntimeEntity> byName = all.stream()
+                    .filter(s -> s.getName() != null && s.getName().contains(keyword))
+                    .collect(Collectors.toList());
+            all = byName.isEmpty() ? all.stream().filter(s -> filterServiceName(keyword, s)).collect(Collectors.toList()) : byName;
+        }
+
+        int total = all.size();
+        int from = Math.max(0, com.csm.paas.core.types.util.PageUtils.offset(page, size));
+        int to = Math.min(total, from + size);
+        List<ServiceRuntimeEntity> pageItems = from >= total ? List.of() : all.subList(from, to);
+
+        int running = (int) pageItems.stream().filter(s -> s.getReplicas() != null && s.getReplicas() > 0).count();
+        return ServiceListEntity.builder()
+                .runningDeployment(running)
+                .total(total)
+                .count(pageItems.size())
+                .services(pageItems)
+                .build();
+    }
+
+    /**
+     * 厂商 `ServiceController.filterServiceName(keyword, e)` 的兜底匹配。
+     * <p><b>待补读</b>：厂商那个方法的规则还没读全——这里先按"名字或显示名包含 keyword（忽略大小写）"实现，
+     * 并在 `docs/findings/54` 里标注为**未经对拉的近似**。
+     */
+    private static boolean filterServiceName(String keyword, ServiceRuntimeEntity s) {
+        String k = keyword.toLowerCase();
+        return (s.getName() != null && s.getName().toLowerCase().contains(k))
+                || (s.getFixedName() != null && s.getFixedName().toLowerCase().contains(k));
     }
 
     @Override

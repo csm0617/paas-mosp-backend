@@ -5,6 +5,7 @@ import com.csm.paas.core.api.dto.ServiceListResponseDTO;
 import com.csm.paas.core.domain.software.model.entity.ServiceListEntity;
 import com.csm.paas.core.domain.software.service.IServiceQueryService;
 import com.csm.paas.core.trigger.assembler.ServiceListAssembler;
+import com.csm.paas.core.types.util.PageUtils;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
@@ -47,6 +48,27 @@ public class ServiceController {
      * 落进厂商同款 `code=-1` 信封。
      * <p>**顺序不要依赖**：厂商用 `HashMap` 聚合再 `forEach`，同一环境两次调用顺序都可能不同。
      */
+    /**
+     * 厂商 `GET /v1/service/gaop?page&size&type&keyword`：框架系统服务（`type=1`）/ 基础服务（`type=2`）列表。
+     * <p>`type` **必填**；`keyword` 长度 > 45 → 400 `service.invalid.service.name.length`。
+     * <p>响应形状与 `GET /v1/service` 相同（`{runningDeployment,total,count,services}`）。
+     * <p><b>注意</b>：厂商在没有 `system/appType` 标签时，`type=2` 走的也是框架名单（照抄的缺陷，
+     * 见 `GaopServiceFilter` 与 `docs/findings/53` §5）。
+     */
+    @GetMapping("/v1/service/gaop")
+    public ResponseDTO<com.csm.paas.core.api.dto.ServiceListResponseDTO> gaopServiceList(
+            @org.springframework.web.bind.annotation.RequestParam(required = false, defaultValue = "1") Integer page,
+            @org.springframework.web.bind.annotation.RequestParam(required = false, defaultValue = "20") Integer size,
+            @org.springframework.web.bind.annotation.RequestParam Integer type,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String keyword) {
+        if (keyword != null && keyword.length() > 45) {
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("service.invalid.service.name.length");
+        }
+        var entity = serviceQueryService.queryGaopServiceList(
+                namespace, PageUtils.normalizePage(page), PageUtils.normalizeSize(size), type, keyword);
+        return ResponseDTO.ok(ServiceListAssembler.toResponse(entity));
+    }
+
     @GetMapping("/v1/service/labels")
     public ResponseDTO<java.util.List<com.csm.paas.core.api.dto.LabelListDTO>> labels() {
         var merged = serviceQueryService.queryNodeLabels();
