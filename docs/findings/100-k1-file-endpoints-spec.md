@@ -59,6 +59,27 @@ row(1): 8 个示例单元格，来自 i18n 键：
 ⇒ 实现需要：**POI** + 这两组 **i18n 文案**（`TABLE_HEADERS` 与上面 8 个键）+ `ExcelUtils.initializeWorkbook` 的行为
 （表头写在第 0 行；是否带样式要读 `ExcelUtils` 才能确定——**下一轮先读它再动手**）。
 
+### (b') `ExcelUtils.initializeWorkbook` 的行为（已读，模板实现不再有未知）
+
+```java
+public static HSSFWorkbook initializeWorkbook(List<String> tableHeaders, String sheetName) {
+    HSSFWorkbook workbook = new HSSFWorkbook();
+    HSSFSheet sheet = StringUtils.isEmpty(sheetName) ? workbook.createSheet() : workbook.createSheet(sheetName);
+    HSSFRow columnTitleRow = sheet.createRow(0);
+    AtomicInteger inc = new AtomicInteger();
+    tableHeaders.forEach(name -> columnTitleRow.createCell(inc.getAndIncrement()).setCellValue(name));
+    return workbook;
+}
+```
+
+两点要照抄：
+1. **表头是"已经翻译过的文案"**——调用方传的是 `i18nUtil.getMessages(TABLE_HEADERS)`，
+   所以写进单元格的是 **i18n 后的字符串**（不是 key）；
+2. **无任何样式/列宽/日期格式**（`getDateCellStyle` 是另一个方法，模板不用）⇒ 我们的产出也不加样式，否则字节/结构可能不同。
+
+`TABLE_HEADERS`（8 个 key，顺序即列序）：
+`template.user.name / nickname / relate.user / relate.subrole / relate.sub.subrole / desc / status / password`
+
 ### (c) 顺带：`/backup` 与 `generateBackupExcel` 不是同一条路径
 
 `POST /backup` 的处理器调的是 **`generateExportExcel`**；而 `generateBackupExcel:950-`（会**跳过

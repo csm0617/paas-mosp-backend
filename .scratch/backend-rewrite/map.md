@@ -436,6 +436,7 @@ Label: `wayfinder:map`
   - 建议顺序：`import/template`（最简单）→ `export`/`backup` → 错误路径 + `update_avatar` → `import`/`recovery`。
   - **读实现后的两个重要事实**：① **`handleRecoveryExcel` 是空方法**（`UserService.java:947-948`）⇒ `/recovery` 只校验格式、**不写任何数据**，实现只需"校验+返回 null"，验证只需"合法 Excel → 两侧 200 data:null 且库无变化"；② `generateExportExcelTemplate` = 第 0 行表头（i18n `TABLE_HEADERS`）+ 第 1 行 8 个示例单元格（8 个 `template.user.example.*` 键）⇒ 需 POI + 两组 i18n 文案 + **先读 `ExcelUtils.initializeWorkbook`**。
   - 另：`/backup` 处理器调的是 `generateExportExcel`，而 `generateBackupExcel`（会跳过 admin/dev/root）是**另一个函数**——不要望名生义。
+  - **`ExcelUtils.initializeWorkbook` 已读**：表头写的是**已翻译文案**（调用方传 `i18nUtil.getMessages(TABLE_HEADERS)`），且**无样式/列宽/日期格式** ⇒ 我们产出也不加样式。`TABLE_HEADERS` 8 个 key 顺序即列序：`template.user.{name,nickname,relate.user,relate.subrole,relate.sub.subrole,desc,status,password}`。⇒ 模板端点的实现**已无未知项**（POI + i18n + 无样式）。
 - （**K1 边界**）[GET /v1/role/{roleId}/software](docs/findings/90-role-software-list.md)：实现"管理员校验 + 分页 + `order by \`order\`` + `{list,total}`"；`appName` 的 i18n 与 `url` 两种拼法**未实现**（库里 0 行无法对拉那两段）。
   - **顺带修掉一个潜伏问题**：`g_role_software` 的查询原来**没有 ORDER BY**，而厂商是 `order by \`order\``——因为库里 0 行，`/v1/role`、`/v1/role/list`、`/v1/role/software` 三个已完成端点从未暴露该差异。**这是"零行数据下的假通过"**，已给该查询补上排序（同时修了那三个端点）。
   - **（第 84 轮更正）认证路径其实能对拉**：真因是**我把 token 发错了地方**——厂商 `getCurrentUser(req):883-903` 从 **Cookie** 取 `gateway-token`，我当时用的是 HTTP 头。改用 Cookie 后厂商 200，且四组用例（两个战位/带 keyword/不存在的战位）**响应完全相等**（含"不存在的战位 → `{list:[],total:0}`，不是错误"）。
