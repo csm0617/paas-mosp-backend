@@ -430,6 +430,11 @@ Label: `wayfinder:map`
 - （**认证审计 + K1 剩余清单**）[findings/91](docs/findings/91-k1-remaining-and-auth-audit.md)：厂商只有 Role/User/Public 三个控制器要会话（`getCurrentUser` 读 **Cookie**）；**服务域全部端点都不需要会话**（所以我们那句"原型尚未实现认证"是对的，不是缺口）。
   - 发现一处差异（B9，已入 deviations）：`GET /v1/role/software` 无 Cookie 时厂商 401、我们返回 `{list:[],total:0}`。
   - **K1 剩余端点清单**：`/v1/user/list`、`/redirect`、`/access_permission`、`/tenx_user` + **文件类**（`recovery`/`backup`/`export`/`import/template`/`import`/`update_avatar`）+ **破坏性** `reset_user`。⇒ K1 剩下主要是文件传输类，值得单独一轮（牵动 `g_upload_store_record` 与 `gaop-fdfs`）。
+- （**已实现**）[POST /v1/user/export 与 /v1/user/backup](docs/findings/105-export-backup-implemented.md)：两处理器**方法体相同** ⇒ 我们同一个私有方法；8 列照抄（username/nickname/第一个角色key/角色关系key列表JSON/子角色key列表JSON/desc/status(int)/**password**）、**只设前三列宽 2560**、创建 `yyyy-MM-dd` 日期样式。
+  - **一处插曲已解释**：文件里提取到 `admin` 一度疑为"没跳过 admin"，实为**表头文案本身**含该词（`template.user.relate.user=关联角色(admin运维管理员…)`）⇒ **二进制里"看到词"≠"写入了字段"，判定必须读回单元格**。
+  - 离线单测 6 条（域 4 + 触发 2，POI 读回逐格断言，含列宽 2560/2048 的对照）。
+  - **未做在线对拉**：厂商 Metaspace 已打满（findings/102），文件类请求 500。
+  - 端点映射 64 → **66**；测试 294 → **300 条**全绿。
 - （**已实现**）[POST /v1/user/recovery](docs/findings/102-recovery-implemented-vendor-ooms.md)：照抄厂商的**空实现**（只做 MIME 校验 → 返回 null，不写库）；库内核对 `g_user` 前后都是 1 行 ✅。
   - **两条路径都拿不到有效对拉**：A 非 Excel → 厂商 **500**（而它代码里明明写着 400 `global.import.supported.file.type` ⇒ 400 分支没走到，下一轮查厂商日志栈）；B 合法 xls → 厂商 **500 `OutOfMemoryError: Metaspace`**（**厂商进程故障**，非契约答案）。
   - **第 102 轮更正**：**A 也是 OOM**（重跑打印完整响应体：`NestedServletException: … OutOfMemoryError: Metaspace`）⇒ 两条用例都是**厂商 JVM 故障**，没有契约结论；我上一版"A 待追因（400 分支没走到）"**是错的**。

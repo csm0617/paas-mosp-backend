@@ -63,6 +63,9 @@ public class UserController {
     private com.csm.paas.core.trigger.i18n.MessageResolver messageResolver;
 
     @Resource
+    private com.csm.paas.core.domain.user.service.impl.UserExportService userExportService;
+
+    @Resource
     private IUserRepository userRepository;
 
     @Resource
@@ -150,6 +153,39 @@ public class UserController {
         }
         // 厂商 handleRecoveryExcel 是空方法 ⇒ 校验通过即返回 null，不写任何数据
         return ResponseDTO.ok(null);
+    }
+
+    /**
+     * 厂商 `POST /v1/user/export`（body 是 `List<String> userIdList`，可为空）：导出用户 xls。
+     * <p>与 `/v1/user/backup` **共用** `generateExportExcel`（厂商两个处理器方法体相同，文件名都用
+     * i18n `export.file.name.user.export`）。
+     */
+    @PostMapping(value = "/v1/user/export", produces = "application/vnd.ms-excel")
+    public void usersExport(@org.springframework.web.bind.annotation.RequestBody(required = false)
+                            java.util.List<String> userIdList,
+                            HttpServletResponse response) throws java.io.IOException {
+        writeUserExcel(userIdList, response);
+    }
+
+    /** 厂商 `POST /v1/user/backup`：与 `/export` 同一实现（同一个生成函数、同一个文件名键）。 */
+    @PostMapping(value = "/v1/user/backup", produces = "application/vnd.ms-excel")
+    public void usersBackUp(@org.springframework.web.bind.annotation.RequestBody(required = false)
+                            java.util.List<String> userIdList,
+                            HttpServletResponse response) throws java.io.IOException {
+        writeUserExcel(userIdList, response);
+    }
+
+    private void writeUserExcel(java.util.List<String> userIdList, HttpServletResponse response)
+            throws java.io.IOException {
+        byte[] bytes = com.csm.paas.core.trigger.assembler.UserExportExcelWriter.build(
+                messageResolver, userExportService.exportRows(userIdList));
+        response.reset();
+        response.setContentType("application/vnd.ms-excel");
+        String filename = messageResolver.resolve("export.file.name.user.export");
+        response.setHeader("Content-Disposition",
+                "attachment; filename*=UTF-8''" + java.net.URLEncoder.encode(filename, java.nio.charset.StandardCharsets.UTF_8));
+        response.getOutputStream().write(bytes);
+        response.flushBuffer();
     }
 
     @GetMapping("/v1/user/info")
