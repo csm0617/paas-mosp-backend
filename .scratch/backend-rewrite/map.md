@@ -484,6 +484,10 @@ Label: `wayfinder:map`
 - （**剩余端点规模地图**）[findings/87](docs/findings/87-remaining-endpoints-scale-map.md)：把 7 个候选逐个读到"能估规模与依赖"——**没有一个能在半轮做完**。
   - `serviceInfoByNode` **卡在 `getServiceItemInfo`（监控子系统）**，建议明确降级；`nodePort` 管的是另一个 `<name>-nodeport` Service（~150 行）；`patchService` ~100 行；`updateVolumes` ~120 行；`/v1/role/{roleId}/software` ~60 行（CS url + Deployment 现场状态）；`relationService` ~80 行（mapping info + **一处厂商 NPE**）。
   - 优先级：`nodePort`（与 `node_port` 同业务）→ `/v1/role/{roleId}/software`（K1 最后一块读）→ `patchService`/`updateVolumes`；影像域其余**不建议动**（无对端）。
+- **第 112 轮现状与交接**：[findings/112](docs/findings/112-handover-refresh.md)（接替第 76 轮的 84）——71 个 Mapping（服务15/用户19/软件11/战位8/Shell6/授权5/Auth2/子角色2/影像1/健康2）、304 条用例全绿、141 提交、102 篇 findings、deviations 33 条。
+  - 第 76→112 轮增量：K1 角色/用户 3 个读端点、K1 文件类 5 个、影像域 projectList（K3s 重写）、服务切片 node_port/nodePort/cancelStartUp/startUp/restartInfo、两次定期 e2e 复检。
+  - 方法教训累计 8 条（新增 4 条：先查自己/二进制元数据/看到词≠写入字段/最后一块不构成赶工理由）。
+  - 卡住分五类：环境限制（厂商 Metaspace 128m）、外部设施、厂商自身坏、破坏性写、规模。
 - **第 76 轮现状总览**：[findings/84](docs/findings/84-state-of-the-rewrite-round76.md)（接替第 59 轮的 67）——57 端点映射（服务 13/用户 12/软件 10/战位 6/子角色 1/授权 5/Shell 6/Auth 2/影像 1/健康 1）、273 条用例全绿、104 提交、80 篇 findings。
   - 第 59→76 轮补上：K2 跨域 6 项（含自造密钥对的批量激活）、服务切片 13/33（写端点六个有独立 namespace e2e）、影像域 projectList（按 K3s 重写后逐字节对拉）、全栈 e2e 复验。
   - 新增三条方法教训：**多实现先找选择逻辑**（读错类）、**配置默认值从运行产物读**（厂商 jar 里的 `initPodConfig.image`）、**假差异比漏测更危险**（共享状态顺序对拉 / `trace` 不可比）。
