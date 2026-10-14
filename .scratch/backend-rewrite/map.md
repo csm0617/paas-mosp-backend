@@ -326,6 +326,11 @@ Label: `wayfinder:map`
   - 两处照抄：鉴权头是 URL-safe base64（厂商 `getUrlEncoder()`）；`creation_time` 是 String 且可能畸形（实测 `+58753-04-29…`），不解析成时间。
   - **没有在线对拉（如实标注）**：`192.168.1.52:30002` 本机直连超时、Harbor 不在本集群 ⇒ 后端跑在本机时到不了 Harbor。正确性靠"逐行对应 + 回放测试"；要在线对拉需把后端**部署进集群**（拓扑变更，已记待办）。
   - 测试 262 → **266 条**全绿（+3 域规则 +1 键名回放）。
+  - ⚠️ **上一段的实现数据源是错的（第 71 轮更正，`findings/79`）**：`NodeVersionServiceImpl.getImageServiceInstance():81-83` **写死返回 `k3sImageService`** ⇒ 实际生效的是 **`K3sImageServiceImpl`（查库 `g_image_group`）**，而不是我照着实现的 `K8sImageServiceImpl`（Harbor）。集群内（两个命名空间）实测 curl Harbor **HTTP 000 连不上**，也证明那两个项目不来自 Harbor。
+    - K3s 逻辑与实测完全吻合：查 `g_image_group`（**为空则创建** `system_containers`/`gaop`/`library` 三个内置项目）→ **只过滤 `system_containers`** → `ImageGroup{id,createDate,name}` 映射成 3 个非空字段、其余 8 个 null → `total=list.size()`。
+    - 顺带解释畸形值：`Instant.ofEpochSecond(createDate)` 把**毫秒**当**秒** ⇒ 年份爆到 58753（厂商缺陷，照抄勿修）。
+    - **教训**：不是读错了代码行，而是**读错了类**——凡有多实现/多策略，先找"选择逻辑"再读被选中的实现。
+    - 待办：按 K3s 实现重写该端点（**注意它会在表为空时写库**，对拉后要处理/清理）。
 - （**顺着 e2e 线索找到真实缺口**）[GET /v1/image/projectList](docs/findings/77-image-projectlist-divergence.md)：A/B 共享端点后定位到它——**vendor 返回 2 个 Harbor 项目（library/gaop），我们返回空列表（stub）**。其余共享端点（quickStart/mode/lang/settings/switchRole）全部相等。
   - 线索链：HTML 大小差异 → 可见文本**完全相同**（否掉"多导航条目"的猜测）→ `data:image` 5 vs 15（导航图标）→ **前端调用的端点集合两侧完全相同** → 逐个 A/B → 命中 `projectList`。
   - 实现路径：`K8sImageServiceImpl.projectList:107-119` = `harbor.allPageProjects` → 过滤 `system_containers`/`system_store` → 按 `creation_time` 倒序 → 分页。
