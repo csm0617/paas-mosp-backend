@@ -156,4 +156,16 @@ public interface IServiceRuntimePort {
      * @return K8s Service 快照；不存在返回 null
      */
     java.util.Map<String, Object> readServiceSnapshot(String namespace, String serviceName);
+
+    // ---------- rollingUpdate（厂商 PUT /v1/service/rollingUpdate）----------
+
+    /**
+     * 滚动更新：按 `type` 重设 `spec.strategy`（1 ⇒ `maxSurge=1/maxUnavailable=0`；2 ⇒ `0/1`；其它不改），
+     * 再写注解 `gaop/updateTimestamp`、`minReadySeconds=2`、`containers[0].image=version`，最后整份 merge-patch
+     * （厂商 `rollingUpdate:2599-2644` + `setRollingUpdate:2646-2654`）。
+     *
+     * @return false = Deployment 不存在
+     */
+    boolean patchDeploymentRollingUpdate(String namespace, String serviceName, Integer type, String version,
+                                         long updateTimestamp);
 }

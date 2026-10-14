@@ -139,6 +139,13 @@ public interface ISoftwareRepository {
      */
     List<String> queryAppNamesBySoftwareId(String softwareId);
 
+    /**
+     * 把 `g_software.updated_at` 推进到给定值（厂商 `updateSoftwareTimeByService:3776-3788`：
+     * 按 `g_software_app.app_name` 找到关联软件，逐个 `setUpdatedAt(now)` 后更新）。
+     * <p>`PUT /v1/service/rollingUpdate` 在 patch 成功**之后**调它。
+     */
+    void updateSoftwareUpdatedAt(String softwareId, long updatedAt);
+
     /** 删某软件在某服务下的全部端口映射（厂商 `where software_id = ? and service_name = ?`）。 */
     void deleteServicePorts(String softwareId, String serviceName);
 

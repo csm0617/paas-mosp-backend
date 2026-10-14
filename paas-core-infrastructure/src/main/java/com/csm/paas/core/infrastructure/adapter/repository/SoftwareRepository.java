@@ -238,6 +238,11 @@ public class SoftwareRepository implements ISoftwareRepository {
     }
 
     @Override
+    public void updateSoftwareUpdatedAt(String softwareId, long updatedAt) {
+        softwareDao.updateSoftwareUpdatedAt(softwareId, updatedAt);
+    }
+
+    @Override
     public void deleteServicePorts(String softwareId, String serviceName) {
         softwareDao.deleteServicePortsBySoftwareIdAndServiceName(softwareId, serviceName);
     }

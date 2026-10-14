@@ -57,6 +57,35 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
     private static final Integer AUTH_AUTHORIZED = 1;
     private static final Integer AUTH_EXPIRED = 2;
 
+    /**
+     * 滚动更新 / 更新镜像版本（厂商 `rollingUpdate:2599-2644`，规格见 `docs/findings/122`）。
+     */
+    @Override
+    public boolean updateServiceImageRollingUpdate(String namespace,
+                                                   com.csm.paas.core.domain.software.model.valobj.ServiceImageVO form) {
+        String serviceName = form == null ? null : form.getName();
+        if (!serviceRuntimePort.deploymentExists(namespace, serviceName)) {
+            throw new com.csm.paas.core.types.exception.WrongArgumentException(
+                    "service.not.found.update.image.version", serviceName);
+        }
+        long updateTime = System.currentTimeMillis();
+        try {
+            serviceRuntimePort.patchDeploymentRollingUpdate(namespace, serviceName,
+                    form == null ? null : form.getType(),
+                    form == null ? null : form.getVersion(),
+                    updateTime);
+        } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+            log.error("调用API失败: {}", e.getMessage());
+            throw new com.csm.paas.core.types.exception.WrongArgumentException(
+                    "k8s.call.api.failed.to.change.image.version");
+        }
+        // 厂商：patch 成功**之后**才 `updateSoftwareTimeByService`（失败时不动库）
+        for (String softwareId : softwareRepository.querySoftwareIdsByAppName(serviceName)) {
+            softwareRepository.updateSoftwareUpdatedAt(softwareId, System.currentTimeMillis());
+        }
+        return true;
+    }
+
     @Override
     public boolean updateServiceName(String namespace, String serviceKey, String name, String nameUs, String nameFr) {
         try {

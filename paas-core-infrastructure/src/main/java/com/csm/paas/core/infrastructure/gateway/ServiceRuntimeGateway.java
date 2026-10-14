@@ -444,6 +444,46 @@ public class ServiceRuntimeGateway {
         return svc == null ? null : toSnapshot(svc);
     }
 
+    /**
+     * 滚动更新（厂商 `rollingUpdate:2599-2644` + `setRollingUpdate:2646-2654`）：按 `type` 重设 strategy，
+     * 写注解 `gaop/updateTimestamp`、`minReadySeconds=2`、`containers[0].image`，最后整份 merge-patch。
+     *
+     * @return false = Deployment 不存在
+     */
+    public boolean patchDeploymentRollingUpdate(String namespace, String name, Integer type, String version,
+                                                long updateTimestamp) {
+        var d = kubernetesClient.apps().deployments().inNamespace(namespace).withName(name).get();
+        if (d == null) {
+            return false;
+        }
+        var spec = d.getSpec();
+        if (type != null && (type == 1 || type == 2)) {
+            // 厂商 `setRollingUpdate`：type=1 ⇒ maxSurge=1/maxUnavailable=0；type=2 ⇒ 0/1（IntOrString 的整型形态）
+            var rollingUpdate = new io.fabric8.kubernetes.api.model.apps.RollingUpdateDeploymentBuilder()
+                    .withMaxSurge(new io.fabric8.kubernetes.api.model.IntOrString(type == 1 ? 1 : 0))
+                    .withMaxUnavailable(new io.fabric8.kubernetes.api.model.IntOrString(type == 1 ? 0 : 1))
+                    .build();
+            spec.setStrategy(new io.fabric8.kubernetes.api.model.apps.DeploymentStrategyBuilder()
+                    .withType("RollingUpdate")
+                    .withRollingUpdate(rollingUpdate)
+                    .build());
+        }
+        if (spec.getTemplate().getMetadata().getAnnotations() == null) {
+            spec.getTemplate().getMetadata().setAnnotations(new java.util.HashMap<>());
+        }
+        spec.getTemplate().getMetadata().getAnnotations().put("gaop/updateTimestamp",
+                String.valueOf(updateTimestamp));
+        spec.setMinReadySeconds(2);
+        var podSpec = spec.getTemplate().getSpec();
+        var container = podSpec.getContainers().get(0);
+        container.setImage(version);
+        podSpec.getContainers().set(0, container);
+        kubernetesClient.apps().deployments().inNamespace(namespace).withName(name)
+                .patch(io.fabric8.kubernetes.client.dsl.base.PatchContext.of(
+                        io.fabric8.kubernetes.client.dsl.base.PatchType.JSON_MERGE), Serialization.asJson(d));
+        return true;
+    }
+
     public List<Integer> listUsedNodePorts(String namespace) {
         List<Integer> used = new java.util.ArrayList<>();
         for (var svc : listServices(namespace)) {

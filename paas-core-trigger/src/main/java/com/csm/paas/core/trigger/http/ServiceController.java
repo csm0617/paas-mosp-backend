@@ -143,6 +143,24 @@ public class ServiceController {
     }
 
     /**
+     * 厂商 `PUT /v1/service/rollingUpdate`：滚动更新 / 更新镜像版本（请求体 `ServiceImageForm`）。
+     *
+     * <p>`type` 1 ⇒ `maxSurge=1/maxUnavailable=0`、2 ⇒ `0/1`、其它值不改策略；另外写
+     * `gaop/updateTimestamp`、`minReadySeconds=2`、`containers[0].image`；成功后再推进关联软件的 `updated_at`。
+     * 规则见 `IServiceQueryService.updateServiceImageRollingUpdate`（规格 `findings/122`）。
+     */
+    @org.springframework.web.bind.annotation.PutMapping("/v1/service/rollingUpdate")
+    public ResponseDTO<Boolean> rollingUpdate(
+            @org.springframework.web.bind.annotation.RequestBody com.csm.paas.core.api.dto.ServiceImageDTO form) {
+        return ResponseDTO.ok(serviceQueryService.updateServiceImageRollingUpdate(namespace,
+                com.csm.paas.core.domain.software.model.valobj.ServiceImageVO.builder()
+                        .name(form == null ? null : form.getName())
+                        .type(form == null ? null : form.getType())
+                        .version(form == null ? null : form.getVersion())
+                        .build()));
+    }
+
+    /**
      * 厂商 `PUT /v1/service/healthCheck`：设置/清空第一个容器的 readiness 与 liveness 探针。
      *
      * <p>`type` 0=清空、1=HTTPGet（scheme 写死 HTTP）、2=TCPSocket、其它值不动；返回 `data:true`。

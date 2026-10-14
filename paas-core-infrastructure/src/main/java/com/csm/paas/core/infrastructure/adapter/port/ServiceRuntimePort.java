@@ -203,6 +203,17 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
     }
 
     @Override
+    public boolean patchDeploymentRollingUpdate(String namespace, String serviceName, Integer type, String version,
+                                                long updateTimestamp) {
+        try {
+            return serviceRuntimeGateway.patchDeploymentRollingUpdate(
+                    namespace, serviceName, type, version, updateTimestamp);
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    @Override
     public java.util.Map<String, Object> readServiceSnapshot(String namespace, String serviceName) {
         try {
             return serviceRuntimeGateway.readService(namespace, serviceName);

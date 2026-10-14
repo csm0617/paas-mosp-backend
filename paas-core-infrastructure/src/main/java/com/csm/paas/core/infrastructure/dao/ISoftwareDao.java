@@ -275,6 +275,14 @@ public interface ISoftwareDao {
     @Select("SELECT app_name FROM g_software_app WHERE software_id = #{softwareId}")
     List<String> selectAppNamesBySoftwareId(@Param("softwareId") String softwareId);
 
+    /**
+     * 只把 `updated_at` 推进到给定值（厂商 `updateSoftwareTimeByService:3776-3788`：
+     * 读出实体 → `setUpdatedAt(now)` → `updateByPrimaryKeySelective`，净效果就是这一列）。
+     * <p>注意**不能**用 {@code updateByPrimaryKey}——那条 SQL 刻意不写 `updated_at`（对齐 `editSoftWare`）。
+     */
+    @org.apache.ibatis.annotations.Update("UPDATE g_software SET updated_at = #{updatedAt} WHERE id = #{id}")
+    int updateSoftwareUpdatedAt(@Param("id") String id, @Param("updatedAt") long updatedAt);
+
     /** 删某软件在某服务下的**全部**端口映射（厂商 `where software_id = ? and service_name = ?`）。 */
     @org.apache.ibatis.annotations.Delete("""
             DELETE FROM g_service_port WHERE software_id = #{softwareId} AND service_name = #{serviceName}

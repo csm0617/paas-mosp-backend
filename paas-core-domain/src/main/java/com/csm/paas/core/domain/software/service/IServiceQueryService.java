@@ -249,4 +249,22 @@ public interface IServiceQueryService {
      */
     java.util.List<com.csm.paas.core.domain.software.model.entity.ServiceRuntimeEntity>
     querySoftwareRelationServices(String namespace, String softwareId);
+
+    /**
+     * 滚动更新 / 更新镜像版本（厂商 `PUT /v1/service/rollingUpdate` →
+     * `ServiceController.rollingUpdate:2599-2644`，规格见 `docs/findings/122`）。
+     *
+     * <p>`type`：1 ⇒ `maxSurge=1/maxUnavailable=0`；2 ⇒ `0/1`；**其它值不改策略但照样改镜像**。
+     * 另外一律写注解 `gaop/updateTimestamp=<now>`、`minReadySeconds=2`、`containers[0].image=version`。
+     *
+     * <p>patch 成功后还要把关联软件的 `g_software.updated_at` 推进到当前时间
+     * （厂商 `updateSoftwareTimeByService:3776-3788`：按 `g_software_app.app_name` 找软件逐个更新）。
+     *
+     * <p>错误语义：Deployment 不存在 → 400 `service.not.found.update.image.version`（带服务名）；
+     * patch 的 K8s 异常 → 400 `k8s.call.api.failed.to.change.image.version`（**失败时不动库**，照抄顺序）。
+     *
+     * @return 恒为 `true`（厂商 `Response.ok(true)`）
+     */
+    boolean updateServiceImageRollingUpdate(String namespace,
+                                            com.csm.paas.core.domain.software.model.valobj.ServiceImageVO form);
 }
