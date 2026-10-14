@@ -102,6 +102,26 @@ dateStyle = getDateCellStyle(workbook, "yyyy-MM-dd")                     // 有�
    col5+ 待读（下一次实现前必须补全）
 ```
 
+### 已读全（第 104 轮）——8 列 + 列宽，**可以开工了**
+
+| col | 内容 |
+| --- | --- |
+| 0 | `username` |
+| 1 | `nickname` |
+| 2 | 该用户**第一个**角色的 `key` |
+| 3 | 角色关系 key 列表的 **JSON 字符串**（Gson；空则不设） |
+| 4 | 子角色 key 列表的 **JSON 字符串**（Gson；空则不设） |
+| 5 | `desc` |
+| 6 | `status`（**int**） |
+| 7 | **`password`（口令哈希！）** |
+
+行尾还有：`for (int i = 0; i < 3; ++i) sheet.setColumnWidth(i, 2560);`
+⇒ **只有第 0/1/2 列设了宽度 2560**（不是全部列——照抄时别"顺手"给所有列设宽）。
+
+⚠️ **第 7 列是口令哈希**：厂商把 `u.getPassword()` 直接写进导出的 Excel。
+这是**安全相关**的照抄点，已记入 `docs/deviations.md`（B 类）：**照抄 = 导出文件里含哈希**；
+若将来要脱敏，属于"主动偏离厂商"的决定，必须先记录并评估前端/运维是否依赖该列。
+
 **与 `generateBackupExcel:950-971` 的三处不同**（**不要混用**）：
 
 | | `generateExportExcel`（`/export`、`/backup` 实际用） | `generateBackupExcel`（别处用） |
