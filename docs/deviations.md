@@ -39,6 +39,7 @@
 | B6 | `g_auth` 无 `default_auth` 行时返回 null（折算未激活） | 厂商 `IndexOutOfBounds` | `findings/44` |
 | B7 | `GET /v1/service/gaop` 的排序列白名单化 | 厂商把用户输入拼进 ORDER BY | `findings/37`（软件域同款） |
 | B8 | `scale` 失败时保留 fabric8 原始消息 | 厂商 `msg` 为空，清空只丢诊断 | `findings/66` |
+| B13 | `/v1/user/import` 覆盖分支里 col3/col4 的字面量 JSON `null` 按"无列表"处理 | 厂商 `subRoleList.addAll(roleRelationList)` 会 **NPE → 500**（新用户分支有判空保护，覆盖分支漏了）。模板与 `/export` 都产不出字面量 `null` ⇒ 前端路径上不可达 | `findings/100` 第 (3) 条、`findings/117` |
 
 ## C. 参考环境限制导致无法对拉（按代码实现 + 标注证据来源）
 
