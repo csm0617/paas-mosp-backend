@@ -400,6 +400,10 @@ Label: `wayfinder:map`
 - （**node_port 规格**）[findings/85](docs/findings/85-node-port-spec.md)：把 120 行的 `patchServicePorts` 读到"可直接翻译"（两个分支 + 异常映射 + 三处易错点 + 下一轮的实现与验证计划）。
   - 关键：**返回布尔**（`Response.ok(v1Service != null)`），A 分支"推导不出端口"时**返回 null ⇒ `data:false`**（静默失败）；`name` 公式 `<protocol>-<name>-<i>` **小写**；两分支错误消息不同（A 分支带服务名的中文 `SystemException`）。
   - 同族的 `POST /{serviceName}/nodePort` 只读到头部，**未逐行读完**，实现时不要把两者混为一谈。
+- （**nodePort 规格**）[findings/88](docs/findings/88-nodePort-spec.md)：把 ~150 行读到"可直接翻译"。
+  - **与 `node_port` 不是近重复**：本端点还管**另一个 `<name>-nodeport` Service**（不存在则 `generateServiceDoc` 造、存在则 patch）。
+  - 四处怪点：主 Service 的 type **写死 `ClusterIP`** 而 `<name>-nodeport` 用 `cfg.type`；**`nodePort` 为空时随机分配**（[10000,75534]、≤10 次重试）⇒ **结果不可复现**，对拉只能比结构/区间/不冲突；`cfg.type != "ClusterIP"` 时**返回 false**；步骤 3 里 `nodePort` 是**显式置 null**。
+  - 这一步**有** StatefulSet 回退（与 `node_port` 的 A 分支不同）。已给五步独立 namespace 验证计划。
 - （**剩余端点规模地图**）[findings/87](docs/findings/87-remaining-endpoints-scale-map.md)：把 7 个候选逐个读到"能估规模与依赖"——**没有一个能在半轮做完**。
   - `serviceInfoByNode` **卡在 `getServiceItemInfo`（监控子系统）**，建议明确降级；`nodePort` 管的是另一个 `<name>-nodeport` Service（~150 行）；`patchService` ~100 行；`updateVolumes` ~120 行；`/v1/role/{roleId}/software` ~60 行（CS url + Deployment 现场状态）；`relationService` ~80 行（mapping info + **一处厂商 NPE**）。
   - 优先级：`nodePort`（与 `node_port` 同业务）→ `/v1/role/{roleId}/software`（K1 最后一块读）→ `patchService`/`updateVolumes`；影像域其余**不建议动**（无对端）。
