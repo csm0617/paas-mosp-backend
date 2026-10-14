@@ -53,6 +53,9 @@ public class UserController {
     private AuthSupport authSupport;
 
     @Resource
+    private com.csm.paas.core.domain.user.service.IUserAccessService userAccessService;
+
+    @Resource
     private IUserRepository userRepository;
 
     @Resource
@@ -75,6 +78,23 @@ public class UserController {
      * <p>**公开**：实测厂商不带 cookie 也 200（鉴权在网关侧，见 `docs/findings/14-vendor-auth-is-gateway-side.md`）。
      * <p>分页归一化照抄厂商 `SqlUtils`；关键字先去掉空格（厂商 `UserController.java:576`）。
      */
+    /**
+     * 厂商 `GET /v1/user/access_permission?path=`：该路径是否有权限（返回布尔）。
+     * <p>厂商在**没有 Cookie** 时会 **NPE（500）**——它本意是抛 `user.not.logged.in.or.expired`
+     * （判空写在了 `new UserLoginInfo()` 之后，永远不成立）。我们**实现其本意**：400 `user.not.logged.in.or.expired`
+     * （记为 B 类偏离，见 `findings/92`）。
+     */
+    @GetMapping("/v1/user/access_permission")
+    public ResponseDTO<Boolean> accessPermission(
+            @org.springframework.web.bind.annotation.RequestParam("path") String path,
+            HttpServletRequest request) {
+        var session = authSupport.currentSession(request);
+        if (session.isEmpty()) {
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("user.not.logged.in.or.expired");
+        }
+        return ResponseDTO.ok(userAccessService.checkAccessPermission(session.get().getUsername(), path));
+    }
+
     @GetMapping("/v1/user/info")
     public ResponseDTO<UserInfoListResponseDTO> userInfoList(
             @RequestParam(required = false) Integer page,

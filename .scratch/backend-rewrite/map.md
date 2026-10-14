@@ -400,6 +400,10 @@ Label: `wayfinder:map`
 - （**node_port 规格**）[findings/85](docs/findings/85-node-port-spec.md)：把 120 行的 `patchServicePorts` 读到"可直接翻译"（两个分支 + 异常映射 + 三处易错点 + 下一轮的实现与验证计划）。
   - 关键：**返回布尔**（`Response.ok(v1Service != null)`），A 分支"推导不出端口"时**返回 null ⇒ `data:false`**（静默失败）；`name` 公式 `<protocol>-<name>-<i>` **小写**；两分支错误消息不同（A 分支带服务名的中文 `SystemException`）。
   - 同族的 `POST /{serviceName}/nodePort` 只读到头部，**未逐行读完**，实现时不要把两者混为一谈。
+- （**已实现**）[GET /v1/user/access_permission](docs/findings/93-access-permission-implemented.md)：**六组用例对拉完全相等**（含 `/whatever` → true：厂商正则里 `[tenx]*`/`[gaop]*`/`[v1]*` 是**字符类**、可匹配 0 次，照抄才一致；改成 `(a|b)` 写法就会不一致）。
+  - 无 Cookie：厂商 **500（NPE）**、我们 400 `user.not.logged.in.or.expired`（厂商本意）⇒ B 类偏离。
+  - 结构：新建 `IUserAccessService`/`UserAccessService`（按规格建议接线，**不动** `UserQueryServiceImpl` 的 4 处测试构造）。
+  - 端点映射 60 → **61**；测试 285 → **289 条**全绿。
 - （**access_permission 规格**）[findings/92](docs/findings/92-access-permission-spec.md)：算法逐行读全（取**最后一个**战位 → 该战位关联软件 → `/api/<key>/<path>` → `findPath` 三个**照抄的正则**）。
   - **厂商缺陷**：没 Cookie 时 `userLoginInfo` 非 null（先 new 的）⇒ 那句 `if (userLoginInfo == null) throw` **不可达**，实际是第 1432 行 **NPE(500)**；它本意是抛 `user.not.logged.in.or.expired`。
   - 本轮已落地要用的 SQL：`selectServicePathsBySoftware`（`g_software_app`⋈`g_software`⋈`g_service_port` 三表 join，照抄）。
