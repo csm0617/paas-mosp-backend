@@ -45,6 +45,8 @@
 | # | 端点/能力 | 缺什么 | 我们的证据来源 |
 | --- | --- | --- | --- |
 | C1 | `GET /v1/service/{serviceName}` | 厂商自身 500（A1） | `/v1/service` 列表项的 `ServicesItem` 形状（**已对拉**） |
+| C2c | 影像域 `repositories`/`tags`/`existRepositories`/`allProjectImageList` | 数据源是 **Docker Registry API**（`dockerRegistryApiService.getImageListByProject`）；参考环境不可达 | 未实现（依赖地图见 `findings/81`） | `findings/81` |
+| C2d | `imageStorage` | 通过 **SSH** 连 `sshConfig.host` 取磁盘信息；参考环境连不上 ⇒ 厂商自己返回 `{free:0,total:0}` | 未实现 | `findings/81` |
 | C2b | `GET /v1/image/projectList` 的实现数据源 | 参考环境实际生效的是 `K3sImageServiceImpl`（查库 `g_image_group`），而我第一版照着 `K8sImageServiceImpl`（Harbor）实现 | 待按 K3s 实现重写；Harbor 版保留并标注"K8s 变体、参考环境不生效" | `findings/79` |
 | C2 | `imageStorage` | 早期判断为"**Harbor 未接入**"；**`findings/77` 已更正**：Harbor 在集群内是可达的（厂商从中读出了真实项目），只是**本机到不了**（`192.168.1.52:30002` 超时） | `projectList` 已实现（`findings/78`）；`imageStorage` 待做；**在线对拉需要把后端部署进集群** |
 | C3 | TenX 侧效应（激活后通知、时速云授权时间） | 无 TenX 对端 | 未实现，记录为待办 |

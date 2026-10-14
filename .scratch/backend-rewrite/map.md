@@ -392,4 +392,8 @@ Label: `wayfinder:map`
   - 同族第 4 例：`edit()`vs`patch`、`fixedName`vs`gaop/serviceLabel`、存在vs值为空、现在是"列表过滤"vs"授权列表过滤"——**复用相邻实现的代价，是在它们分叉的那一点静默出错**。
   - 反直觉但已确认：`active_expire = 0` → status **2**（第一分支先命中），`== 0 → 0` 那句在 now>0 时不可达；已用单测钉住。
   - 测试 236 → **240 条**全绿；探针已清、无残留。
+- **第 76 轮现状总览**：[findings/84](docs/findings/84-state-of-the-rewrite-round76.md)（接替第 59 轮的 67）——57 端点映射（服务 13/用户 12/软件 10/战位 6/子角色 1/授权 5/Shell 6/Auth 2/影像 1/健康 1）、273 条用例全绿、104 提交、80 篇 findings。
+  - 第 59→76 轮补上：K2 跨域 6 项（含自造密钥对的批量激活）、服务切片 13/33（写端点六个有独立 namespace e2e）、影像域 projectList（按 K3s 重写后逐字节对拉）、全栈 e2e 复验。
+  - 新增三条方法教训：**多实现先找选择逻辑**（读错类）、**配置默认值从运行产物读**（厂商 jar 里的 `initPodConfig.image`）、**假差异比漏测更危险**（共享状态顺序对拉 / `trace` 不可比）。
+  - 卡住的分四类：外部设施（registry/SSH/Harbor）、厂商自身坏、破坏性写、规模（`node_port`/`patchService`/`relationService`）。
 - **对外交付版偏离清单**：[`docs/deviations.md`](docs/deviations.md) —— A 类 11 条（厂商自身缺陷/环境依赖）、B 类 8 条（我们主动收紧）、C 类 6 条（参考环境导致无法对拉）。每条都指向 findings 里的实测证据，便于核对判定依据。**这份清单是本阶段最后一件可直接使用的东西**（此前这些信息散落在 63 篇 findings 里）。
