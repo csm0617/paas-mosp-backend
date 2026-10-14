@@ -90,6 +90,12 @@ public class UserQueryServiceImpl implements IUserQueryService {
                 .roles(userRepository.queryRoleNamesByUsernameAndType(u.getUsername(), ROLE_TYPE_POSITION))
                 .subRoles(subRoleNames == null || subRoleNames.isEmpty() ? null : subRoleNames)
                 .belongUsers(userRepository.queryRoleNamesByUsernameAndType(u.getUsername(), ROLE_TYPE_ROLE))
+                // `/v1/user/list` 要用的 5 个字段（`/v1/user/info` 的 DTO 不读它们）
+                .email(u.getEmail())
+                .birth(u.getBirth())
+                .phone(u.getPhone())
+                .avatar(u.getAvatar())
+                .uuid(u.getUuid())
                 .build();
     }
 

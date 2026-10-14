@@ -31,4 +31,12 @@ public class UserInfoEntity {
     private List<String> roles;
     private List<String> subRoles;
     private List<String> belongUsers;
+
+    // ---- 以下 5 个字段是 `GET /v1/user/list`（厂商 `UserRoles`）需要的，`/v1/user/info` 的 DTO 不含它们，
+    //      所以补在实体上是**惰性**的（不影响已对拉验证的 `/v1/user/info`）。见 findings/98。----
+    private String email;
+    private java.time.LocalDate birth;
+    private String phone;
+    private String avatar;
+    private Integer uuid;
 }
