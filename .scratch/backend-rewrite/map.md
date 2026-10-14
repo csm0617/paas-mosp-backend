@@ -430,6 +430,10 @@ Label: `wayfinder:map`
 - （**认证审计 + K1 剩余清单**）[findings/91](docs/findings/91-k1-remaining-and-auth-audit.md)：厂商只有 Role/User/Public 三个控制器要会话（`getCurrentUser` 读 **Cookie**）；**服务域全部端点都不需要会话**（所以我们那句"原型尚未实现认证"是对的，不是缺口）。
   - 发现一处差异（B9，已入 deviations）：`GET /v1/role/software` 无 Cookie 时厂商 401、我们返回 `{list:[],total:0}`。
   - **K1 剩余端点清单**：`/v1/user/list`、`/redirect`、`/access_permission`、`/tenx_user` + **文件类**（`recovery`/`backup`/`export`/`import/template`/`import`/`update_avatar`）+ **破坏性** `reset_user`。⇒ K1 剩下主要是文件传输类，值得单独一轮（牵动 `g_upload_store_record` 与 `gaop-fdfs`）。
+- （**已实现**）[POST /v1/user/recovery](docs/findings/102-recovery-implemented-vendor-ooms.md)：照抄厂商的**空实现**（只做 MIME 校验 → 返回 null，不写库）；库内核对 `g_user` 前后都是 1 行 ✅。
+  - **两条路径都拿不到有效对拉**：A 非 Excel → 厂商 **500**（而它代码里明明写着 400 `global.import.supported.file.type` ⇒ 400 分支没走到，下一轮查厂商日志栈）；B 合法 xls → 厂商 **500 `OutOfMemoryError: Metaspace`**（**厂商进程故障**，非契约答案）。
+  - **判断**：B 是环境故障、A 待追因；**不要因为"厂商 500 我们 400"就改我们**——那会把厂商的 bug 抄成我们的 bug。
+  - 新增 Tika 依赖（离线仓已有 1.24.1/2.9.2）；端点映射 63 → **64**；测试仍 294 条全绿。
 - （**已实现**）[GET /v1/user/import/template](docs/findings/101-import-template-implemented.md)：**内容与厂商一致**——响应头逐字节相同、文件大小同为 4608B、UTF-16 串集合相等；**唯一字节差异（5 字节）已定位为 xls 文档属性里的操作系统用户名**（厂商机 `root` / 本机 `csm`，环境产物非契约差异）。
   - 实现：`poi:5.2.5`（离线仓已有）+ `UserImportTemplateExcelWriter`（sheet1、第 0 行 8 表头、第 1 行 8 示例，文案走 `MessageResolver`、**不加样式**）+ 厂商同款 `filename*=UTF-8''` 头。
   - **方法点**：二进制端点的"逐字节相等"会被文档元数据破坏 ⇒ 用"内容比对 + 差异定位"，**先把差异看明白再判定是否偏离**。

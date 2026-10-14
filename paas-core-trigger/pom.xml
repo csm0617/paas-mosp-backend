@@ -37,4 +37,10 @@
             <artifactId>poi</artifactId>
             <version>5.2.5</version>
         </dependency>
+        <!-- 厂商 `ValidateUtils.isExcelFile` 用 Tika 做 MIME 探测（本机离线仓已有 1.24.1/2.9.2） -->
+        <dependency>
+            <groupId>org.apache.tika</groupId>
+            <artifactId>tika-core</artifactId>
+            <version>2.9.2</version>
+        </dependency>
     </dependencies></project>

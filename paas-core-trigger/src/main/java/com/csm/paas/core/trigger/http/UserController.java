@@ -134,6 +134,24 @@ public class UserController {
         response.flushBuffer();
     }
 
+    /**
+     * 厂商 `POST /v1/user/recovery`（multipart `file`）：用户恢复。
+     *
+     * <p><b>照抄一个"空实现"</b>：厂商 `handleRecoveryExcel`（`UserService.java:947-948`）**方法体为空**——
+     * 这个端点只做 Excel 格式校验，然后 `Response.ok(null)`，**不写任何数据**。
+     * <p>非 Excel → 400 `global.import.supported.file.type`（MIME 探测，见 `ExcelFileValidator`）。
+     */
+    @PostMapping(value = "/v1/user/recovery", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseDTO<Object> usersRecovery(
+            @org.springframework.web.bind.annotation.RequestParam("file") org.springframework.web.multipart.MultipartFile file)
+            throws java.io.IOException {
+        if (file == null || !com.csm.paas.core.trigger.assembler.ExcelFileValidator.isExcel(file.getInputStream())) {
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("global.import.supported.file.type");
+        }
+        // 厂商 handleRecoveryExcel 是空方法 ⇒ 校验通过即返回 null，不写任何数据
+        return ResponseDTO.ok(null);
+    }
+
     @GetMapping("/v1/user/info")
     public ResponseDTO<UserInfoListResponseDTO> userInfoList(
             @RequestParam(required = false) Integer page,
