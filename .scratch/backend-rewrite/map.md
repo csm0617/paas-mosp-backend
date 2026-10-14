@@ -493,6 +493,8 @@ Label: `wayfinder:map`
 - （**剩余端点规模地图**）[findings/87](docs/findings/87-remaining-endpoints-scale-map.md)：把 7 个候选逐个读到"能估规模与依赖"——**没有一个能在半轮做完**。
   - `serviceInfoByNode` **卡在 `getServiceItemInfo`（监控子系统）**，建议明确降级；`nodePort` 管的是另一个 `<name>-nodeport` Service（~150 行）；`patchService` ~100 行；`updateVolumes` ~120 行；`/v1/role/{roleId}/software` ~60 行（CS url + Deployment 现场状态）；`relationService` ~80 行（mapping info + **一处厂商 NPE**）。
   - 优先级：`nodePort`（与 `node_port` 同业务）→ `/v1/role/{roleId}/software`（K1 最后一块读）→ `patchService`/`updateVolumes`；影像域其余**不建议动**（无对端）。
+- **第 119 轮收尾核对（全绿）**：全量 **304 条用例 0 失败 / BUILD SUCCESS**；工作树干净；`read-paths.json` 镜像一致；**无残留进程、无临时 NodePort、无验证 namespace**；**实验室数据已还原**（`g_software`=0、`g_group`=3（厂商内置）、`admin.avatar`=NULL）。
+  - **目标未完成，保持 active**：K1 只差 `/import`（规格完整、要素齐备）、服务域 15/33、K2 差 `relationService`；其余为环境限制/厂商缺陷/破坏性/规模四类（见 `findings/112`）。
 - **第 117 轮交接补充**：第 113–116 轮的推进已并入 [findings/112](docs/findings/112-handover-refresh.md)（契约 7/7、WS 端到端、`/import` 补读、验证覆盖面地图）。当前：**304 用例全绿 / 146 提交 / 106 findings / 71 Mapping**；门槛三条均有当轮证据。未完成按优先级：`/import` → `patchService`/`updateVolumes` → `relationService` → （建议降级）`serviceInfoByNode` → （不建议动）影像域其余。
 - **第 112 轮现状与交接**：[findings/112](docs/findings/112-handover-refresh.md)（接替第 76 轮的 84）——71 个 Mapping（服务15/用户19/软件11/战位8/Shell6/授权5/Auth2/子角色2/影像1/健康2）、304 条用例全绿、141 提交、102 篇 findings、deviations 33 条。
   - 第 76→112 轮增量：K1 角色/用户 3 个读端点、K1 文件类 5 个、影像域 projectList（K3s 重写）、服务切片 node_port/nodePort/cancelStartUp/startUp/restartInfo、两次定期 e2e 复检。
