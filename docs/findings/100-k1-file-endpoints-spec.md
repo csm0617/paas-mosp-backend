@@ -186,6 +186,33 @@ userMapper.updateByPrimaryKeySelective(update);             // 只写 g_user.ava
 
 ⇒ **剩余待做**：域服务（icon 计算 + 推送 + 更新）+ 控制器（multipart、大小校验、base64/md5）+ `userInfo` 通道推送。
 
+## 3'''''. `POST /v1/user/import`（K1 最后一个，**最大的一块**）
+
+入口：`handleImportExcel(file, isImportFullBackUp=false, isCover)` →
+`WorkbookFactory.create(...)`（**POI 同时支持 xls/xlsx**）→ `sheet.getSheetAt(0)`；
+`lastRowNum < 1` ⇒ **只记日志"用户表格无内容…不做导入操作"并直接返回**（不报错）；否则 `importExcel(...)`。
+
+`importExcel` 已读到的规则（**远未读完**）：
+
+```
+从第 1 行开始逐行：
+  col0 → username（空 ⇒ 记日志跳过）
+  username 为 admin/root ⇒ 跳过
+  已存在的 username：
+       isCover=false ⇒ 跳过
+       isCover=true  ⇒ 走 existUpdateUser(currentTime, i, row, username)（**另一条分支**）
+  username 长度不在 [2,36] ⇒ 400 user.invalid.username.length
+  col6 → status …
+```
+
+⇒ **这是本会话见过的最大单函数之一**：逐行解析 + 三种行内分支（跳过 / 更新 / 插入）+ 覆盖语义 +
+口令与角色的处理 + uuid 列表，**且全程写库**。实现它需要**一整轮**，并且必须配**可回滚探针**
+（导入前后核对 `g_user`/`g_user_role` 等表的行数与内容，验完还原）。
+
+**建议**：把它排在 K1 最后、单独一轮；**不要**与其它端点混做。验证至少覆盖：
+① 空表 ⇒ 200 且**库无变化**；② 只含 admin 的行 ⇒ 同样无变化；③ 新用户行 ⇒ 插入；
+④ 已存在用户 + `isCover=false` ⇒ 不变；⑤ `isCover=true` ⇒ 更新；⑥ 用户名长度越界 ⇒ 400。
+
 ## 4. 建议顺序
 
 1. `import/template`（**最简单**：无入参、纯产出、可解析比对单元格）；
