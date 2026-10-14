@@ -42,4 +42,7 @@ public interface IServiceRuntimePort {
     String statefulSetHostname(String namespace, String serviceName);
 
     void patchStatefulSetHostname(String namespace, String serviceName, String hostname);
+
+    /** 设置 Deployment 的 `priorityClassName`（厂商 `POST /v1/service/priority`）。 */
+    void patchDeploymentPriorityClassName(String namespace, String serviceName, String level);
 }

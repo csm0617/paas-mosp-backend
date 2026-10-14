@@ -95,6 +95,17 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
     }
 
     @Override
+    public boolean updateServicePriority(String namespace, String serviceName, String level) {
+        if (!serviceRuntimePort.deploymentExists(namespace, serviceName)) {
+            // 厂商：只读 Deployment，读不到就 400（**没有** StatefulSet 回退，与 hostName 端点不同）
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("service.change.priority.failed");
+        }
+        // 厂商：level 空白 → 设成**空串**（不是 null）
+        serviceRuntimePort.patchDeploymentPriorityClassName(namespace, serviceName, level == null ? "" : level);
+        return true;
+    }
+
+    @Override
     public boolean updateServiceHostname(String namespace, String serviceName, String hostName) {
         // 厂商：**读不到 Deployment**（ApiException）才回退；不是"hostname 为空"就回退
         if (!serviceRuntimePort.deploymentExists(namespace, serviceName)) {

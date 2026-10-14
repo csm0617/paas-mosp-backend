@@ -62,4 +62,11 @@ public interface IServiceQueryService {
      * </ol>
      */
     boolean updateServiceHostname(String namespace, String serviceName, String hostName);
+
+    /**
+     * 改服务优先级（厂商 `POST /v1/service/priority?serviceName&level`，`ServiceController:3029-3050`）。
+     * <p>逐行照抄：**只读 Deployment、没有 StatefulSet 回退**；读不到 → 400 `service.change.priority.failed`；
+     * `level` 空白时把 `priorityClassName` 设成**空串**（不是 null）；patch 失败 → `service.update.service.config.error`。
+     */
+    boolean updateServicePriority(String namespace, String serviceName, String level);
 }

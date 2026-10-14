@@ -100,6 +100,17 @@ public class ServiceController {
                 namespace, form.getServiceName(), form.getHostName()));
     }
 
+    /**
+     * 厂商 `POST /v1/service/priority?serviceName&level`：改服务优先级（`priorityClassName`）。
+     * <p>两个参数都是 **query parameter**；`level` 空白 → 设为空串；服务不存在 → 400。
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/v1/service/priority")
+    public ResponseDTO<Boolean> updatePriority(
+            @org.springframework.web.bind.annotation.RequestParam String serviceName,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String level) {
+        return ResponseDTO.ok(serviceQueryService.updateServicePriority(namespace, serviceName, level));
+    }
+
     @GetMapping("/v1/service/labels")
     public ResponseDTO<java.util.List<com.csm.paas.core.api.dto.LabelListDTO>> labels() {
         var merged = serviceQueryService.queryNodeLabels();

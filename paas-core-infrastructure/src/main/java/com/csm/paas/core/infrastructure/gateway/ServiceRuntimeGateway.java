@@ -102,6 +102,12 @@ public class ServiceRuntimeGateway {
                 .edit(s -> { s.getSpec().getTemplate().getSpec().setHostname(hostname); return s; });
     }
 
+    /** 设置 Deployment 的 `spec.template.spec.priorityClassName`（厂商 priority 端点用整份 merge-patch 表达同一语义）。 */
+    public void patchDeploymentPriorityClassName(String namespace, String name, String level) {
+        kubernetesClient.apps().deployments().inNamespace(namespace).withName(name)
+                .edit(d -> { d.getSpec().getTemplate().getSpec().setPriorityClassName(level); return d; });
+    }
+
     public List<StatefulSet> listStatefulSets(String namespace) {
         List<StatefulSet> items = kubernetesClient.apps().statefulSets().inNamespace(namespace).list().getItems();
         log.info("fabric8 读到 namespace:{} 的 StatefulSet {} 个", namespace, items.size());
