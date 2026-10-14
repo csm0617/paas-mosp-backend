@@ -400,6 +400,11 @@ Label: `wayfinder:map`
 - （**node_port 规格**）[findings/85](docs/findings/85-node-port-spec.md)：把 120 行的 `patchServicePorts` 读到"可直接翻译"（两个分支 + 异常映射 + 三处易错点 + 下一轮的实现与验证计划）。
   - 关键：**返回布尔**（`Response.ok(v1Service != null)`），A 分支"推导不出端口"时**返回 null ⇒ `data:false`**（静默失败）；`name` 公式 `<protocol>-<name>-<i>` **小写**；两分支错误消息不同（A 分支带服务名的中文 `SystemException`）。
   - 同族的 `POST /{serviceName}/nodePort` 只读到头部，**未逐行读完**，实现时不要把两者混为一谈。
+- （**access_permission 规格**）[findings/92](docs/findings/92-access-permission-spec.md)：算法逐行读全（取**最后一个**战位 → 该战位关联软件 → `/api/<key>/<path>` → `findPath` 三个**照抄的正则**）。
+  - **厂商缺陷**：没 Cookie 时 `userLoginInfo` 非 null（先 new 的）⇒ 那句 `if (userLoginInfo == null) throw` **不可达**，实际是第 1432 行 **NPE(500)**；它本意是抛 `user.not.logged.in.or.expired`。
+  - 本轮已落地要用的 SQL：`selectServicePathsBySoftware`（`g_software_app`⋈`g_software`⋈`g_service_port` 三表 join，照抄）。
+  - **下一轮的接线**：`UserQueryServiceImpl` 缺 `ISoftwareRepository` ⇒ 推荐新建 `UserAccessService`（不动既有 4 处测试构造），而不是加构造参数。
+  - 验证计划已列（admin+/api/gaop/v1/... → true；`/` → true；`/whatever` → false；无 Cookie 记 B 类偏离）。
 - （**认证审计 + K1 剩余清单**）[findings/91](docs/findings/91-k1-remaining-and-auth-audit.md)：厂商只有 Role/User/Public 三个控制器要会话（`getCurrentUser` 读 **Cookie**）；**服务域全部端点都不需要会话**（所以我们那句"原型尚未实现认证"是对的，不是缺口）。
   - 发现一处差异（B9，已入 deviations）：`GET /v1/role/software` 无 Cookie 时厂商 401、我们返回 `{list:[],total:0}`。
   - **K1 剩余端点清单**：`/v1/user/list`、`/redirect`、`/access_permission`、`/tenx_user` + **文件类**（`recovery`/`backup`/`export`/`import/template`/`import`/`update_avatar`）+ **破坏性** `reset_user`。⇒ K1 剩下主要是文件传输类，值得单独一轮（牵动 `g_upload_store_record` 与 `gaop-fdfs`）。

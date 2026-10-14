@@ -222,6 +222,11 @@ public class SoftwareRepository implements ISoftwareRepository {
                 .toList();
     }
 
+    @Override
+    public List<String> queryServicePathsBySoftware(String softwareId) {
+        return softwareDao.selectServicePathsBySoftware(softwareId);
+    }
+
     private SoftwarePO toPO(SoftwareEntity s) {
         SoftwarePO po = new SoftwarePO();
         po.setId(s.getId());

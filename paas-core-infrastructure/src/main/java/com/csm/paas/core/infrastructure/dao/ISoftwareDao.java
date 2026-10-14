@@ -104,6 +104,19 @@ public interface ISoftwareDao {
     List<com.csm.paas.core.infrastructure.dao.po.ServicePortPO> selectServicePorts(
             @Param("softwareId") String softwareId, @Param("serviceName") String serviceName);
 
+    /**
+     * 某软件下所有服务的路径名（厂商 `SoftwareMapper.allServicePathBySoftware` 的三表 join 照抄）：
+     * `g_software_app sp inner join g_software s on sp.software_id=s.id
+     *  inner join g_service_port st on sp.app_name=st.service_name where sp.software_id=?`
+     */
+    @Select("""
+            SELECT st.path_name FROM g_software_app sp
+            INNER JOIN g_software s ON sp.software_id = s.id
+            INNER JOIN g_service_port st ON sp.app_name = st.service_name
+            WHERE sp.software_id = #{softwareId}
+            """)
+    List<String> selectServicePathsBySoftware(@Param("softwareId") String softwareId);
+
     /** 同一软件+服务下该路径是否已被占用（厂商 `isServicePathExist:2325-2326`）。 */
     @Select("""
             SELECT COUNT(*) FROM g_service_port

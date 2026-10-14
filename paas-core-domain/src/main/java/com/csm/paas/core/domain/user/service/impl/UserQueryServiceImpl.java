@@ -146,4 +146,5 @@ public class UserQueryServiceImpl implements IUserQueryService {
         });
         return roles;
     }
+
 }

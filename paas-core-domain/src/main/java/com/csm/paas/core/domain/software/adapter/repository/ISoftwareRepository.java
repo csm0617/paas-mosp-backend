@@ -124,4 +124,7 @@ public interface ISoftwareRepository {
 
     /** 某服务的 Pod 重启记录（厂商 `GET /v1/service/restartInfo`，按 `create_at` 倒序）。 */
     List<com.csm.paas.core.domain.software.model.valobj.PodRestartInfoVO> queryPodRestartInfo(String serviceName);
+
+    /** 某软件下所有服务的路径名（厂商 `allServicePathBySoftware`，三表 join）。 */
+    List<String> queryServicePathsBySoftware(String softwareId);
 }
