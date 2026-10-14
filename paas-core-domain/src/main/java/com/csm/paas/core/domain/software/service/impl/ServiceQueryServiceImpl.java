@@ -1085,43 +1085,7 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
      * <p>返回串照抄：`"STOP"` / `"RUNNING"` / `" ROLLING_UPDATE"`（**前导空格**）/ `"STARING"`（厂商拼写）。
      */
     private static String serviceStatusOf(com.csm.paas.core.domain.software.model.valobj.WorkloadStateVO s) {
-        if (s.isDeployment()) {
-            if (s.getAvailableReplicas() != null) {
-                if (s.getReadyReplicas() != null && s.getReplicas() != null && s.getUpdatedReplicas() != null) {
-                    if (s.getUnavailableReplicas() != null
-                            && s.getReadyReplicas() > s.getAvailableReplicas()) {
-                        return " ROLLING_UPDATE";
-                    }
-                    return "RUNNING";
-                }
-            } else {
-                if (s.getReadyReplicas() != null && s.getReplicas() != null && s.getUpdatedReplicas() != null
-                        && s.getUnavailableReplicas() != null) {
-                    return "RUNNING";
-                }
-                if (s.getReplicas() != null && s.getUpdatedReplicas() != null
-                        && s.getUnavailableReplicas() != null) {
-                    return "STARING";
-                }
-            }
-            return "STOP";
-        }
-        if (s.getAvailableReplicas() != null) {
-            if (s.getReadyReplicas() != null && s.getReplicas() != null && s.getUpdatedReplicas() != null) {
-                if (s.getReadyReplicas() > s.getAvailableReplicas()) {
-                    return " ROLLING_UPDATE";
-                }
-                return "RUNNING";
-            }
-        } else {
-            if (s.getReadyReplicas() != null && s.getReplicas() != null && s.getUpdatedReplicas() != null) {
-                return "RUNNING";
-            }
-            if (s.getReplicas() != null && s.getUpdatedReplicas() != null) {
-                return "STARING";
-            }
-        }
-        return "STOP";
+        return com.csm.paas.core.domain.software.model.valobj.WorkloadStatus.of(s);
     }
 
     /**

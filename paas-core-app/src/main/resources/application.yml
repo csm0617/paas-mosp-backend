@@ -41,6 +41,13 @@ mybatis:
   configuration:
     map-underscore-to-camel-case: true
 
+path:
+  # 厂商 `path.save`（`application.yml:111-112`）：CS 程序包在节点上的落盘目录
+  save: ${PATH_SAVE:~/gaop-program/}
+file:
+  # 厂商 `file.upload`（`application.yml:105-106`）：上传目录
+  upload: ${FILE_UPLOAD_DIR:/opt/gaop/upload/client}
+
 gaop:
   k8s:
     namespace: ${GAOP_K8S_NAMESPACE:gaop-namespace}

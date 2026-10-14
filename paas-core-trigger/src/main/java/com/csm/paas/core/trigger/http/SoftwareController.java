@@ -46,6 +46,10 @@ public class SoftwareController {
     @Resource
     private com.csm.paas.core.domain.software.service.IServiceQueryService serviceQueryService;
 
+    /** 软件启停与状态（`GET /{id}/start|stop|status`）。 */
+    @Resource
+    private com.csm.paas.core.domain.software.service.ISoftwareLifecycleService softwareLifecycleService;
+
     @org.springframework.beans.factory.annotation.Value("${gaop.k8s.namespace:gaop-namespace}")
     private String namespace;
 
@@ -480,5 +484,37 @@ public class SoftwareController {
         softwareCommandService.unRelateServices(id, form == null ? null : form.getList());
         return ResponseDTO.ok(com.csm.paas.core.trigger.assembler.SoftwareInfoAssembler.toResponse(
                 softwareDetailService.queryDetail(id)));
+    }
+
+    // ---------- 启停与状态（厂商 `SoftwareController:518-660`）----------
+
+    /**
+     * 厂商 `GET /v1/software/{id}/start`：`CS` 走 SSH（已在跑直接返回 RUNNING，否则 nohup 启动），
+     * 其它框架把非 RUNNING 的服务批量启动。响应 `{status}`。
+     */
+    @org.springframework.web.bind.annotation.GetMapping("/{id}/start")
+    public ResponseDTO<com.csm.paas.core.api.dto.SoftwareStatusDTO> startSoftware(
+            @org.springframework.web.bind.annotation.PathVariable String id) {
+        return ResponseDTO.ok(com.csm.paas.core.api.dto.SoftwareStatusDTO.builder()
+                .status(softwareLifecycleService.start(namespace, id)).build());
+    }
+
+    /** 厂商 `GET /v1/software/{id}/stop`：`CS` 走 SSH（`pkill -f`），其它框架批量停止非 STOP 的服务。 */
+    @org.springframework.web.bind.annotation.GetMapping("/{id}/stop")
+    public ResponseDTO<com.csm.paas.core.api.dto.SoftwareStatusDTO> stopSoftware(
+            @org.springframework.web.bind.annotation.PathVariable String id) {
+        return ResponseDTO.ok(com.csm.paas.core.api.dto.SoftwareStatusDTO.builder()
+                .status(softwareLifecycleService.stop(namespace, id)).build());
+    }
+
+    /**
+     * 厂商 `GET /v1/software/{id}/status`：`CS` ⇒ `pgrep` 判定；其它 ⇒ 按该软件的服务列表折算
+     * （无服务 STOP / 全 RUNNING ⇒ RUNNING / 部分 ⇒ `PART_RUN`）。
+     */
+    @org.springframework.web.bind.annotation.GetMapping("/{id}/status")
+    public ResponseDTO<com.csm.paas.core.api.dto.SoftwareStatusDTO> csStatus(
+            @org.springframework.web.bind.annotation.PathVariable String id) {
+        return ResponseDTO.ok(com.csm.paas.core.api.dto.SoftwareStatusDTO.builder()
+                .status(softwareLifecycleService.queryStatus(namespace, id)).build());
     }
 }
