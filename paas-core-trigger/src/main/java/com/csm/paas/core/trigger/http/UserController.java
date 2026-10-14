@@ -66,6 +66,9 @@ public class UserController {
     private com.csm.paas.core.domain.user.service.impl.UserExportService userExportService;
 
     @Resource
+    private com.csm.paas.core.domain.user.service.IUserAvatarService userAvatarService;
+
+    @Resource
     private IUserRepository userRepository;
 
     @Resource
@@ -186,6 +189,27 @@ public class UserController {
                 "attachment; filename*=UTF-8''" + java.net.URLEncoder.encode(filename, java.nio.charset.StandardCharsets.UTF_8));
         response.getOutputStream().write(bytes);
         response.flushBuffer();
+    }
+
+    /**
+     * 厂商 `POST /v1/user/update_avatar/{userId}`（multipart `file`）：修改头像。
+     * <p>`>204800`（200KiB）→ 400 `global.avatar.size.limit`；否则算 base64/md5 →
+     * 域服务（算 icon + 推 WebSocket + 只更新 avatar）→ 返回**用户详情**。
+     */
+    @PostMapping(value = "/v1/user/update_avatar/{userId}",
+            consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseDTO<Object> updateAvatar(
+            @org.springframework.web.bind.annotation.PathVariable String userId,
+            @org.springframework.web.bind.annotation.RequestParam("file") org.springframework.web.multipart.MultipartFile file)
+            throws java.io.IOException {
+        if (file == null || file.getSize() > 204800L) {
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("global.avatar.size.limit");
+        }
+        byte[] bytes = file.getBytes();
+        String base64 = java.util.Base64.getEncoder().encodeToString(bytes);
+        String md5 = org.springframework.util.DigestUtils.md5DigestAsHex(bytes);
+        userAvatarService.updateAvatar(userId, base64, md5);
+        return ResponseDTO.ok(userQueryService.queryDetailById(userId));
     }
 
     @GetMapping("/v1/user/info")

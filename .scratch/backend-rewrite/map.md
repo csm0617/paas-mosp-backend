@@ -430,6 +430,10 @@ Label: `wayfinder:map`
 - （**认证审计 + K1 剩余清单**）[findings/91](docs/findings/91-k1-remaining-and-auth-audit.md)：厂商只有 Role/User/Public 三个控制器要会话（`getCurrentUser` 读 **Cookie**）；**服务域全部端点都不需要会话**（所以我们那句"原型尚未实现认证"是对的，不是缺口）。
   - 发现一处差异（B9，已入 deviations）：`GET /v1/role/software` 无 Cookie 时厂商 401、我们返回 `{list:[],total:0}`。
   - **K1 剩余端点清单**：`/v1/user/list`、`/redirect`、`/access_permission`、`/tenx_user` + **文件类**（`recovery`/`backup`/`export`/`import/template`/`import`/`update_avatar`）+ **破坏性** `reset_user`。⇒ K1 剩下主要是文件传输类，值得单独一轮（牵动 `g_upload_store_record` 与 `gaop-fdfs`）。
+- （**已实现**）[POST /v1/user/update_avatar/{userId}](docs/findings/109-update-avatar-implemented.md)：六步照抄（大小校验 → 查用户 → 算 icon → **推 WebSocket** → 只更新 avatar → 返回详情）。**实测**：写入的 avatar 与上传文件 base64 完全一致；**同一文件再传一次时日志里 `icon` 从 `CHANGE` 变为 `UN-CHANGE`**（厂商 md5 比较逻辑被复现的直接证据）；`>200KiB` → 400；不存在的用户 → 400；**探针已把 `admin.avatar` 恢复为原值**。
+  - 分层：domain 无 Jackson（第 3 次踩到）⇒ 端口收**结构化 Map**，序列化/推送在 trigger 的 `UserInfoBroadcaster`（`/topic/userInfo`）。
+  - **探针自身的坑**：`UID` 是 bash **只读变量**，赋值失败导致第一次请求打到 shell 数值 UID ⇒ 端点正确返回 400「用户不存在」，看起来像实现问题其实是探针问题（同类第 3 次）。
+  - 测试 300 → **304 条**全绿。
 - （**已实现**）[POST /v1/user/export 与 /v1/user/backup](docs/findings/105-export-backup-implemented.md)：两处理器**方法体相同** ⇒ 我们同一个私有方法；8 列照抄（username/nickname/第一个角色key/角色关系key列表JSON/子角色key列表JSON/desc/status(int)/**password**）、**只设前三列宽 2560**、创建 `yyyy-MM-dd` 日期样式。
   - **一处插曲已解释**：文件里提取到 `admin` 一度疑为"没跳过 admin"，实为**表头文案本身**含该词（`template.user.relate.user=关联角色(admin运维管理员…)`）⇒ **二进制里"看到词"≠"写入了字段"，判定必须读回单元格**。
   - 离线单测 6 条（域 4 + 触发 2，POI 读回逐格断言，含列宽 2560/2048 的对照）。
