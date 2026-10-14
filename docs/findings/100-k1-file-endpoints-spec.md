@@ -133,6 +133,29 @@ dateStyle = getDateCellStyle(workbook, "yyyy-MM-dd")                     // 有�
 ⇒ **实现 `/export` 与 `/backup` 是"一个 ~50 行的生成函数 + 一个响应写出"**，且**与 `generateBackupExcel` 无关**。
 另外：这个函数**用日期样式**（`yyyy-MM-dd`），与模板端点（无样式）不同——照抄时别把样式漏掉。
 
+## 3'''. `POST /v1/user/update_avatar/{userId}`（第 106 轮读到的细节）
+
+```java
+if (file.getSize() > 204800) throw new WrongArgumentException("global.avatar.size.limit");   // 200KiB
+String base64 = Base64.getEncoder().encodeToString(file.getBytes());
+String md5    = DigestUtils.md5Hex(file.getInputStream());
+userService.updateAvatar(userId, base64, md5);
+return Response.ok(userService.detail(userId));      // ← 响应就是"用户详情"，我们已有该查询
+```
+
+`updateAvatar(userId, base64, md5)`（`UserService:1538-`）已知部分：
+- 用户不存在 → 400 `user.not.found`；
+- 取 `UserStatus`（`UserController.userStatus` 静态字段）并 `setEvent("MODIFY")`；
+- 组装 `UserInfo` 与"登录状态列表"，然后（**待读**）大概率写 `g_user.avatar` + 触发 TenX/审计同步。
+
+**库内事实**：`g_user` **只有 `avatar`（mediumtext）**，**没有 md5 列** ⇒ 传进来的 `md5` 不是写 `g_user`，
+而是给**别的路径**用的（TenX 用户同步 / 状态事件里的一环）——**这一点必须先读完再实现**，
+否则会漏掉一个外部副作用。
+
+⇒ **本端点的实现前置**：① 读全 `updateAvatar`（尤其 md5 的去向）；② 确认"用户详情"响应能否复用
+我们已实现的 `/v1/user/detailByUserId` 装配（能复用就省一大块）。
+**验证**：`>200KiB` → 400（对拉）；合法小文件 → 写库后**核对 `g_user.avatar` 变化并恢复原值**（可回滚探针）。
+
 ## 4. 建议顺序
 
 1. `import/template`（**最简单**：无入参、纯产出、可解析比对单元格）；
