@@ -188,4 +188,25 @@ public interface IServiceQueryService {
      */
     boolean updateServiceDiscovery(String namespace,
                                    com.csm.paas.core.domain.software.model.valobj.UpdateServiceDiscoveryVO form);
+
+    /**
+     * 创建/编辑服务的文件映射与文件挂载（厂商 `POST /v1/service/{service}/updateVolumes` →
+     * `ServiceController.updateServiceVolumes:818-947`，规格见 `docs/findings/119`）。
+     *
+     * <p>**两处"替换式"语义**（照抄）：`spec.volumes` 是**整份替换**（不是合并，已有卷会被清掉）；
+     * 挂载只写给**第一个容器**，其它容器不动。
+     *
+     * <p>四处怪点：configMap 卷的 `items[].path` 用的是 **key**（不是 `dir`），而挂载路径是 `dir + "/" + key`；
+     * hostPath 的 `type` 是**空串**；`readOnly == 2` 才置 true（否则该字段根本不写）；
+     * 卷名带 **5 位随机字符**（`tenxcloud-time-localtime` 除外）。
+     *
+     * <p>错误语义：Deployment 不存在 → 400 `service.service.name.not.found`（带服务名）；
+     * 组装阶段任何异常（含"容器列表为空"）→ 500 `service.file.mapping.or.mount.failed`；
+     * replace 的 K8s 异常 → 500 `service.update.service.config.failed`。
+     *
+     * @return replace 之后的 Deployment 快照（厂商返回整份对象）
+     */
+    java.util.Map<String, Object> updateServiceVolumes(
+            String namespace, String serviceName,
+            com.csm.paas.core.domain.software.model.valobj.UpdateServiceVolumesVO form);
 }

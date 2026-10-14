@@ -145,6 +145,47 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
     }
 
     @Override
+    public Map<String, Object> replaceDeploymentVolumes(
+            String namespace, String serviceName,
+            List<com.csm.paas.core.domain.software.model.valobj.WorkloadVolumeVO> volumes,
+            List<com.csm.paas.core.domain.software.model.valobj.VolumeMountVO> volumeMounts) {
+        List<io.fabric8.kubernetes.api.model.Volume> k8sVolumes = volumes.stream()
+                .map(v -> {
+                    var builder = new io.fabric8.kubernetes.api.model.VolumeBuilder().withName(v.getName());
+                    if (v.getConfigMapName() != null) {
+                        builder.withNewConfigMap()
+                                .withName(v.getConfigMapName())
+                                .withItems(v.getItems() == null ? List.of() : v.getItems().stream()
+                                        .map(i -> new io.fabric8.kubernetes.api.model.KeyToPathBuilder()
+                                                .withKey(i.getKey()).withPath(i.getPath()).build())
+                                        .toList())
+                                .endConfigMap();
+                    } else {
+                        builder.withNewHostPath()
+                                .withPath(v.getHostPath())
+                                // 厂商：type 是**空串**（不是 null）
+                                .withType(v.getHostPathType())
+                                .endHostPath();
+                    }
+                    return builder.build();
+                })
+                .toList();
+        List<io.fabric8.kubernetes.api.model.VolumeMount> k8sMounts = volumeMounts.stream()
+                .map(m -> new io.fabric8.kubernetes.api.model.VolumeMountBuilder()
+                        .withName(m.getName())
+                        .withMountPath(m.getMountPath())
+                        .withSubPath(m.getSubPath())
+                        .withReadOnly(m.getReadOnly())
+                        .build())
+                .toList();
+        try {
+            return serviceRuntimeGateway.replaceDeploymentVolumes(namespace, serviceName, k8sVolumes, k8sMounts);
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    @Override
     public List<Integer> listUsedNodePorts(String namespace) {
         return serviceRuntimeGateway.listUsedNodePorts(namespace);
     }

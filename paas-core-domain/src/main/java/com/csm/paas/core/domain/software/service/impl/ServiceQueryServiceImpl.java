@@ -414,6 +414,113 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
         }
     }
 
+    /**
+     * 创建/编辑服务的文件映射与文件挂载（厂商 `updateServiceVolumes:818-947`，规格见 `docs/findings/119`）。
+     */
+    @Override
+    public Map<String, Object> updateServiceVolumes(
+            String namespace, String serviceName,
+            com.csm.paas.core.domain.software.model.valobj.UpdateServiceVolumesVO form) {
+        // 1) Deployment 必须存在。厂商 404 ⇒ 400 `service.service.name.not.found`（**带服务名**）
+        if (!serviceRuntimePort.deploymentExists(namespace, serviceName)) {
+            throw new com.csm.paas.core.types.exception.WrongArgumentException(
+                    "service.service.name.not.found", serviceName);
+        }
+        List<com.csm.paas.core.domain.software.model.valobj.WorkloadVolumeVO> volumes = new ArrayList<>();
+        List<com.csm.paas.core.domain.software.model.valobj.VolumeMountVO> volumeMounts = new ArrayList<>();
+        try {
+            // 2) configMapList：先按 configmap 名**合并**（同名多条合成一个卷，dir 各取各的）
+            java.util.LinkedHashMap<String, List<com.csm.paas.core.domain.software.model.valobj.UpdateServiceVolumesVO.ConfigMapItemVO>>
+                    merged = new java.util.LinkedHashMap<>();
+            if (form.getConfigMapList() != null) {
+                for (var item : form.getConfigMapList()) {
+                    merged.computeIfAbsent(item.getConfigmap(), k -> new ArrayList<>()).add(item);
+                }
+            }
+            for (var entry : merged.entrySet()) {
+                String configmap = entry.getKey();
+                List<com.csm.paas.core.domain.software.model.valobj.UpdateServiceVolumesVO.ConfigMapItemVO> items =
+                        entry.getValue();
+                String volumeName = "tenxcloud-time-localtime".equals(configmap)
+                        ? "tenxcloud-time-localtime"
+                        : "configmap-volume-" + randomString(5);
+                List<com.csm.paas.core.domain.software.model.valobj.WorkloadVolumeVO.KeyToPathVO> keyToPaths =
+                        new ArrayList<>();
+                for (var item : items) {
+                    for (String key : item.getKeys()) {
+                        // 厂商：items[].path 用的是 **key**（不是 dir）
+                        keyToPaths.add(com.csm.paas.core.domain.software.model.valobj.WorkloadVolumeVO.KeyToPathVO
+                                .builder().key(key).path(key).build());
+                        // 厂商：挂载路径才是 dir + "/" + key，subPath = key
+                        volumeMounts.add(com.csm.paas.core.domain.software.model.valobj.VolumeMountVO.builder()
+                                .name(volumeName)
+                                .mountPath(item.getDir() + "/" + key)
+                                .subPath(key)
+                                .build());
+                    }
+                }
+                volumes.add(com.csm.paas.core.domain.software.model.valobj.WorkloadVolumeVO.builder()
+                        .name(volumeName)
+                        .configMapName(configmap)
+                        .items(keyToPaths)
+                        .build());
+            }
+            // 3) hostPathList
+            if (form.getHostPathList() != null) {
+                for (var item : form.getHostPathList()) {
+                    String volumeName = "/etc/localtime".equals(item.getHostPath())
+                            ? "tenxcloud-time-localtime"
+                            : "hostpath-volume-" + randomString(5);
+                    volumes.add(com.csm.paas.core.domain.software.model.valobj.WorkloadVolumeVO.builder()
+                            .name(volumeName)
+                            .hostPath(item.getHostPath())
+                            // 厂商：type 是**空串**
+                            .hostPathType("")
+                            .build());
+                    volumeMounts.add(com.csm.paas.core.domain.software.model.valobj.VolumeMountVO.builder()
+                            .name(volumeName)
+                            .mountPath(item.getPodPath())
+                            // 厂商：`readOnly == 2` 才置 true，其它值**连 false 都不写**（所以这里是 null）
+                            // 注意厂商写的是 `getReadOnly() == 2`（Integer 拆箱）⇒ readOnly 为 null 时它会 NPE；
+                            // 我们按"非只读"处理（deviations B15）。
+                            .readOnly(Integer.valueOf(2).equals(item.getReadOnly()) ? Boolean.TRUE : null)
+                            .build());
+                }
+            }
+        } catch (Exception e) {
+            log.error("设置文件映射和文件挂载数据异常", e);
+            throw new com.csm.paas.core.types.exception.SystemException("service.file.mapping.or.mount.failed");
+        }
+        try {
+            // 4) 整份 replace（volumes 是替换不是合并；挂载只写第一个容器）
+            Map<String, Object> replaced = serviceRuntimePort.replaceDeploymentVolumes(
+                    namespace, serviceName, volumes, volumeMounts);
+            if (replaced == null) {
+                // 上面已判过存在，这里是竞态（对象在两步之间被删）⇒ 厂商会拿到 replace 的 404
+                throw new com.csm.paas.core.types.exception.K8sApiException(
+                        "deployment " + serviceName + " not found");
+            }
+            return replaced;
+        } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+            log.error("更新配置失败: {}", e.getMessage());
+            throw new com.csm.paas.core.types.exception.SystemException("service.update.service.config.failed");
+        }
+    }
+
+    /** 厂商 `getStringRandom(length)`：每位 `SecureRandom.nextInt(2)%2==0` 取 `a-z`，否则取 `0-9`。 */
+    private static String randomString(int length) {
+        java.security.SecureRandom random = new java.security.SecureRandom();
+        StringBuilder value = new StringBuilder();
+        for (int i = 0; i < length; i++) {
+            if (random.nextInt(2) % 2 == 0) {
+                value.append((char) (random.nextInt(26) + 97));
+            } else {
+                value.append(random.nextInt(10));
+            }
+        }
+        return value.toString();
+    }
+
     /** 厂商的随机端口分配：`rand.nextInt(65535) + 10000`，命中已用则重试，最多 10 次。 */
     private static int randomFreeNodePort(List<Integer> used) {
         java.security.SecureRandom rand = new java.security.SecureRandom();

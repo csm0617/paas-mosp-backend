@@ -163,6 +163,32 @@ public class ServiceController {
     }
 
     /**
+     * 厂商 `POST /v1/service/{service}/updateVolumes`：创建/编辑服务的文件映射与文件挂载（configmap、hostpath）。
+     *
+     * <p>**整份替换** `spec.volumes`（不是合并）且只把挂载写给**第一个容器**；返回 replace 后的 Deployment。
+     * 规则与四处怪点见 `IServiceQueryService.updateServiceVolumes`（规格 `findings/119`）。
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/v1/service/{service}/updateVolumes")
+    public ResponseDTO<java.util.Map<String, Object>> updateVolumes(
+            @org.springframework.web.bind.annotation.PathVariable String service,
+            @org.springframework.web.bind.annotation.RequestBody com.csm.paas.core.api.dto.UpdateServiceVolumesDTO form) {
+        var vo = com.csm.paas.core.domain.software.model.valobj.UpdateServiceVolumesVO.builder()
+                .configMapList(form.getConfigMapList() == null ? null
+                        : form.getConfigMapList().stream()
+                        .map(i -> com.csm.paas.core.domain.software.model.valobj.UpdateServiceVolumesVO.ConfigMapItemVO
+                                .builder().dir(i.getDir()).configmap(i.getConfigmap()).keys(i.getKeys()).build())
+                        .toList())
+                .hostPathList(form.getHostPathList() == null ? null
+                        : form.getHostPathList().stream()
+                        .map(i -> com.csm.paas.core.domain.software.model.valobj.UpdateServiceVolumesVO.HostPathItemVO
+                                .builder().hostPath(i.getHostPath()).podPath(i.getPodPath())
+                                .readOnly(i.getReadOnly()).build())
+                        .toList())
+                .build();
+        return ResponseDTO.ok(serviceQueryService.updateServiceVolumes(namespace, service, vo));
+    }
+
+    /**
      * 厂商 `PUT /v1/service/patchCommand/{serviceName}`：改服务启动命令（`{command,args}` 作用到**所有容器**）。
      * <p>服务不存在 → 400 `service.service.name.not.found`；厂商返回**不带 body** ⇒ 这里也回 `data:null`。
      */

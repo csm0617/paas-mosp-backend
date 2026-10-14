@@ -114,4 +114,19 @@ public interface IServiceRuntimePort {
      */
     void patchWorkloadContainerPorts(String namespace, String serviceName, boolean deployment,
                                      java.util.List<com.csm.paas.core.domain.software.model.valobj.ContainerPortVO> ports);
+
+    // ---------- updateVolumes（厂商 POST /v1/service/{service}/updateVolumes）----------
+
+    /**
+     * **整份 replace** Deployment 的 `spec.volumes` 与 **第一个容器**的 `volumeMounts`
+     * （厂商 `replaceNamespacedDeployment`，`:934`——是 PUT 不是 patch）。
+     *
+     * <p>厂商语义：`spec.setVolumes(volumes)` 是**替换**不是合并，且只改 `containers.get(0)`。
+     *
+     * @return 替换后的对象快照；**Deployment 不存在返回 null**
+     */
+    java.util.Map<String, Object> replaceDeploymentVolumes(
+            String namespace, String serviceName,
+            java.util.List<com.csm.paas.core.domain.software.model.valobj.WorkloadVolumeVO> volumes,
+            java.util.List<com.csm.paas.core.domain.software.model.valobj.VolumeMountVO> volumeMounts);
 }

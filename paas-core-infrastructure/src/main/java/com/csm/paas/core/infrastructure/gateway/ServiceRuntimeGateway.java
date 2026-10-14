@@ -383,6 +383,28 @@ public class ServiceRuntimeGateway {
         return s == null ? null : toSnapshot(s);
     }
 
+    /**
+     * **整份 replace** Deployment 的 `spec.volumes` 与**第一个容器**的 `volumeMounts`
+     * （厂商 `ServiceController.updateServiceVolumes:934` 的 `replaceNamespacedDeployment`——PUT 不是 patch）。
+     *
+     * @return 替换后的快照；**Deployment 不存在返回 null**
+     */
+    public Map<String, Object> replaceDeploymentVolumes(String namespace, String name,
+                                                        List<io.fabric8.kubernetes.api.model.Volume> volumes,
+                                                        List<io.fabric8.kubernetes.api.model.VolumeMount> mounts) {
+        var d = kubernetesClient.apps().deployments().inNamespace(namespace).withName(name).get();
+        if (d == null) {
+            return null;
+        }
+        var spec = d.getSpec().getTemplate().getSpec();
+        // 厂商：整份替换 volumes（不是合并）
+        spec.setVolumes(volumes);
+        // 厂商：只改第一个容器；容器列表为空时这里抛 IndexOutOfBounds（照抄，由上层 catch 成 500）
+        spec.getContainers().get(0).setVolumeMounts(mounts);
+        var replaced = kubernetesClient.apps().deployments().inNamespace(namespace).withName(name).replace(d);
+        return replaced == null ? null : toSnapshot(replaced);
+    }
+
     /** 该命名空间**所有** Service 已占用的 nodePort（厂商 `getNodePortUsed()`）。 */
     public List<Integer> listUsedNodePorts(String namespace) {
         List<Integer> used = new java.util.ArrayList<>();
