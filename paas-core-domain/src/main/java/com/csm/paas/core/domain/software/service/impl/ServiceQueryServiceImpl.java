@@ -1334,6 +1334,36 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
         return serviceRuntimePort.readConfigMaps(namespace, new ArrayList<>(names));
     }
 
+    /**
+     * 更新软件配置里的服务端口（厂商 `softwareServicePort:2836-2876`，规格见 `docs/findings/136`）。
+     */
+    @Override
+    public boolean updateSoftwareServicePorts(List<com.csm.paas.core.domain.software.model.valobj.ServicePortItemVO> form) {
+        long currentTimeMillis = System.currentTimeMillis();
+        List<Integer> portList = form.stream()
+                .map(com.csm.paas.core.domain.software.model.valobj.ServicePortItemVO::getContainerPort)
+                .toList();
+        // 厂商：`form.get(0)` ⇒ 空列表 IndexOutOfBounds（500）；我们照抄不额外兜
+        String serviceName = form.get(0).getServiceName();
+        log.info("服务名称为:{}", serviceName);
+        List<String> softwareIdList = softwareRepository.querySoftwareIdsByAppName(serviceName);
+        if (softwareIdList.isEmpty()) {
+            return true;
+        }
+        for (String softwareId : softwareIdList) {
+            // 旧的 web 入口那一行：只有它的 port 还在新列表里，才把新行继续标成 web_entry=true
+            Integer entryPort = softwareRepository.queryWebEntryPort(softwareId, serviceName).orElse(null);
+            boolean isEntry = entryPort != null && portList.contains(entryPort);
+            softwareRepository.deleteServicePorts(softwareId, serviceName);
+            for (Integer port : portList) {
+                softwareRepository.insertServicePortRow(softwareId, serviceName, port,
+                        serviceName + "-" + port, isEntry && port.equals(entryPort), currentTimeMillis);
+            }
+        }
+        gatewayRefreshPort.refresh();
+        return true;
+    }
+
     /** 厂商 `getStringRandom(length)`：每位 `SecureRandom.nextInt(2)%2==0` 取 `a-z`，否则取 `0-9`。 */
     private static String randomString(int length) {
         java.security.SecureRandom random = new java.security.SecureRandom();

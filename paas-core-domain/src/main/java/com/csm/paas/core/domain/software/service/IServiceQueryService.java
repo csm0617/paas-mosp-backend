@@ -437,4 +437,21 @@ public interface IServiceQueryService {
      */
     java.util.List<java.util.Map<String, Object>> collectConfigMapsForExport(String namespace, String type,
                                                                              java.util.List<String> keys);
+
+    /**
+     * 更新"软件配置里的服务端口"（厂商 `POST /v1/software/servicePort` →
+     * `SoftwareService.softwareServicePort:2836-2876`，规格见 `docs/findings/136`）。
+     *
+     * <p>规则：
+     * <ol>
+     *   <li>`serviceName` 取**第一条**的（form 为空 ⇒ 厂商 `IndexOutOfBounds` ⇒ 500，我们不额外兜）；</li>
+     *   <li>按 `g_software_app.app_name = serviceName` 找软件；**一个都没有 ⇒ 直接返回 true**（不做事）；</li>
+     *   <li>对每个软件：先看旧的 `web_entry = true` 那一行的 port——**若它还在新列表里**，
+     *       新的那一行继续标 `web_entry = true`（其余行 false）；</li>
+     *   <li>**先删光**该软件+该服务的端口映射，再按 `containerPort` 列表逐行插入，
+     *       `path_name = serviceName + "-" + port`、`updated_at = 同一次调用取的时间`、**不写 `allow`（NULL）**；</li>
+     *   <li>最后通知网关刷新（`IGatewayRefreshPort`，与 `patchService` B 分支同一个端口）。</li>
+     * </ol>
+     */
+    boolean updateSoftwareServicePorts(java.util.List<com.csm.paas.core.domain.software.model.valobj.ServicePortItemVO> form);
 }

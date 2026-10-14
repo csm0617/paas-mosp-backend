@@ -340,6 +340,29 @@ public interface ISoftwareDao {
     @org.apache.ibatis.annotations.Update("UPDATE g_software SET updated_at = #{updatedAt} WHERE id = #{id}")
     int updateSoftwareUpdatedAt(@Param("id") String id, @Param("updatedAt") long updatedAt);
 
+    /**
+     * 该软件+服务下 `web_entry = true` 的那一行的 port（厂商 `softwareServicePort:2852-2856` 取 `select.get(0)`）。
+     * 没有则返回 null。
+     */
+    @Select("""
+            SELECT port FROM g_service_port
+            WHERE software_id = #{softwareId} AND service_name = #{serviceName} AND web_entry = true
+            LIMIT 1
+            """)
+    Integer selectWebEntryPort(@Param("softwareId") String softwareId, @Param("serviceName") String serviceName);
+
+    /**
+     * 插**一行**端口映射（厂商 `softwareServicePort:2858-2872` 的 `insertSelective`：
+     * 设 softwareId/serviceName/port/webEntry/pathName/updatedAt，**不设 `allow`** ⇒ 该列为 NULL）。
+     */
+    @org.apache.ibatis.annotations.Insert("""
+            INSERT INTO g_service_port (software_id, service_name, port, path_name, web_entry, updated_at)
+            VALUES (#{softwareId}, #{serviceName}, #{port}, #{pathName}, #{webEntry}, #{updatedAt})
+            """)
+    int insertServicePortRow(@Param("softwareId") String softwareId, @Param("serviceName") String serviceName,
+                             @Param("port") int port, @Param("pathName") String pathName,
+                             @Param("webEntry") boolean webEntry, @Param("updatedAt") long updatedAt);
+
     /** 删某软件在某服务下的**全部**端口映射（厂商 `where software_id = ? and service_name = ?`）。 */
     @org.apache.ibatis.annotations.Delete("""
             DELETE FROM g_service_port WHERE software_id = #{softwareId} AND service_name = #{serviceName}

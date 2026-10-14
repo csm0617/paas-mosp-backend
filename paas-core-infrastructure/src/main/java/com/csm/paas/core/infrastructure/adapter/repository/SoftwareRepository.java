@@ -280,6 +280,17 @@ public class SoftwareRepository implements ISoftwareRepository {
     }
 
     @Override
+    public java.util.Optional<Integer> queryWebEntryPort(String softwareId, String serviceName) {
+        return java.util.Optional.ofNullable(softwareDao.selectWebEntryPort(softwareId, serviceName));
+    }
+
+    @Override
+    public void insertServicePortRow(String softwareId, String serviceName, int port, String pathName,
+                                     boolean webEntry, long updatedAt) {
+        softwareDao.insertServicePortRow(softwareId, serviceName, port, pathName, webEntry, updatedAt);
+    }
+
+    @Override
     public void deleteServicePorts(String softwareId, String serviceName) {
         softwareDao.deleteServicePortsBySoftwareIdAndServiceName(softwareId, serviceName);
     }

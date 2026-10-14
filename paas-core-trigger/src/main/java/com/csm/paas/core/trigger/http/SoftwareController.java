@@ -50,6 +50,23 @@ public class SoftwareController {
     private String namespace;
 
     /**
+     * 厂商 `POST /v1/software/servicePort`：更新"软件配置里的服务端口"（body 是 `[{containerPort, serviceName}]`）。
+     *
+     * <p>`serviceName` 取第一条；按 `g_software_app.app_name` 找软件（一个都没有就直接 true）；
+     * 每个软件**先删光**该服务下的端口映射再按 `containerPort` 逐行插入，并**保留旧的 web 入口标记**。
+     * 规则见 `IServiceQueryService.updateSoftwareServicePorts`（规格 `findings/136`）。
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/servicePort")
+    public ResponseDTO<Boolean> servicePort(
+            @org.springframework.web.bind.annotation.RequestBody java.util.List<com.csm.paas.core.api.dto.ServicePortFormDTO> form) {
+        return ResponseDTO.ok(serviceQueryService.updateSoftwareServicePorts(form == null ? null
+                : form.stream()
+                .map(f -> com.csm.paas.core.domain.software.model.valobj.ServicePortItemVO.builder()
+                        .containerPort(f.getContainerPort()).serviceName(f.getServiceName()).build())
+                .toList()));
+    }
+
+    /**
      * 厂商 `PUT /v1/software/softwareRelateRole?softwareId=`：修改软件关联的战位（body 是 **roleKey 数组**）。
      *
      * <p>先去重、再**删光该软件已有战位关联（每删一条推一次 `/topic/software`）**、

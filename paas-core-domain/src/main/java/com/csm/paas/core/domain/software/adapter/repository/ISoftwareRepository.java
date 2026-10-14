@@ -169,6 +169,13 @@ public interface ISoftwareRepository {
     /** 写一条重启记录（厂商 `podEventMapper.insertSelective`）。 */
     void insertPodEvent(String serviceName, String podName, long createAt, int restartCount);
 
+    /** 该软件+服务下 `web_entry = true` 那一行的 port；没有则 empty（厂商 `softwareServicePort`）。 */
+    java.util.Optional<Integer> queryWebEntryPort(String softwareId, String serviceName);
+
+    /** 插一行端口映射（**不写 `allow`**，与厂商 `insertSelective` 一致）。 */
+    void insertServicePortRow(String softwareId, String serviceName, int port, String pathName,
+                              boolean webEntry, long updatedAt);
+
     /** 删某软件在某服务下的全部端口映射（厂商 `where software_id = ? and service_name = ?`）。 */
     void deleteServicePorts(String softwareId, String serviceName);
 
