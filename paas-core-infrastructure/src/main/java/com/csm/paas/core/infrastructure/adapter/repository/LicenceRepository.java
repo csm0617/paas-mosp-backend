@@ -66,4 +66,8 @@ public class LicenceRepository implements ILicenceRepository {
     public Optional<String> queryDefaultAuthPublicKey() {
         return Optional.ofNullable(licenceDao.selectDefaultAuthPublicKey()).filter(v -> !v.isBlank());
     }
+    @Override
+    public int updateActivatePublicKey(String name, String publicKey, long updateAt) {
+        return licenceDao.updateActivatePublicKey(name, publicKey, updateAt);
+    }
 }

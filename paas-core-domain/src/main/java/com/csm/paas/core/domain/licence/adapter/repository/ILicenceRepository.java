@@ -41,4 +41,6 @@ public interface ILicenceRepository {
 
     /** 清空激活码（厂商 `clearActiveCode:448-460`）：删 `g_setting['system.active.code']`（并删授权文件，本实现未做文件）。 */
     void clearActiveCode();
+    /** 更新框架公钥（`g_activate` 里 `name` 那行），返回受影响行数。 */
+    int updateActivatePublicKey(String name, String publicKey, long updateAt);
 }

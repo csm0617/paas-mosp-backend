@@ -15,10 +15,14 @@ import static org.mockito.Mockito.verify;
 class LicenceLoginOutAllTest {
 
     private final IUserSessionRepository userSessionRepository = mock(IUserSessionRepository.class);
+    private final com.csm.paas.core.domain.licence.adapter.repository.ILicenceRepository licenceRepository =
+            mock(com.csm.paas.core.domain.licence.adapter.repository.ILicenceRepository.class);
+    private final com.csm.paas.core.domain.licence.adapter.port.ILicencePayloadPort payloadPort =
+            mock(com.csm.paas.core.domain.licence.adapter.port.ILicencePayloadPort.class);
 
     @Test
     void clearsAllSessionsAndReturnsTrue() {
-        assertTrue(new LicenceCommandServiceImpl(userSessionRepository).loginOutAllUsers());
+        assertTrue(new LicenceCommandServiceImpl(userSessionRepository, licenceRepository, payloadPort).loginOutAllUsers());
         verify(userSessionRepository).deleteAllSessions();
     }
 }

@@ -1,6 +1,7 @@
 package com.csm.paas.core.trigger.http;
 
 import com.csm.paas.core.api.dto.ActiveLicenceDTO;
+import com.csm.paas.core.api.dto.EncryptDTO;
 import com.csm.paas.core.api.dto.LicenceInfoDTO;
 import com.csm.paas.core.api.dto.MachineInfoDTO;
 import com.csm.paas.core.api.dto.ResponseDTO;
@@ -23,6 +24,20 @@ public class LicenceController {
 
     @Resource
     private ILicenceCommandService licenceCommandService;
+
+    /**
+     * 厂商 `POST /v1/licence/updateFramework`：更新框架公私钥（body `{encryptInfo}`，AES 密文）。
+     *
+     * <p>`encryptInfo` 为空 ⇒ 400 `licence.new.public.key.empty`；解密/解析失败 ⇒
+     * 400 `licence.parse.authorization.info.failed`；成功后写 `g_activate` 里 `name='gaop'` 那行的
+     * `public_key`/`update_at`。规则见 `ILicenceCommandService.updateFrameworkRsaKey`（规格 `findings/151`）。
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/v1/licence/updateFramework")
+    public ResponseDTO<Boolean> updateFrameworkRsaKey(
+            @org.springframework.web.bind.annotation.RequestBody EncryptDTO form) {
+        return ResponseDTO.ok(licenceCommandService.updateFrameworkRsaKey(
+                form == null ? null : form.getEncryptInfo()));
+    }
 
     /**
      * 厂商 `GET /v1/licence/loginOutAllUser`：清理所有在线用户（试用期到期时踢回登录页）。

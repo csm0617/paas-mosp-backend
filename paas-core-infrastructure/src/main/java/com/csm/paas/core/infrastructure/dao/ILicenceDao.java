@@ -15,6 +15,17 @@ public interface ILicenceDao {
     String selectGaopActivatePublicKey();
 
     /**
+     * 更新框架公钥（厂商 `updateFrameworkRsaKey:1092-1097` 的
+     * `activateMapper.updateByPrimaryKeySelective`：只写 `public_key` 与 `update_at`）。
+     */
+    @org.apache.ibatis.annotations.Update("""
+            UPDATE g_activate SET public_key = #{publicKey}, update_at = #{updateAt} WHERE name = #{name}
+            """)
+    int updateActivatePublicKey(@org.apache.ibatis.annotations.Param("name") String name,
+                                @org.apache.ibatis.annotations.Param("publicKey") String publicKey,
+                                @org.apache.ibatis.annotations.Param("updateAt") long updateAt);
+
+    /**
      * 厂商 `checkSoftwareActiveCode:584-585` + `getPublicKeyAlgorithm:567-579`：
      * `g_auth` 里 `jar_name='default_auth'` 的**最新一条**（`create_at` 降序）公钥。
      * <p><b>表名核对</b>：真库里这张表叫 **`g_auth`**（列 `id,jar_name,store_jar_name,class_name,create_at,
