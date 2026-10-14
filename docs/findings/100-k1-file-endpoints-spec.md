@@ -36,6 +36,34 @@
    `global.import.supported.file.type`（文案可对拉）；`update_avatar` 传 > 200KiB 文件 → 400 `global.avatar.size.limit`；
 4. **写库路径**（import/recovery/avatar）：要用**可回滚的探针**（本会话的标准做法：造行 → 验 → 删行核对）。
 
+## 3'. 读实现后发现的**两个重要事实**（都会改变实现方式）
+
+### (a) `POST /v1/user/recovery` 在厂商侧是**空实现**
+
+```java
+public void handleRecoveryExcel(MultipartFile file) throws IOException, ClassNotFoundException {
+}      // ← 方法体是空的（UserService.java:947-948）
+```
+
+⇒ 这个端点**只做 Excel 格式校验**，然后 `Response.ok(null)`，**不写任何数据**。
+**这大幅降低了它的实现成本**：我们只需"校验 + 返回 null"，**不需要**解析 Excel 内容。
+验证方式也随之变简单：传一个**合法 Excel** → 两侧都 200 `data:null`，且**库里没有任何变化**（比字节比对更硬）。
+
+### (b) `generateExportExcelTemplate` 的结构（8 列 + 表头行）
+
+```
+ExcelUtils.initializeWorkbook(i18n.getMessages(TABLE_HEADERS), "sheet1")   // 第 0 行 = 表头（来自 i18n 列表）
+row(1): 8 个示例单元格，来自 i18n 键：
+  template.user.example.name / nickname / role.key / role / role.role / desc / status / password
+```
+⇒ 实现需要：**POI** + 这两组 **i18n 文案**（`TABLE_HEADERS` 与上面 8 个键）+ `ExcelUtils.initializeWorkbook` 的行为
+（表头写在第 0 行；是否带样式要读 `ExcelUtils` 才能确定——**下一轮先读它再动手**）。
+
+### (c) 顺带：`/backup` 与 `generateBackupExcel` 不是同一条路径
+
+`POST /backup` 的处理器调的是 **`generateExportExcel`**；而 `generateBackupExcel:950-`（会**跳过
+`admin`/`dev`/`root`**）是**另一个**函数、由别处使用。⇒ 实现时不要"望名生义"把两者当成一个。
+
 ## 4. 建议顺序
 
 1. `import/template`（**最简单**：无入参、纯产出、可解析比对单元格）；
