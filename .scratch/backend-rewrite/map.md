@@ -321,6 +321,9 @@ Label: `wayfinder:map`
 - 当前：46 端点映射、38 测试类 **236 条全绿**、81 提交、63 篇 findings。
 - 下一步优先序：服务切片同模式推进 → K2 跨域（`/auth` 列表可对拉；CS 上传/导入导出需先定边界）→ K3 侧效应 → 把"不可验证项"整理成对外偏离清单。
 
+- （**端到端复验**）[第 68 轮全栈复验](docs/findings/76-e2e-reverification-round68.md)：距上次 e2e 约 30 轮之后，用**厂商原样前端 + 我们的后端**重跑用户管理页——**表格内容与厂商逐字节相同**（表头 8 列、数据行 `1/admin/管理员/运维管理员门户/添加子角色/…`），前端调到的端点**全部 200**。
+  - 两处已知差异均非后端契约：①WS 通道（我们走 SockJS xhr 回退、厂商走原生 WS，属 harness 代理方式，`findings/20` 已覆盖）；②HTML 长度（厂商侧多若干**导航**条目，内容区相同）。
+  - 意义：**30 轮改动没有破坏既有链路**——这正是"复验"要证伪的东西。截图归档到 `docs/findings/artifacts/`。
 - （**K2 跨域**）[POST /v1/software/software/active](docs/findings/75-software-activate.md)：**用自造 RSA 密钥对 + 临时 `g_auth` 公钥行**在真实环境验证批量激活，**五种情形一致**。
   - 手法（沿用 K3）：`openssl genrsa` → 临时插一行 `default_auth`（`create_at` 取最大 ⇒ 厂商 `get(0)` 选中我们）→ 手工签 RS512 JWT → 验完删行并核对原行完好。
   - 坑：**`g_auth.id` 是自增 int**，第一次用字符串 id 插入静默失败 ⇒ 五条用例全落到"验签失败"；是"`default_auth` 行数没变成 2"这个反常现象暴露的。
