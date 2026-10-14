@@ -40,7 +40,9 @@ class ServiceGaopKeywordTest {
     }
 
     private static ServiceRuntimeEntity svc(String name, String serviceLabel) {
-        return ServiceRuntimeEntity.builder().name(name).appType("gaop-core").serviceLabel(serviceLabel).build();
+        // 必须带 system/appName=gaop，否则会被过滤链最后一道合取项丢掉
+        return ServiceRuntimeEntity.builder().name(name).appType("gaop-core").appName("gaop")
+                .serviceLabel(serviceLabel).build();
     }
 
     private List<String> names(String keyword) {

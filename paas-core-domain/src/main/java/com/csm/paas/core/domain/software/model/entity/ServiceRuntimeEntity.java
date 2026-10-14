@@ -38,6 +38,9 @@ public class ServiceRuntimeEntity {
     /** 工作负载标签 `system/appType`（厂商 `GET /v1/service/gaop` 的过滤依据，可能为 null）。 */
     private String appType;
 
+    /** 工作负载标签 `system/appName`（厂商 `GET /v1/service/gaop` 与 `serviceAuth` 都靠它判归属）。 */
+    private String appName;
+
     /**
      * `GET /v1/service/gaop` 专用的显示名（厂商 `e.setFixedName(GaopName.gaopName.get(name))`）。
      * <p>**只在这个端点里赋值**；为空时装配器回退服务名，从而不影响已对拉通过的 `/v1/service` 列表行为。

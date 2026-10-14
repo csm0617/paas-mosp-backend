@@ -254,7 +254,12 @@ Label: `wayfinder:map`
   - **keyword 兜底规则已精确实现**（[findings/56](docs/findings/56-filter-service-name-exact.md)）：读全 `filterServiceName:2070-2081` 后确认我上一版的近似**三条全错**——它匹配的是注解 **`gaop/serviceLabel`**（用户改过的显示名）而不是 `fixedName`（平台内置显示名），第二段**只看注解不看名字**，且**大小写敏感**。
     - 改动：`ServiceRuntimeEntity.serviceLabel` + 端口取 `spec.template.metadata.annotations["gaop/serviceLabel"]` + `filterServiceName` 精确实现；3 条用例，其中"没有注解的服务永不命中兜底"正是我上一版会答错的那题。
     - 教训：**标注"这是近似"不等于核对过了**——近似值本身可能就是错的。
-  - 下一轮顺序：转 `serviceAuth`/`baseComponent`（两个已确认可观测的端点）。
+  - **真正根因找到并对拉首次全绿**（[findings/58](docs/findings/58-gaop-real-rootcause.md)）：过滤 lambda 的**最后一行** `return isGaopApp && result`（`isGaopApp = labels["system/appName"] == "gaop"`）—— **参考环境没有这个标签 ⇒ 9 条全部被正确过滤掉**。与 TenX 无关（57 已否），也不是 type 名单问题。
+    - 修复后 **type=1/type=2 两侧都是 total=0**；且**能解释为什么都是 0**（不是"都没数据"而是"都因缺标签而正确过滤"）。
+    - 回归：`/v1/service` mine=9 vendor=9 通过。
+    - 改动：实体加 `appName`；端口 `appTypeOf`→`labelOf(snapshot,key)`；`matches(type,name,appType,appName)` **两条分支都要过 `isGaopApp`**（厂商是统一加在 return 上的）；新增用例断言"有 appType 也照样要过 appName 这关"。
+    - **三轮串起来**：55 我写成"依赖 TenX"（错）→ 57 用同源 9 条数据否掉、改成"未定论"（对了一半）→ 58 逐行读完找到真因（对）。**每步都不是"想更久"，而是又多了一条证据**；"读一半就下结论"与"抄错字符"同类，都缺一次核对。
+  - 下一轮顺序：读全 `serviceAuth` handler 后半段（授权状态过滤/分页/装配）→ 实现（它是已确认可观测的 9 条）；`baseComponent` 内容退化（2 条均 null），优先级低。
   - 下一轮程序：搬常量 → 实现 filter（type=2 照抄缺陷）→ keyword 两段式（兜底 `filterServiceName` 需先补读）→ 复用已对拉的 `ServiceList` 形状 → 对拉 type=1/type=2/带 keyword/keyword>45 四种情形。：我此前逐轮报的「162/174」是**数错了**（grep 只匹配到部分模块的汇总行，且 surefire 报告目录混有旧文件）。按模块汇总行精确求和：**33 个测试类、210 条用例全绿**。教训与「手抄不透明值」「只验形状不验值」同源——**计数也是要验证的量**，必须用可复算的命令。
 
 - （K3 预研结论）`LicenceInfo.expired(code)` = `{end:-1, endIso8601:null, code, expired:true}`，其中 `code = 机器码 + Base64(软件key)`；**"没有激活码"这一支不需要密码学**，可以在做 `GET /v1/software/{id}` 时一并实现（本轮没写，因为详情端点没做就没有调用方，写了是死代码）。

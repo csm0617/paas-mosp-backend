@@ -14,19 +14,30 @@ public final class GaopServiceFilter {
     private GaopServiceFilter() {
     }
 
-    public static boolean matches(Integer type, String name, String appType) {
+    /**
+     * 厂商过滤链的**最后一道合取项**（`ServiceController:1593-1594`）：
+     * {@code boolean isGaopApp = labels.get("system/appName") != null && "gaop".equals(...);
+     *       return isGaopApp && result;}
+     * <p>即：**工作负载必须带标签 `system/appName=gaop`**，否则无论 type 是否匹配都被丢弃。
+     * 这一条是 `gaop` 端点在参考环境返回空列表的**真正原因**（参考环境的 Deployment 只有 `app=` 标签）。
+     */
+    private static boolean isGaopApp(String appName) {
+        return appName != null && "gaop".equals(appName);
+    }
+
+    public static boolean matches(Integer type, String name, String appType, String appName) {
         if (type == null || name == null) {
             return false;
         }
         if (appType != null) {
             if (type == 1) {
-                return GaopServiceNames.APP_TYPE_GAOP_CORE.equals(appType);
+                return GaopServiceNames.APP_TYPE_GAOP_CORE.equals(appType) && isGaopApp(appName);
             }
             if (type == 2) {
-                return GaopServiceNames.APP_TYPE_GAOP_BASE.equals(appType);
+                return GaopServiceNames.APP_TYPE_GAOP_BASE.equals(appType) && isGaopApp(appName);
             }
             return false;
         }
-        return GaopServiceNames.serviceInPassFrame(name);
+        return GaopServiceNames.serviceInPassFrame(name) && isGaopApp(appName);
     }
 }

@@ -57,7 +57,7 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
     @Override
     public ServiceListEntity queryGaopServiceList(String namespace, int page, int size, Integer type, String keyword) {
         List<ServiceRuntimeEntity> all = serviceRuntimePort.queryServices(namespace).stream()
-                .filter(s -> GaopServiceFilter.matches(type, s.getName(), s.getAppType()))
+                .filter(s -> GaopServiceFilter.matches(type, s.getName(), s.getAppType(), s.getAppName()))
                 .peek(s -> s.setFixedName(GaopServiceNames.fixedName(s.getName())))
                 .collect(Collectors.toList());
 

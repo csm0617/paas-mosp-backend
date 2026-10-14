@@ -97,7 +97,7 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
      * <p>标签名为厂商常量 `AppTypeLabelsEnum.TYPE_LABEL_NAME`，取值 `gaop-core`/`gaop-base`/`business`。
      */
     @SuppressWarnings("unchecked")
-    private static String appTypeOf(Map<String, Object> workloadSnapshot) {
+    private static String labelOf(Map<String, Object> workloadSnapshot, String labelKey) {
         if (workloadSnapshot == null) {
             return null;
         }
@@ -109,8 +109,8 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
         if (!(labels instanceof Map)) {
             return null;   // 厂商对 labels 为 null 的条目直接丢弃
         }
-        Object appType = ((Map<String, Object>) labels).get("system/appType");
-        return appType == null ? null : String.valueOf(appType);
+        Object value = ((Map<String, Object>) labels).get(labelKey);
+        return value == null ? null : String.valueOf(value);
     }
 
     /**
@@ -202,7 +202,8 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
                 .image(imageOf(workloadSnapshot))
                 .createdAt(creationTimestampOf(workloadSnapshot))
                 .serviceSnapshot(svc != null ? serviceRuntimeGateway.toSnapshot(svc) : null)
-                .appType(appTypeOf(workloadSnapshot))
+                .appType(labelOf(workloadSnapshot, "system/appType"))
+                .appName(labelOf(workloadSnapshot, "system/appName"))
                 .serviceLabel(serviceLabelOf(workloadSnapshot))
                 .deploymentSnapshot(workloadSnapshot)
                 .build();
