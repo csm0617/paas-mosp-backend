@@ -552,4 +552,22 @@ public interface IServiceQueryService {
      * 删除失败/不存在 ⇒ 只记日志（不报错）；返回成功删除的那些名字。
      */
     java.util.List<String> deleteConfigMaps(String namespace, String names);
+
+    /**
+     * 导出配置组（厂商 `POST /v1/config_map/backup` → `SoftwareService.exportConfigMap:3453-3477`）。
+     *
+     * <p>`nameList` 非空 ⇒ **按名读**（读不到的**跳过**）；为空/null ⇒ 列**不带 `ingress-lb` 标签**的
+     * 全部 ConfigMap（厂商的 `labelSelector = "!ingress-lb"`）。响应是 JSON 附件。
+     */
+    java.util.List<java.util.Map<String, Object>> exportConfigMaps(String namespace, java.util.List<String> nameList);
+
+    /**
+     * 导出 tcp/udp 监听配置（厂商 `POST /v1/config_map/listenBackup` →
+     * `SoftwareService.exportTcpAndUdpConfigMap:3739-3774`）。
+     *
+     * <p>列**带 `ingress-lb` 标签**的 ConfigMap；对每个：标签值为 **`"true"` 的跳过**，
+     * 否则按 `-` 拆开取第 2 段当作 ingress 名，若名字等于 `tcp-services-<段>`/`udp-services-<段>`
+     * 就分别填到 `tcpListen`/`udpListen`。`ingressList` **恒为 null**。
+     */
+    com.csm.paas.core.domain.software.model.entity.ListenBackInfoEntity exportListenConfigs(String namespace);
 }

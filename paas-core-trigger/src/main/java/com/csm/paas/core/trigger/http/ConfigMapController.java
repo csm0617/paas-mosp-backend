@@ -7,6 +7,7 @@ import com.csm.paas.core.api.dto.ConfigMapListDTO;
 import com.csm.paas.core.api.dto.ResponseDTO;
 import com.csm.paas.core.domain.software.service.IServiceQueryService;
 import com.csm.paas.core.types.util.PageUtils;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,7 +20,8 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>已实现：`GET /`（列表）、`GET /{name}`、`GET /{name}/exist`、`GET /relationService`、
  * `POST /`（创建）、`POST /{name}/config`、`DELETE /{name}/config/{configName}`、`DELETE /?names=`。
- * 未实现：`POST /backup|/import|/importListen|/listenBackup`。
+ * 已实现：`POST /backup`、`POST /listenBackup`。未实现：`POST /import`、`POST /importListen`
+ * （两者都要写"恢复日志"并推 `/topic/recoveryLog`，需先决定是否引入该日志机制）。
  */
 @RestController
 @RequestMapping("/v1/config_map")
@@ -27,6 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ConfigMapController {
 
     private final IServiceQueryService serviceQueryService;
+    private final org.springframework.context.MessageSource messageSource;
 
     @Value("${gaop.k8s.namespace:gaop-namespace}")
     private String namespace;
@@ -39,6 +42,49 @@ public class ConfigMapController {
      * **`total` 恒为关键字过滤之前的数量**。规则见
      * `IServiceQueryService.queryConfigMapList`（规格 `findings/142`）。
      */
+    /**
+     * 厂商 `POST /v1/config_map/backup`：导出配置组（**JSON 附件**，不是 JSON 信封）。
+     *
+     * <p>body 是**配置组名数组**；为空/不传 ⇒ 导出"不带 `ingress-lb` 标签"的全部 ConfigMap。
+     * 响应头 `Content-Type: application/json` + 文件名 `配置组列表.json`。规则见
+     * `IServiceQueryService.exportConfigMaps`（规格 `findings/145`）。
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/backup")
+    public void backUpConfigMap(
+            @org.springframework.web.bind.annotation.RequestBody(required = false) java.util.List<String> nameList,
+            HttpServletResponse response) throws java.io.IOException {
+        var configMaps = serviceQueryService.exportConfigMaps(namespace, nameList);
+        writeJsonAttachment(response, configMaps, "export.file.name.configmap.export");
+    }
+
+    /**
+     * 厂商 `POST /v1/config_map/listenBackup`：导出 tcp/udp 监听配置（**JSON 附件**）。
+     *
+     * <p>响应体是 `{tcpListen, udpListen, ingressList}`，其中 `ingressList` **恒为 null**。
+     * 规则见 `IServiceQueryService.exportListenConfigs`（规格 `findings/145`）。
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/listenBackup")
+    public void exportTcpAndUdp(HttpServletResponse response) throws java.io.IOException {
+        var info = serviceQueryService.exportListenConfigs(namespace);
+        java.util.Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("tcpListen", info.getTcpListen());
+        body.put("udpListen", info.getUdpListen());
+        body.put("ingressList", info.getIngressList());
+        writeJsonAttachment(response, body, "export.file.name.listen.export");
+    }
+
+    /** 厂商 `ResponseUtils.attachment` + Jackson 写流：`application/json` + 附件名（走 i18n）。 */
+    private void writeJsonAttachment(HttpServletResponse response, Object body, String filenameKey)
+            throws java.io.IOException {
+        response.reset();
+        response.setContentType(org.springframework.http.MediaType.APPLICATION_JSON_VALUE);
+        response.setHeader("Content-Disposition", "attachment; filename*=UTF-8''"
+                + java.net.URLEncoder.encode(messageSource.getMessage(filenameKey, null, java.util.Locale.getDefault()),
+                        java.nio.charset.StandardCharsets.UTF_8));
+        response.getOutputStream().write(new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsBytes(body));
+        response.flushBuffer();
+    }
+
     /**
      * 厂商 `POST /v1/config_map`：建配置组（body 只有 `name`）。
      *

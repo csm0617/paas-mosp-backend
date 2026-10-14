@@ -307,4 +307,10 @@ public interface IServiceRuntimePort {
 
     /** 删一个 ConfigMap；**不存在或删除失败返回 false**（厂商对 ApiException 只记日志）。 */
     boolean deleteConfigMap(String namespace, String name);
+
+    /**
+     * 列**带 `ingress-lb` 标签**的 ConfigMap（厂商 `exportTcpAndUdpConfigMap:3745` 用的
+     * `labelSelector = "ingress-lb"`）。
+     */
+    java.util.List<java.util.Map<String, Object>> listConfigMapsWithIngressLb(String namespace);
 }

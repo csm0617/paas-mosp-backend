@@ -1700,6 +1700,53 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
         }
     }
 
+    @Override
+    public List<Map<String, Object>> exportConfigMaps(String namespace, List<String> nameList) {
+        if (nameList != null && !nameList.isEmpty()) {
+            // 厂商：按名读，读不到的跳过
+            return serviceRuntimePort.readConfigMaps(namespace, nameList);
+        }
+        // 厂商：列**不带 ingress-lb 标签**的全部（labelSelector "!ingress-lb"）
+        return itemsOf(serviceRuntimePort.listConfigMapsWithoutIngressLb(namespace));
+    }
+
+    @Override
+    public com.csm.paas.core.domain.software.model.entity.ListenBackInfoEntity exportListenConfigs(String namespace) {
+        Map<String, Object> tcpListen = null;
+        Map<String, Object> udpListen = null;
+        List<Map<String, Object>> configMaps;
+        try {
+            configMaps = serviceRuntimePort.listConfigMapsWithIngressLb(namespace);
+        } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+            log.error("获取tcp与udp配置组信息失败,异常为:{}", e.getMessage());
+            configMaps = List.of();
+        }
+        for (Map<String, Object> configMap : configMaps) {
+            String name = configMapName(configMap);
+            Map<String, Object> metadata = asMap(configMap.get("metadata"));
+            Map<String, Object> labels = metadata == null ? null : asMap(metadata.get("labels"));
+            String ingressLb = labels == null ? null : (String) labels.get("ingress-lb");
+            log.info("拿到的ingress-lb的名称:{}", ingressLb);
+            if ("true".equals(ingressLb)) {
+                continue;
+            }
+            try {
+                String suffixName = ingressLb.split("-")[1];
+                if (name != null && name.equals("tcp-services-" + suffixName)) {
+                    tcpListen = configMap;
+                }
+                if (name != null && name.equals("udp-services-" + suffixName)) {
+                    udpListen = configMap;
+                }
+            } catch (Exception e) {
+                log.error("分割失败，跳过该configMap,异常为:{}", e.toString());
+            }
+        }
+        return com.csm.paas.core.domain.software.model.entity.ListenBackInfoEntity.builder()
+                .tcpListen(tcpListen).udpListen(udpListen).ingressList(null)
+                .build();
+    }
+
     /** 厂商 `getStringRandom(length)`：每位 `SecureRandom.nextInt(2)%2==0` 取 `a-z`，否则取 `0-9`。 */
     private static String randomString(int length) {
         java.security.SecureRandom random = new java.security.SecureRandom();

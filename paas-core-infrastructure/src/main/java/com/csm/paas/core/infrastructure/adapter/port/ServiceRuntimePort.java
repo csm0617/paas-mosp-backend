@@ -336,6 +336,15 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
     }
 
     @Override
+    public java.util.List<java.util.Map<String, Object>> listConfigMapsWithIngressLb(String namespace) {
+        try {
+            return serviceRuntimeGateway.listConfigMapsWithIngressLb(namespace);
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    @Override
     public java.util.List<java.util.Map<String, Object>> listDeploymentSnapshots(String namespace) {
         try {
             return serviceRuntimeGateway.listDeploymentSnapshots(namespace);

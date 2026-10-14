@@ -576,6 +576,12 @@ public class ServiceRuntimeGateway {
         return !kubernetesClient.configMaps().inNamespace(namespace).resource(existing).delete().isEmpty();
     }
 
+    /** 带 `ingress-lb` 标签的 ConfigMap 列表（items 快照）。 */
+    public List<Map<String, Object>> listConfigMapsWithIngressLb(String namespace) {
+        return kubernetesClient.configMaps().inNamespace(namespace).withLabel("ingress-lb").list().getItems().stream()
+                .map(this::toSnapshot).toList();
+    }
+
     /** 全部 Deployment 的原样快照。 */
     public List<Map<String, Object>> listDeploymentSnapshots(String namespace) {
         return kubernetesClient.apps().deployments().inNamespace(namespace).list().getItems().stream()
