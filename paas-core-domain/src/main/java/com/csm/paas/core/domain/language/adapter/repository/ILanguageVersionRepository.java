@@ -26,6 +26,15 @@ public interface ILanguageVersionRepository {
     /** 删某语言+某版本下的全部词条。 */
     void deleteLanguageEntries(String lang, String version);
 
+    /** 把所有 `used=1` 清成 0（**全局**）。 */
+    int resetUsed();
+
+    /** 把某语言+版本置为 `used=1`，返回受影响行数。 */
+    int setUsed(String lang, String version);
+
+    /** 某语言+版本的版本行数。 */
+    long countByLangAndVersion(String lang, String version);
+
     /** 某语言+版本下的词条（`module` 为空白时不过滤）。 */
     java.util.List<com.csm.paas.core.domain.language.model.entity.LanguageEntryEntity> queryLanguages(
             String lang, String version, String module);

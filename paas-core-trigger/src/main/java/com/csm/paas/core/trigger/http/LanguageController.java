@@ -4,6 +4,7 @@ import com.csm.paas.core.api.dto.LanguageInfoDTO;
 import com.csm.paas.core.api.dto.LanguageVersionInfoDTO;
 import com.csm.paas.core.api.dto.ResponseDTO;
 import com.csm.paas.core.domain.language.service.ILanguageCommandService;
+import com.csm.paas.core.domain.language.adapter.port.ILanguageChangedNotifyPort;
 import com.csm.paas.core.domain.language.service.ILanguageQueryService;
 import com.csm.paas.core.types.util.PageUtils;
 import lombok.RequiredArgsConstructor;
@@ -18,7 +19,8 @@ import java.util.List;
  * 厂商 `LanguageController`（`/v1/lang`）。
  *
  * <p>已实现 `GET /version`（`findings/137`）、`DELETE /remove`（`findings/138`）、
- * `GET /detail`（`findings/139`）；其余端点（`/cur`、`/current`、`/import`、`POST /version`）尚未实现。
+ * `GET /detail`（`findings/139`）、`POST /version`（`findings/140`）；
+ * 其余端点（`/cur`、`/current`、`/import`）尚未实现。
  */
 @RestController
 @RequestMapping("/v1/lang")
@@ -27,6 +29,7 @@ public class LanguageController {
 
     private final ILanguageQueryService languageQueryService;
     private final ILanguageCommandService languageCommandService;
+    private final ILanguageChangedNotifyPort languageChangedNotifyPort;
 
     /**
      * 厂商 `GET /v1/lang/version?page=&size=&keyword=`：语言包版本列表（分页）。
@@ -69,6 +72,29 @@ public class LanguageController {
                 .total(info.getTotal()).module(info.getModule())
                 .lang(info.getLang()).langVersion(info.getLangVersion())
                 .build());
+    }
+
+    /**
+     * 厂商 `POST /v1/lang/version?lang=&version=`：设置某语言的当前版本。
+     *
+     * <p>`version=default` 时会先删掉 `./i18n` 目录（切回内置资源）；**成功后**再
+     * 把当前语言包导出成 `./i18n/messages_<lang>.properties`，并（厂商侧）发 Kafka 通知。
+     * 规则见 `ILanguageCommandService.setLanguageVersion`（规格 `findings/140`）。
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/version")
+    public ResponseDTO<Boolean> setLangVersion(
+            @RequestParam String lang, @RequestParam String version) throws java.io.IOException {
+        boolean updated = languageCommandService.setLanguageVersion(lang, version);
+        if (updated) {
+            // 厂商：成功后导出当前语言包到 ./i18n（用切换后的当前语言/版本）
+            var current = languageQueryService.queryCurrent();
+            var info = languageQueryService.queryLanguageDetail(
+                    current.getLanguage(), current.getVersion(), "gaop");
+            com.csm.paas.core.trigger.assembler.LanguagePropertiesWriter.write(
+                    current.getLanguage(), info.getLanguageList());
+            languageChangedNotifyPort.languageChanged(current.getLanguage(), current.getVersion());
+        }
+        return ResponseDTO.ok(updated);
     }
 
     @GetMapping("/version")

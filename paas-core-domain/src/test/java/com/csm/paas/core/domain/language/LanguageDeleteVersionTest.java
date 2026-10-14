@@ -24,9 +24,11 @@ import static org.mockito.Mockito.when;
 class LanguageDeleteVersionTest {
 
     private final ILanguageVersionRepository repository = mock(ILanguageVersionRepository.class);
+    private final com.csm.paas.core.domain.language.adapter.port.ILanguageI18nDirectoryPort i18nDirectory =
+            mock(com.csm.paas.core.domain.language.adapter.port.ILanguageI18nDirectoryPort.class);
 
     private LanguageCommandServiceImpl service() {
-        return new LanguageCommandServiceImpl(repository);
+        return new LanguageCommandServiceImpl(repository, i18nDirectory);
     }
 
     @Test

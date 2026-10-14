@@ -19,4 +19,21 @@ public interface ILanguageCommandService {
      * </ol>
      */
     boolean deleteLanguageVersion(String lang, String version);
+
+    /**
+     * 设置某语言的当前版本（厂商 `POST /v1/lang/version?lang=&version=` →
+     * `LanguageServiceImpl.setLanguageVersion:421-437`，规格见 `docs/findings/140`）。
+     *
+     * <p>规则：
+     * <ol>
+     *   <li>`lang` 或 `version` 为 null ⇒ **false**；`lang` 先 `-` → `_` 归一化；</li>
+     *   <li>`version == "default"` ⇒ 先 `updateLanguageVersion("default", lang)`
+     *       （**全局**把所有 `used=1` 清 0，再把 (lang, default) 置 1），再走
+     *       {@code setDefaultVersionLang}：**非基础语言（zh_CN/en_US/fr_FR）⇒ false**；
+     *       `./i18n` 不存在 ⇒ true（只记日志）；存在 ⇒ **删掉整个目录**后 true；</li>
+     *   <li>其它 version ⇒ 先 `count` 该 (lang, version) 行数，**为 0 ⇒ false**；
+     *       否则同样"先清 0 再置 1"，返回**置 1 的受影响行数 > 0**。</li>
+     * </ol>
+     */
+    boolean setLanguageVersion(String lang, String version);
 }

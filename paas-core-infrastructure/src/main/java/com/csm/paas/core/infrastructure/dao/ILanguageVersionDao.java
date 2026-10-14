@@ -80,4 +80,22 @@ public interface ILanguageVersionDao {
             @org.apache.ibatis.annotations.Param("lang") String lang,
             @org.apache.ibatis.annotations.Param("version") String version,
             @org.apache.ibatis.annotations.Param("module") String module);
+
+    /** 把所有 `used=1` 清成 0（厂商 `updateLanguageVersion:465` 的第一步，**全局**）。 */
+    @org.apache.ibatis.annotations.Update("UPDATE g_language_version SET used = 0 WHERE used = 1")
+    int resetUsed();
+
+    /** 把某语言+版本置为 `used=1`，返回受影响行数（厂商同方法的第二步）。 */
+    @org.apache.ibatis.annotations.Update("""
+            UPDATE g_language_version SET used = 1 WHERE lang = #{lang} AND lang_version = #{version}
+            """)
+    int setUsed(@org.apache.ibatis.annotations.Param("lang") String lang,
+                @org.apache.ibatis.annotations.Param("version") String version);
+
+    /** 某语言+版本的版本行数（厂商 `setLanguageVersion:431` 的 `count`）。 */
+    @Select("""
+            SELECT COUNT(*) FROM g_language_version WHERE lang = #{lang} AND lang_version = #{version}
+            """)
+    long countByLangAndVersion(@org.apache.ibatis.annotations.Param("lang") String lang,
+                               @org.apache.ibatis.annotations.Param("version") String version);
 }

@@ -67,6 +67,21 @@ public class LanguageVersionRepository implements ILanguageVersionRepository {
     }
 
     @Override
+    public int resetUsed() {
+        return languageVersionDao.resetUsed();
+    }
+
+    @Override
+    public int setUsed(String lang, String version) {
+        return languageVersionDao.setUsed(lang, version);
+    }
+
+    @Override
+    public long countByLangAndVersion(String lang, String version) {
+        return languageVersionDao.countByLangAndVersion(lang, version);
+    }
+
+    @Override
     public java.util.List<com.csm.paas.core.domain.language.model.entity.LanguageEntryEntity> queryLanguages(
             String lang, String version, String module) {
         return languageVersionDao.selectLanguages(lang, version, module).stream()
