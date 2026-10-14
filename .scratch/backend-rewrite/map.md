@@ -245,6 +245,8 @@ Label: `wayfinder:map`
   - 服务切片 **6/33**；测试 229 → **233 条**全绿。
 - （**serviceInfoByNode 勘查**）[findings/62](docs/findings/62-service-info-by-node.md)：`/v1/service` 是 9 条、它是 **0 条** ⇒ **不是同一份数据**（上一轮"同形⇒可复用"只对了形状）。算法已读完（masterNodeName → 按 `(nodeName|keyword|masterNodeName)` 缓存 → `getServicesItems` → order 1..6 排序 → 分页）；**关键未读**：`getServicesItems` 的节点归属规则（"为什么是 0"的答案）。
   - 定位：**可观测但参考退化**（同 `baseComponent`）。按 `gaop` 的经验，**只有能解释"为什么是 0"，这个 0 才算证据** ⇒ 下一轮先读 `getServicesItems`，能解释 0 再实现。
+  - **第 79 轮已读全 `getServicesItems` 并更正解释**：真因**不是** master 节点（那是第 55 轮的推断），而是过滤器要求 **`gaop/serviceLabel` 注解非空**，而本环境**没有任何工作负载带该注解**（实测只有 `restartedAt`）⇒ 恒空。`serviceNamed` 来自 **Pod 的容器名**（`gaop-redis` 的容器名是 `redis`）。
+  - 该端点因此可拿"可解释的 0"对拉；**但要先读完 `ServicesItem` 的装配**（podInfoList/belongNodeList/mappingInfo）——那部分仍未读。
   - **服务域工作量判断更新**：能拿到**非空对拉**的存量基本用完（已对拉 5 个）。往后只剩三类：退化参考+能解释的 0 / 独立 namespace 里的写验证 / 按代码实现+标注证据来源。**这个判断要在下一轮先确认，别再逐个端点试。**
 - （**方法感知分诊 + 3 个新可观测读端点**）[findings/61](docs/findings/61-service-triage-method-aware.md)：新发现 `serviceInfoByNode`（**与 `/v1/service` 同形，下一轮首选**）、`otherPlugin`（`{daemonSetList,deploymentList,statefulSetList}`）、`restartInfo`（本环境空）。剩余端点性质已归纳：已对拉 5 / 可观测读待做 3 / 依赖 Harbor 1 / 内容退化 1 / 厂商自身坏 3 / 破坏性写若干 / 非破坏性写（需独立 namespace）。
 - （**服务域分诊**）[10 个端点逐个探测，只有 4 个能拿 200](docs/findings/52-service-endpoint-observability-triage.md)：可对拉=`gaop`/`serviceAuth`（**与我们已对拉的 `/v1/service` 同形**）+ `imageStorage`/`baseComponent`（各有前置）。

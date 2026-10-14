@@ -1,4 +1,10 @@
-# `serviceInfoByNode` 为什么是 0：**单节点集群，且所有 Pod 都在 master 上**
+# `serviceInfoByNode` 为什么是 0：**没有任何工作负载带 `gaop/serviceLabel` 注解**
+
+> **⚠️ 第 79 轮更正**：本文原先的解释是"单节点集群 + 全部 Pod 在 master ⇒ 排除 master 后为空"——
+> 那是**推断**（原文 §3 也标了"必须读 `getServicesItems` 才能定论"）。本轮把 `getServicesItems` 读全了，
+> **真因不是 master 节点**：过滤器要求 `gaop/serviceLabel` 注解**非空**，而本环境**没有任何工作负载带这个注解**
+> （实测：只有 `kubectl.kubernetes.io/restartedAt`，其余为空）⇒ 一条都不留。
+> 原文保留在下方以留痕。
 
 **证据等级**：〔运行实测〕（集群事实）+〔代码事实〕。2026-10-14。本轮零业务代码改动。
 
