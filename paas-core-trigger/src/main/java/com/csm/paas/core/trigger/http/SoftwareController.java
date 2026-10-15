@@ -3,6 +3,7 @@ package com.csm.paas.core.trigger.http;
 import com.csm.paas.core.api.dto.ResponseDTO;
 import com.csm.paas.core.api.dto.SoftwareListDTO;
 import com.csm.paas.core.domain.software.service.ISoftwareQueryService;
+import com.csm.paas.core.trigger.assembler.SoftwareBackupJsonWriter;
 import com.csm.paas.core.trigger.assembler.SoftwareListAssembler;
 import com.csm.paas.core.types.exception.WrongArgumentException;
 import com.csm.paas.core.types.util.PageUtils;
@@ -23,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
  * `url`（CS 类型拼 `gaop://cs?...`，其中 `host` 取自请求头 `x-forwarded-host`）、`roleList`（关联战位）。
  * 详见 `docs/findings/36`。
  */
+@lombok.extern.slf4j.Slf4j
 @RestController
 @RequestMapping("/v1/software")
 public class SoftwareController {
@@ -49,6 +51,37 @@ public class SoftwareController {
     /** 软件启停与状态（`GET /{id}/start|stop|status`）。 */
     @Resource
     private com.csm.paas.core.domain.software.service.ISoftwareLifecycleService softwareLifecycleService;
+
+    /** 软件整包备份/还原（`POST /backup`、`/v2/backup`、`/import`）。 */
+    @Resource
+    private com.csm.paas.core.domain.software.service.ISoftwareBackupService softwareBackupService;
+
+    /** CS 程序包远端上传（`POST /{softwareId}/updateRemoteCs`）。 */
+    @Resource
+    private com.csm.paas.core.domain.software.service.ISoftwareRemoteCsService softwareRemoteCsService;
+
+    /** 数据库导出（v2 备份包里的初始化 SQL）/ 导入。 */
+    @Resource
+    private com.csm.paas.core.domain.database.service.IDatabaseService databaseService;
+
+    /** 库表：`g_database` 全量（按 service 找关联库）。 */
+    @Resource
+    private com.csm.paas.core.domain.database.adapter.repository.IDatabaseRepository databaseRepository;
+
+    /** v2 备份包里的镜像导出/导入（类 C：docker daemon + registry）。 */
+    @Resource
+    private com.csm.paas.core.domain.image.adapter.port.IDockerImagePort dockerImagePort;
+
+    @Resource
+    private com.csm.paas.core.domain.image.adapter.port.IDockerRegistryPort dockerRegistryPort;
+
+    /** 导出附件名（i18n `export.file.name.software.backup`）。 */
+    @Resource
+    private com.csm.paas.core.trigger.i18n.MessageResolver messageResolver;
+
+    /** 厂商 `data.backup`（`application.yml:183-185`，默认 `/opt/gaop/upload/backup`）。 */
+    @org.springframework.beans.factory.annotation.Value("${data.backup:/opt/gaop/upload/backup}")
+    private String fileBackUp;
 
     @org.springframework.beans.factory.annotation.Value("${gaop.k8s.namespace:gaop-namespace}")
     private String namespace;
@@ -227,6 +260,28 @@ public class SoftwareController {
             @org.springframework.web.bind.annotation.PathVariable String id) {
         return ResponseDTO.ok(com.csm.paas.core.trigger.assembler.ServiceListAssembler.toRelationItems(
                 serviceQueryService.querySoftwareRelationServices(namespace, id)));
+    }
+
+    /**
+     * 裸路径 `GET /v1/software/relationService`（带 `id`/`softwareId` 查询参数）——
+     * 与 {@link #softwareRelationService(String)} 同一份实现。
+     *
+     * <p>厂商 `SoftwareController` **只有** `GET /relationService/{id}`，没有这条裸映射；
+     * 前端 bundle 里出现它是"请求白名单/loading 列表"里的一个字面量（`umi.d08aa716.js`：
+     * `"/v1/software/relationService"`，同列表还有 `"/v1/software/"`），不是实际调用。
+     * 本任务要求补这条路径，于是按**同一语义**做成查询参数版本：找不到 `id` 参数时返回空数组
+     * （不发明"列出全部软件关联服务"这种厂商没有的行为）。
+     */
+    @org.springframework.web.bind.annotation.GetMapping("/relationService")
+    public ResponseDTO<java.util.List<com.csm.paas.core.api.dto.ServiceItemDTO>> softwareRelationServiceBare(
+            @RequestParam(required = false) String id,
+            @RequestParam(required = false) String softwareId) {
+        String resolved = id != null ? id : softwareId;
+        if (resolved == null || resolved.isBlank()) {
+            return ResponseDTO.ok(java.util.List.<com.csm.paas.core.api.dto.ServiceItemDTO>of());
+        }
+        return ResponseDTO.ok(com.csm.paas.core.trigger.assembler.ServiceListAssembler.toRelationItems(
+                serviceQueryService.querySoftwareRelationServices(namespace, resolved)));
     }
 
     /**
@@ -573,5 +628,486 @@ public class SoftwareController {
             @org.springframework.web.bind.annotation.PathVariable String id) {
         return ResponseDTO.ok(com.csm.paas.core.api.dto.SoftwareStatusDTO.builder()
                 .status(softwareLifecycleService.queryStatus(namespace, id)).build());
+    }
+
+    // ================================================================ CS 程序包上传到远端（厂商 SoftwareController:154-158）
+
+    /**
+     * 厂商 `POST /v1/software/{softwareId}/updateRemoteCs`（multipart `file`）：
+     * 把 CS 程序 zip 包上传到软件所在远端节点并解压。
+     *
+     * <p>MIME 守卫照抄（Tika 探测必须 `application/zip`，否则 400 `global.upload.supported.file.type`）；
+     * 其余规则见 {@code ISoftwareRemoteCsService}。
+     * <p>厂商打了 `@AuditLog(opModule="CS_SOFTWARE", opType="...upload.c/s.program.zip.package.to.remote.server", behavior="UPLOAD")`；
+     * 本仓无审计链路，只在 javadoc 保留。
+     * <p><b>类 C：本环境不可验证</b>（SSH 到远端节点）。
+     */
+    @org.springframework.web.bind.annotation.PostMapping(value = "/{softwareId}/updateRemoteCs",
+            consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseDTO<Boolean> uploadCsSoftwareToRemoteServer(
+            @org.springframework.web.bind.annotation.RequestPart("file")
+            org.springframework.web.multipart.MultipartFile file,
+            @org.springframework.web.bind.annotation.PathVariable String softwareId) throws java.io.IOException {
+        String contentType = new org.apache.tika.Tika().detect(file.getInputStream());
+        if (!"application/zip".equals(contentType)) {
+            throw new WrongArgumentException("global.upload.supported.file.type");
+        }
+        return ResponseDTO.ok(softwareRemoteCsService.uploadCsSoftwareToRemoteServer(
+                file.getBytes(), file.getOriginalFilename(), softwareId));
+    }
+
+    // ================================================================ 软件整包备份 / 还原（厂商 SoftwareController:217-360）
+
+    /**
+     * 厂商 `POST /v1/software/backup`（`SoftwareController:217-226`）：导出聚合 JSON（附件）。
+     *
+     * <p>`softwareIds` 为空/null ⇒ 导出全部（厂商 `exportSoftwareForms` 的 type=1）。
+     * 响应是 `application/json` + 附件名 i18n `export.file.name.software.backup`
+     * （**不是** JSON 信封）。
+     * <p>厂商打了 `@AuditLog(opModule="APPLICATION", opType="...software.backup", behavior="EXPORT")`。
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/backup")
+    public void backUpSoftware(
+            @org.springframework.web.bind.annotation.RequestBody(required = false) java.util.List<String> softwareIds,
+            jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
+        var entity = softwareBackupService.exportSoftwareRelation(softwareIds);
+        byte[] jsonData = SoftwareBackupJsonWriter.toBytes(entity);
+        response.setContentType("application/json");
+        response.setHeader("Content-Disposition",
+                attachmentHeaderValue(messageResolver.resolve("export.file.name.software.backup")));
+        jakarta.servlet.ServletOutputStream outputStream = response.getOutputStream();
+        outputStream.write(jsonData);
+        outputStream.flush();
+    }
+
+    /**
+     * 厂商 `POST /v1/software/v2/backup`（`SoftwareController:230-253`）：把指定软件（缺省=全部）
+     * 的元数据 + 配置组 + 关联库初始化 SQL + 镜像 tar 摊平成 `backup.zip`。
+     *
+     * <p>照抄点：缺 id 时先取 `getSoftwareList(1,1000,null,null,"key","asc")` 的 id；仍为空则
+     * **400 + 纯文本 `No software IDs provided.`**（不是 JSON 信封）。文件名固定 `backup.zip`，
+     * 响应体是 `application/zip` 流，下载失败 ⇒ 500 `file.download.failed`。
+     * <p>`ignoreDatabase=true`（默认）时跳过"服务没有关联数据库/关联 SQL 不存在"的两道 400。
+     * <p><b>类 C：本环境不可验证</b>——包里含镜像时依赖 docker daemon + registry。
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/v2/backup")
+    public void backUpSoftwareV2(
+            @RequestParam(required = false, defaultValue = "true") boolean ignoreDatabase,
+            @org.springframework.web.bind.annotation.RequestBody(required = false) java.util.List<String> softwareIds,
+            jakarta.servlet.http.HttpServletResponse response) throws Exception {
+        java.util.List<String> ids = softwareIds;
+        if (ids == null || ids.isEmpty()) {
+            ids = softwareQueryService.querySoftwareList(1, 1000, null, null, "key", "asc", null)
+                    .getSoftwareList().stream().map(message -> message.getSoftware().getId()).toList();
+        }
+        if (ids == null || ids.isEmpty()) {
+            response.setStatus(400);
+            response.getWriter().write("No software IDs provided.");
+            return;
+        }
+        java.nio.file.Path zipFile = buildSoftwareBackupZip(ids, ignoreDatabase);
+        response.setContentType("application/zip");
+        response.setHeader("Content-Disposition", attachmentHeaderValue("backup.zip"));
+        response.setContentLengthLong(zipFile.toFile().length());
+        try (java.io.InputStream inputStream = java.nio.file.Files.newInputStream(zipFile)) {
+            inputStream.transferTo(response.getOutputStream());
+        } catch (Exception e) {
+            log.error("下载异常", e);
+            throw new com.csm.paas.core.types.exception.SystemException("file.download.failed");
+        }
+        response.flushBuffer();
+    }
+
+    /**
+     * 厂商 `POST /v1/software/import`（`SoftwareController:303-345`）：
+     * 上传 `.zip` ⇒ 走 manifest 驱动的整包还原；否则按聚合 JSON 还原。
+     *
+     * <p>照抄点：`file` 为空 ⇒ 400 `file.empty`；zip 分支里任何异常 ⇒ 500 `software.import.task.failed`；
+     * 非 zip 分支读文件失败 ⇒ 400 `file.read.failed`。
+     * <p>厂商打了 `@AuditLog(opModule="APPLICATION", opType="...software.import", behavior="IMPORT")`。
+     */
+    @org.springframework.web.bind.annotation.PostMapping(value = "/import",
+            consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseDTO<Boolean> importSoftware(
+            @org.springframework.web.bind.annotation.RequestPart("file")
+            org.springframework.web.multipart.MultipartFile file,
+            @RequestParam(defaultValue = "false") boolean replaceDatabase,
+            @RequestParam(defaultValue = "false") boolean replaceConfigmap) throws Exception {
+        if (file == null || file.isEmpty()) {
+            throw new WrongArgumentException("file.empty");
+        }
+        String filename = file.getOriginalFilename();
+        if (filename != null && filename.toLowerCase().endsWith(".zip")) {
+            java.nio.file.Path tempZip = null;
+            try {
+                tempZip = java.nio.file.Files.createTempFile("import_software_", ".zip");
+                file.transferTo(tempZip.toFile());
+                return ResponseDTO.ok(importSoftwareZip(tempZip.toFile(), replaceDatabase, replaceConfigmap));
+            } catch (Exception e) {
+                log.error("导入异常", e);
+                throw new com.csm.paas.core.types.exception.SystemException("software.import.task.failed");
+            } finally {
+                if (tempZip != null) {
+                    try {
+                        java.nio.file.Files.deleteIfExists(tempZip);
+                    } catch (java.io.IOException e) {
+                        log.warn("临时文件删除失败: {}", tempZip);
+                    }
+                }
+            }
+        }
+        String str;
+        try {
+            str = new String(file.getBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        } catch (java.io.IOException e) {
+            log.info("读取文件异常为:", e);
+            throw new WrongArgumentException("file.read.failed");
+        }
+        var entity = SoftwareBackupJsonWriter.fromJson(str,
+                com.csm.paas.core.domain.software.model.entity.SoftwareBackupExportEntity.class);
+        // 厂商 `convertSoftwareImport`：先把 serviceList[*].metadata.creationTimestamp 的"对象"置空再反序列化；
+        // Jackson 的 Map 反序列化天然接受 null/对象，这里不需要那一步。
+        softwareBackupService.importSoftwareRelation(entity);
+        return ResponseDTO.ok(true);
+    }
+
+    // ================================================================ 备份包组装/解析（trigger 层，domain 无 JSON/zip 依赖）
+
+    /**
+     * 厂商 `exportSoftwareBackupAsZipFile:4477-4720` 的等价实现。
+     *
+     * <p>每个软件：`data/software_&lt;id&gt;.json`（`exportSoftwareForms([id])` 的 JSON）→
+     * 有配置组再加 `data/configMap_&lt;id&gt;.json` → 关联库的初始化 SQL 摊平为 `data/&lt;sqlName&gt;` →
+     * 该软件所有服务容器的镜像摊平为 `data/&lt;镜像名下划线化&gt;_&lt;tag&gt;.tar.gz`；最后写 `manifest.json`。
+     *
+     * <p><b>照抄的两个怪点</b>：
+     * ① 镜像条目的扩展名是 `.tar.gz`，但厂商 `downloadImageWithRetry` 存的是**未压缩的 tar**，
+     * 这里同样写原始 tar 流（docker load 两种都能吃）；
+     * ② 镜像名解析 `image.split("/")[2]` 隐含"镜像必须是 `host/project/name:tag` 三段"，
+     * 不满足就跳过该镜像（厂商会 IndexOutOfBounds 冒 500，本重写按"跳过"收紧，记为主动偏离）。
+     *
+     * <p><b>类 C</b>：镜像段依赖 docker daemon + registry。
+     */
+    private java.nio.file.Path buildSoftwareBackupZip(java.util.List<String> softwareIds,
+                                                      boolean ignoreDatabase) throws Exception {
+        java.nio.file.Path tempFile = java.nio.file.Files.createTempFile("software_backup_", ".zip");
+        java.util.Set<String> added = new java.util.HashSet<>();
+        com.csm.paas.core.api.dto.ExportManifestDTO manifest =
+                com.csm.paas.core.api.dto.ExportManifestDTO.builder()
+                        .time(java.time.Instant.now().toString())
+                        .build();
+        String registryHost = dockerRegistryPort.registryHost();
+        try (java.util.zip.ZipOutputStream masterZip =
+                     new java.util.zip.ZipOutputStream(java.nio.file.Files.newOutputStream(tempFile))) {
+            for (String id : softwareIds) {
+                java.util.List<String> currentFiles = new java.util.ArrayList<>();
+                var sf = softwareBackupService.exportSoftwareRelation(java.util.List.of(id));
+                String softwareJsonName = "data/software_" + id + ".json";
+                putEntry(masterZip, added, softwareJsonName, SoftwareBackupJsonWriter.toBytes(sf));
+                currentFiles.add(softwareJsonName);
+                manifest.getContents().add(com.csm.paas.core.api.dto.ExportManifestContentDTO.builder()
+                        .type("DATA").path(softwareJsonName)
+                        .description("Software metadata for ID: " + id).build());
+
+                // 配置组（厂商 `existConfigMapBySoftwareOrService` + `exportConfigMapBySoftwareOrServiceV2`）
+                var configMaps = serviceQueryService.collectConfigMapsForExport(namespace, "software",
+                        java.util.List.of(id));
+                if (!configMaps.isEmpty()) {
+                    String configJsonName = "data/configMap_" + id + ".json";
+                    putEntry(masterZip, added, configJsonName,
+                            com.csm.paas.core.trigger.assembler.ExportConfigMapWriter.build(configMaps));
+                    currentFiles.add(configJsonName);
+                    manifest.getContents().add(com.csm.paas.core.api.dto.ExportManifestContentDTO.builder()
+                            .type("CONFIG").path(configJsonName)
+                            .description("ConfigMap for software ID: " + id).build());
+                }
+
+                java.util.List<String> serviceNames = sf.getSoftwareFormList().isEmpty()
+                        ? java.util.List.of()
+                        : sf.getSoftwareFormList().get(0).getServiceList();
+                // 关联数据库的初始化 SQL（厂商 `getRelateDatabaseByServices` + `getInitSqlFileBySqlName`）
+                var related = databaseRepository.queryAllDatabaseRows().stream()
+                        .filter(db -> db.getService() != null && serviceNames.contains(db.getService())
+                                && db.getSqlName() != null)
+                        .toList();
+                if (related.isEmpty() && !ignoreDatabase) {
+                    throw new WrongArgumentException("应用下的服务没有找到关联的数据库，请先关联数据库或忽略数据库关联");
+                }
+                for (var db : related) {
+                    java.nio.file.Path initSql = java.nio.file.Paths.get(fileBackUp, db.getSqlName());
+                    if (!ignoreDatabase && java.nio.file.Files.notExists(initSql)) {
+                        throw new WrongArgumentException("关联的数据库sql不存在：" + initSql);
+                    }
+                    if (java.nio.file.Files.notExists(initSql)) {
+                        continue;
+                    }
+                    String entryName = "data/" + db.getSqlName();
+                    if (added.add(entryName)) {
+                        masterZip.putNextEntry(new java.util.zip.ZipEntry(entryName));
+                        java.nio.file.Files.copy(initSql, masterZip);
+                        masterZip.closeEntry();
+                    }
+                    currentFiles.add(entryName);
+                    manifest.getContents().add(com.csm.paas.core.api.dto.ExportManifestContentDTO.builder()
+                            .type("SQL_FILE").databaseName(db.getDatabaseName())
+                            .databaseRelateService(db.getService()).path(entryName).build());
+                }
+
+                // 镜像：每个 Deployment 的每个容器（厂商 `parseContainerImage` + `pullImageSync` + `downloadImageWithRetry`）
+                for (String image : containerImages(sf.getDeploymentList())) {
+                    String[] parts = image.split("/");
+                    if (parts.length < 3) {
+                        continue;
+                    }
+                    String[] mirror = parts[2].split(":");
+                    if (mirror.length < 2) {
+                        continue;
+                    }
+                    String imageName = parts[1] + "/" + mirror[0];
+                    String imageTag = mirror[1];
+                    try {
+                        dockerImagePort.pull(registryHost.replace("http://", "").replace("https://", "")
+                                + "/" + imageName, imageTag);
+                    } catch (RuntimeException e) {
+                        // 厂商 `pullImageSync` 会吞掉 pull 失败；真正的失败会在下面的 saveImage 暴露
+                        log.debug("pull 镜像失败: {}:{}", imageName, imageTag, e);
+                    }
+                    String entryName = "data/" + imageName.replace("/", "_").replace(":", "_")
+                            + "_" + imageTag + ".tar.gz";
+                    if (added.add(entryName)) {
+                        masterZip.putNextEntry(new java.util.zip.ZipEntry(entryName));
+                        try (java.io.InputStream imageStream = dockerImagePort.saveImage(imageName, imageTag)) {
+                            imageStream.transferTo(masterZip);
+                        } catch (Exception e) {
+                            log.error("导出镜像异常", e);
+                            throw new com.csm.paas.core.types.exception.SystemException("Failed to export image");
+                        }
+                        masterZip.closeEntry();
+                    }
+                    currentFiles.add(entryName);
+                    manifest.getContents().add(com.csm.paas.core.api.dto.ExportManifestContentDTO.builder()
+                            .type("DOCKER_IMAGE").path(entryName)
+                            .sourceName(imageName + ":" + imageTag).build());
+                }
+                manifest.getApps().add(com.csm.paas.core.api.dto.ExportManifestAppDTO.builder()
+                        .name("App_" + id).contents(currentFiles).build());
+            }
+            putEntry(masterZip, added, "manifest.json",
+                    SoftwareBackupJsonWriter.toJson(manifest).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            masterZip.flush();
+        }
+        return tempFile;
+    }
+
+    /**
+     * 厂商 `importSoftwareZip:4744-4812`：读 `manifest.json`，按 app 顺序
+     * ① 镜像 → ② `software_*.json` 元数据 → ③（可选）配置组 → ④（可选）SQL。
+     */
+    private boolean importSoftwareZip(java.io.File zipFile, boolean replaceDatabase,
+                                      boolean replaceConfigmap) throws Exception {
+        com.csm.paas.core.api.dto.ExportManifestDTO manifest = readManifestFromZip(zipFile);
+        if (manifest == null || manifest.getApps() == null) {
+            throw new com.csm.paas.core.types.exception.SystemException("manifest.not.found.or.invalid");
+        }
+        java.util.Map<String, com.csm.paas.core.api.dto.ExportManifestContentDTO> contentMap =
+                new java.util.HashMap<>();
+        if (manifest.getContents() != null) {
+            for (var entry : manifest.getContents()) {
+                contentMap.put(entry.getPath(), entry);
+            }
+        }
+        for (var app : manifest.getApps()) {
+            String softwareId = extractSoftwareId(app.getName());
+            java.util.List<String> paths = app.getContents() == null ? java.util.List.of() : app.getContents();
+            for (String path : paths) {
+                var content = contentMap.get(path);
+                if (content != null && "DOCKER_IMAGE".equals(content.getType())) {
+                    importDockerImage(zipFile, content, softwareId);
+                }
+            }
+            for (String path : paths) {
+                var content = contentMap.get(path);
+                if (content != null && "DATA".equals(content.getType()) && path.contains("software_")) {
+                    String json = readTextEntryFromZip(zipFile, path);
+                    var entity = SoftwareBackupJsonWriter.fromJson(json,
+                            com.csm.paas.core.domain.software.model.entity.SoftwareBackupExportEntity.class);
+                    softwareBackupService.importSoftwareRelation(entity);
+                }
+            }
+            if (replaceConfigmap) {
+                for (String path : paths) {
+                    var content = contentMap.get(path);
+                    if (content == null || !"CONFIG".equals(content.getType()) || !path.contains("configMap_")) {
+                        continue;
+                    }
+                    String json = readTextEntryFromZip(zipFile, path);
+                    java.util.List<java.util.Map<String, Object>> configMaps =
+                            SoftwareBackupJsonWriter.mapper().readValue(json,
+                                    new com.fasterxml.jackson.core.type.TypeReference<
+                                            java.util.List<java.util.Map<String, Object>>>() {
+                                    });
+                    serviceQueryService.importConfigMaps(namespace, configMaps);
+                }
+            }
+            if (replaceDatabase) {
+                for (String path : paths) {
+                    var content = contentMap.get(path);
+                    if (content == null || !"SQL_FILE".equals(content.getType())
+                            || content.getDatabaseName() == null) {
+                        continue;
+                    }
+                    java.nio.file.Path sqlFile = readZipFileToTempFile(zipFile, path);
+                    if (sqlFile == null) {
+                        continue;
+                    }
+                    var execSqlResult = databaseService.importSqlFromApplication(sqlFile.toFile(),
+                            content.getDatabaseName(), content.getDatabaseRelateService(), null);
+                    log.debug("数据库导入结果: {}", execSqlResult);
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
+     * 厂商 `importDockerImage:4866-4932`：把 tar（条目名却是 `.tar.gz`）喂给 docker `/images/load`，
+     * 再尽力 tag+push 到本集群 registry。**类 C**：docker daemon / registry 不可达时只记日志。
+     */
+    private void importDockerImage(java.io.File zipFile,
+                                   com.csm.paas.core.api.dto.ExportManifestContentDTO content,
+                                   String softwareId) throws java.io.IOException {
+        try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(zipFile)) {
+            java.util.zip.ZipEntry entry = zip.getEntry(content.getPath());
+            if (entry == null) {
+                throw new java.io.FileNotFoundException("镜像文件未找到: " + content.getPath());
+            }
+            String loadResponse;
+            try (java.io.InputStream in = zip.getInputStream(entry)) {
+                loadResponse = dockerImagePort.loadImage(in);
+            } catch (RuntimeException e) {
+                log.error("导入镜像失败: {}", content.getPath(), e);
+                throw new WrongArgumentException("docker.push.image.failed");
+            }
+            log.info("镜像导入成功: {} → 软件ID: {}", content.getSourceName(), softwareId);
+            // 厂商 `DockerService.uploadImage` 在 load 之后还会 tag+push 到 storage（sourceImage 的第一段）
+            try {
+                String sourceName = content.getSourceName();
+                if (sourceName == null || !sourceName.contains("/")) {
+                    return;
+                }
+                String storage = sourceName.split("/")[0];
+                int colon = sourceName.lastIndexOf(':');
+                if (colon < 0) {
+                    return;
+                }
+                String name = sourceName.substring(0, colon);
+                String tag = sourceName.substring(colon + 1);
+                String registry = dockerRegistryPort.registryHost().replace("http://", "").replace("https://", "");
+                String base = name.substring(name.lastIndexOf('/') + 1);
+                String remote = registry + "/" + storage + "/" + base;
+                dockerImagePort.tag(name + ":" + tag, remote, tag);
+                dockerImagePort.push(remote + ":" + tag);
+            } catch (RuntimeException e) {
+                log.warn("镜像 push 失败（load 已成功）: {}", e.getMessage());
+            }
+        }
+    }
+
+    /** 厂商 `readManifestFromZip:4826-4846`：从 zip 里找 `manifest.json` 反序列化。 */
+    private static com.csm.paas.core.api.dto.ExportManifestDTO readManifestFromZip(java.io.File zipFile)
+            throws java.io.IOException {
+        try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(zipFile)) {
+            java.util.zip.ZipEntry entry = zip.getEntry("manifest.json");
+            if (entry == null) {
+                return null;
+            }
+            try (java.io.InputStream in = zip.getInputStream(entry)) {
+                return SoftwareBackupJsonWriter.mapper()
+                        .readValue(in, com.csm.paas.core.api.dto.ExportManifestDTO.class);
+            }
+        }
+    }
+
+    /** 厂商 `readTextEntryFromZip:4946-4966`：按条目名读文本；找不到抛 FileNotFoundException。 */
+    private static String readTextEntryFromZip(java.io.File zipFile, String entryPath) throws java.io.IOException {
+        try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(zipFile)) {
+            java.util.zip.ZipEntry entry = zip.getEntry(entryPath);
+            if (entry == null) {
+                throw new java.io.FileNotFoundException("文件未找到: " + entryPath);
+            }
+            try (java.io.InputStream in = zip.getInputStream(entry)) {
+                return new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            }
+        }
+    }
+
+    /** 厂商 `readZipFileToTempFile:4814-4824`。 */
+    private static java.nio.file.Path readZipFileToTempFile(java.io.File zipFile, String innerFilePath)
+            throws java.io.IOException {
+        String ext = innerFilePath.contains(".")
+                ? innerFilePath.substring(innerFilePath.lastIndexOf('.') + 1) : "tmp";
+        java.nio.file.Path tempFile = java.nio.file.Files.createTempFile("zip-extracted-", "." + ext);
+        try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(zipFile)) {
+            java.util.zip.ZipEntry entry = zip.getEntry(innerFilePath);
+            if (entry == null) {
+                java.nio.file.Files.deleteIfExists(tempFile);
+                return null;
+            }
+            try (java.io.InputStream in = zip.getInputStream(entry)) {
+                java.nio.file.Files.copy(in, tempFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
+        }
+        return tempFile;
+    }
+
+    /** 厂商 `extractSoftwareId`：`App_&lt;id&gt;` ⇒ `&lt;id&gt;`。 */
+    private static String extractSoftwareId(String appName) {
+        if (appName == null) {
+            return null;
+        }
+        return appName.startsWith("App_") ? appName.substring("App_".length()) : appName;
+    }
+
+    /** 从导出快照里取所有容器的镜像串。 */
+    private static java.util.List<String> containerImages(java.util.List<java.util.Map<String, Object>> deployments) {
+        java.util.List<String> images = new java.util.ArrayList<>();
+        if (deployments == null) {
+            return images;
+        }
+        for (var deployment : deployments) {
+            Object spec = deployment == null ? null : deployment.get("spec");
+            if (!(spec instanceof java.util.Map<?, ?> specMap)) {
+                continue;
+            }
+            Object template = specMap.get("template");
+            Object podSpec = template instanceof java.util.Map<?, ?> t ? t.get("spec") : null;
+            Object containers = podSpec instanceof java.util.Map<?, ?> p ? p.get("containers") : null;
+            if (!(containers instanceof java.util.List<?> list)) {
+                continue;
+            }
+            for (Object container : list) {
+                if (container instanceof java.util.Map<?, ?> c && c.get("image") != null) {
+                    images.add(c.get("image").toString());
+                }
+            }
+        }
+        return images;
+    }
+
+    /** 写一个去重过的字节条目。 */
+    private static void putEntry(java.util.zip.ZipOutputStream zip, java.util.Set<String> added,
+                                 String name, byte[] content) throws java.io.IOException {
+        if (!added.add(name)) {
+            return;
+        }
+        zip.putNextEntry(new java.util.zip.ZipEntry(name));
+        zip.write(content);
+        zip.closeEntry();
+    }
+
+    /** 厂商 `ResponseUtils.getAttachmentHeaderValue`。 */
+    private static String attachmentHeaderValue(String filename) {
+        return "attachment; filename*=UTF-8''"
+                + java.net.URLEncoder.encode(filename, java.nio.charset.StandardCharsets.UTF_8);
     }
 }

@@ -555,4 +555,77 @@ public class ServiceController {
         ServiceListEntity entity = serviceQueryService.queryServiceList(namespace);
         return ResponseDTO.ok(ServiceListAssembler.toResponse(entity));
     }
+
+    // ================================================================ 最后一批端点（node / patch / serviceInfoByNode）
+
+    /**
+     * 厂商 `DELETE /v1/service/node?nodeName=`：删节点。
+     *
+     * <p><b>破坏性</b>：直接 `coreV1Api.deleteNode(nodeName, …)`，照抄厂商**不做任何前置校验**；
+     * 任何失败 ⇒ 400 `alert.delete.node.info.error`；成功恒 `data:true`。
+     * 规则见 {@link IServiceQueryService#deleteNode}（**照抄未做在线实验**）。
+     */
+    @org.springframework.web.bind.annotation.DeleteMapping("/v1/service/node")
+    public ResponseDTO<Boolean> deleteNode(
+            @org.springframework.web.bind.annotation.RequestParam String nodeName) {
+        return ResponseDTO.ok(serviceQueryService.deleteNode(nodeName));
+    }
+
+    /**
+     * 厂商 `PUT /v1/service/patch`：以 YAML 方式导入服务配置（请求体是 `ServicesItem` 的三个快照）。
+     *
+     * <p><b>破坏性</b>：replace Deployment + patch/创建/删除 `<name>-nodeport` + patch 主 Service；
+     * Deployment 不存在时还会先创建一个。规则与照抄点（含那段 `spec.strategy` 被清空后永不执行的
+     * `%` 归一化）见 {@link IServiceQueryService#updateServiceConfig}（**照抄未做在线实验**）。
+     */
+    @org.springframework.web.bind.annotation.PutMapping("/v1/service/patch")
+    public ResponseDTO<Boolean> updateServiceConfig(
+            @org.springframework.web.bind.annotation.RequestBody com.csm.paas.core.api.dto.ServicePatchDTO item) {
+        return ResponseDTO.ok(serviceQueryService.updateServiceConfig(namespace,
+                item == null ? null : item.getDeployment(),
+                item == null ? null : item.getService(),
+                item == null ? null : item.getNodePortService()));
+    }
+
+    /**
+     * 厂商 `GET /v1/service/serviceInfoByNode?nodeName&page&size&keyword&order`：按节点查服务列表。
+     *
+     * <p>`keyword` 长度 &gt; 45 ⇒ 400 `service.invalid.service.name.length`；
+     * 取 master 节点名失败 ⇒ 400 `k8s.get.node.info.failed`；
+     * 分页 `runningDeployment` 恒 0、`size` 大于总数时忽略 page。
+     * 规则见 {@link IServiceQueryService#queryServiceInfoByNode}（**类 C**：监控补齐依赖 Prometheus）。
+     *
+     * <p>列表项复用 {@code ServiceDetailDTO}（厂商 `ServicesItem` 的 20 键，`*Order` 是 Double），
+     * 再覆盖本端点自己算的 `restartCount`/`podInfoList`/`belongNodeList`/三个 order。
+     */
+    @GetMapping("/v1/service/serviceInfoByNode")
+    public ResponseDTO<com.csm.paas.core.api.dto.ServiceInfoByNodeResponseDTO> serviceInfoByNode(
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String nodeName,
+            @org.springframework.web.bind.annotation.RequestParam(required = false, defaultValue = "1") Integer page,
+            @org.springframework.web.bind.annotation.RequestParam(required = false, defaultValue = "20") Integer size,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String keyword,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) Integer order) {
+        if (keyword != null && keyword.length() > 45) {
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("service.invalid.service.name.length");
+        }
+        var vo = serviceQueryService.queryServiceInfoByNode(namespace, nodeName, keyword, order,
+                PageUtils.normalizePage(page), PageUtils.normalizeSize(size));
+        java.util.List<com.csm.paas.core.api.dto.ServiceDetailDTO> services = new java.util.ArrayList<>();
+        for (var item : vo.getServices()) {
+            var dto = ServiceListAssembler.toDetailResponse(item.getRuntime());
+            dto.setRestartCount(item.getRestartCount());
+            dto.setCpuOrder(item.getCpuOrder());
+            dto.setMemoryOrder(item.getMemoryOrder());
+            dto.setGpuOrder(item.getGpuOrder());
+            dto.setPodInfoList(item.getPodInfoList());
+            dto.setBelongNodeList(item.getBelongNodeList());
+            services.add(dto);
+        }
+        return ResponseDTO.ok(com.csm.paas.core.api.dto.ServiceInfoByNodeResponseDTO.builder()
+                .runningDeployment(vo.getRunningDeployment())
+                .total(vo.getTotal())
+                .count(vo.getCount())
+                .services(services)
+                .build());
+    }
 }

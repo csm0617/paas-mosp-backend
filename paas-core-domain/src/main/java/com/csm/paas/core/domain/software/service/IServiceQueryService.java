@@ -765,4 +765,108 @@ public interface IServiceQueryService {
      */
     boolean importListenConfig(String namespace,
             com.csm.paas.core.domain.software.model.valobj.ListenImportVO listenImport);
+
+    // ================================================================ 最后一批端点（node / patch / serviceInfoByNode）
+
+    /**
+     * 删节点（厂商 `DELETE /v1/service/node?nodeName=` → `ServiceController.deleteNode:2886-2902` +
+     * `TenxCloudImpl.deleteNode:785-800`）。
+     *
+     * <p><b>破坏性</b>：直接 `coreV1Api.deleteNode(nodeName, …)`，把节点对象从集群里删掉。
+     * 照抄厂商：**没有任何前置校验**（不检查节点上还有没有 pod、也不检查节点名是否存在）。
+     *
+     * <p>错误语义（照抄厂商那两层 catch 的**净效果**）：
+     * 时速云的 `deleteNode` 抛出的 `WrongArgumentException`/`SystemException` 都被控制器
+     * `catch (Exception)` 接住，统一翻成 400 **`alert.delete.node.info.error`**；
+     * 成功恒 `Response.ok(true)`（`deleteNode.getCode() == 200` 恒真，那句 `return ok(false)` 是死代码）。
+     *
+     * <p><b>照抄未做在线实验</b>（删节点会真的驱逐工作负载）。
+     */
+    boolean deleteNode(String nodeName);
+
+    /**
+     * 修改服务配置 / YAML 导入（厂商 `PUT /v1/service/patch` → `ServiceController.updateServiceConfig:1165-1402`）。
+     *
+     * <p><b>破坏性</b>：会 **replace Deployment**、**patch/创建/删除 `<name>-nodeport` Service**、
+     * **patch 主 Service**；Deployment 不存在时还会先创建一个。
+     * 照厂商代码实现，**未做在线实验**。
+     *
+     * <p>流程与照抄点：
+     * <ol>
+     *   <li>取 `appName = deployment.metadata.labels["system/appName"]`、`deploymentName = metadata.name`；</li>
+     *   <li><b>时速云 App 段</b>：厂商 `existApp`/`existService`/`createApp`/`createDeploymentYaml`
+     *       在本平台其实都是**原生 K8s**（`TenxService.existApp:1119-1132` 按 `system/appName` 列 Deployment；
+     *       `existService:2367-2396` 按 `system/svcName` 列 Deployment/StatefulSet；
+     *       `createApp:2553-2572` 把 YAML 拆成 Deployment + Service 两份分别 create）。
+     *       我们按同一净效果实现：`appName` 存在 ⇒ 只在 `system/svcName` 不存在时建 Deployment；
+     *       `appName` 不存在 ⇒ 建 Deployment **和** Service。
+     *       **未照抄**：`createAppDeployment:2584-2605` 的标签改写与 `MODE` 环境变量注入
+     *       （依赖 `modeService.getCurrentMode()`，属另一域；且紧接着的 replace 会把 Deployment 整份覆盖）。</li>
+     *   <li>读 Deployment（读不到 ⇒ 400 **`k8s.get.deployment.failed`**）；</li>
+     *   <li>**照抄的死代码**：厂商先在 `deploymentToYaml` 里把 `spec.strategy` 置 null，
+     *       后面那段"给 maxSurge/maxUnavailable 补 `%`"因此**永远进不去**（`strategy != null` 恒假）。
+     *       这里同样保留"先清空、后判空"的顺序；</li>
+     *   <li>清掉两个注解 `kubectl.kubernetes.io/last-applied-configuration`、`rollingupdate/target`
+     *       （置 null）；</li>
+     *   <li>`generateDeploymentDoc`：镜像 host 换成 `docker.registry-host`、metadata 清空
+     *       （resourceVersion/creationTimestamp/selfLink/uid/namespace）、补
+     *       `nodeSelector["beta.kubernetes.io/os"]="linux"`、apiVersion 落 `apps/v1`；</li>
+     *   <li>整份 **replace** Deployment：K8s 异常 ⇒ 400 `service.change.config.failed`，
+     *       其它异常 ⇒ 400 `service.import.service.deployment.error`；</li>
+     *   <li>请求带 `service` 时：读主 Service（读不到 ⇒ 400 `k8s.get.service.failed`）→
+     *       读 `<name>-nodeport`；
+     *       <ul>
+     *         <li>请求带 `nodePortService` 且集群里那个 nodeport **有 ports** ⇒ 按请求重建 ports 后 patch
+     *             （`name`/`protocol`/`port`/`nodePort`/`targetPort`/`appProtocol`），并把 type 落 `NodePort`；</li>
+     *         <li>请求带 `nodePortService` 但集群里没有（或没有 ports）⇒ 用 `generateServiceDoc` 骨架
+     *             （labels 取 Deployment 的 labels、selector `{name: <主服务名>}`、ports 名
+     *             `<protocol>-<nodeportName>-<i>`、`targetPort = port`）创建；</li>
+     *         <li>请求**不带** `nodePortService` 而集群里有 ⇒ 删掉它（失败只记日志）；</li>
+     *       </ul></li>
+     *   <li>最后把主 Service 的 `spec.ports` 整份换成请求里的（`appProtocol` 显式置 null），
+     *       type 保持读到的原值：K8s 异常 ⇒ 400 `k8s.call.api.failed`，其它 ⇒ 400 `service.import.service.service.error`；</li>
+     *   <li>成功恒返回 `true`。</li>
+     * </ol>
+     *
+     * <p><b>一处主动收紧</b>：`targetPort` 为 null 时按 null 处理。厂商写的是
+     * `new IntOrString(port.getTargetPort())`（`Integer`）——**拆箱 NPE ⇒ 500**，我们不让它崩。
+     *
+     * <p><b>类 C</b>：依赖时速云 App 概念（已按原生 K8s 等价复刻）与整份 Deployment→YAML 往返；
+     * 本环境不做在线验证。
+     *
+     * @param deployment      厂商 `item.getDeployment()` 的原样快照（本平台按 apps/v1 口径写回）
+     * @param service         厂商 `item.getService()` 的原样快照（可为 null ⇒ 跳过 Service 段）
+     * @param nodePortService 厂商 `item.getNodePortService()` 的 `{ports,type}` 快照（可为 null）
+     */
+    boolean updateServiceConfig(String namespace, java.util.Map<String, Object> deployment,
+                                java.util.Map<String, Object> service,
+                                java.util.Map<String, Object> nodePortService);
+
+    /**
+     * 按节点查服务列表（厂商 `GET /v1/service/serviceInfoByNode?nodeName&page&size&keyword&order` →
+     * `ServiceController.getServiceListByNode:1691-1728` + `getServicesItems:1730-1810`）。
+     *
+     * <p>规则（照抄）：
+     * <ol>
+     *   <li>先取 master 节点名（`getMasterNodeName:203-218`：只有一个节点就直接用它；
+     *       否则找带 `node-role.kubernetes.io/<node.label>` 标签的）——失败 ⇒ 400 `k8s.get.node.info.failed`。
+     *       厂商只用它拼 **Caffeine 缓存 key**（30 秒）；本平台不做缓存，只保留这次读取与错误路径；</li>
+     *   <li>列 pod（`nodeName` 非空时按 `spec.nodeName` 过滤）→ 按**第一个容器的名字**归组成服务，
+     *       同时记下每个 pod 的 `nodeName` 与 `containerStatuses[0].restartCount`；</li>
+     *   <li>取服务列表（厂商 `tenxCloud.allPageService(null)`；本平台改用同命名空间的
+     *       Deployment 直读，与 `GET /v1/service` 同源）→ **只保留**
+     *       "名字出现在 pod 归组里 **且** pod 模板注解 `gaop/serviceLabel` 非空白"的服务；</li>
+     *   <li>`keyword` 非空白 ⇒ 名字或 `gaop/serviceLabel` **contains**（大小写敏感）；</li>
+     *   <li>每个服务并发补齐（本平台改为顺序执行）24 小时窗口的 cpu/memory 监控 →
+     *       `podInfoList`（恒 1 项，`podName` = Deployment 名）、`belongNodeList`、`restartCount`
+     *       与 `cpuOrder`/`memoryOrder`/`gpuOrder`（来自 `requests`/`limits`）；</li>
+     *   <li>`order` 1..6 排序（cpu/memory 升/降序、gpu 升/降序），其它值不排序；</li>
+     *   <li>分页见 `ServiceController.pagination:2136-2158`（`runningDeployment` **恒 0**；
+     *       `size` 大于总数时**忽略 page** 直接返回全量）。</li>
+     * </ol>
+     *
+     * <p><b>类 C：本环境不可验证</b>（cpu/memory 补齐依赖 Prometheus 的 24 小时范围查询）。
+     */
+    com.csm.paas.core.domain.node.model.valobj.ServiceNodeListVO queryServiceInfoByNode(
+            String namespace, String nodeName, String keyword, Integer order, int page, int size);
 }

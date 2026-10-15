@@ -33,6 +33,17 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
 
     private final ServiceRuntimeGateway serviceRuntimeGateway;
 
+    /**
+     * 少数几个 gateway 里没有对应方法的 K8s 写操作（删节点、整份 create/replace Deployment/Service、
+     * 删 Service）直接用 fabric8 客户端。
+     *
+     * <p><b>刻意用字段注入而不是构造参数</b>：{@code ServiceRuntimePortTest} / {@code ServiceRuntimePortLabelTest}
+     * 都是 `new ServiceRuntimePort(gateway)`（不启 Spring），改构造签名会让这两个既有测试编译不过；
+     * 而本次改动的文件白名单不允许改测试。
+     */
+    @org.springframework.beans.factory.annotation.Autowired
+    private io.fabric8.kubernetes.client.KubernetesClient kubernetesClient;
+
     @Override
     public void patchDeploymentServiceLabel(String namespace, String serviceKey, String name) {
         serviceRuntimeGateway.patchDeploymentServiceLabel(namespace, serviceKey, name);
@@ -362,12 +373,75 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
         }
     }
 
+    // ---------- 软件整包导出/还原（厂商 SoftwareService.exportSoftwareForms / importSoftwareInfo）----------
+
+    @Override
+    public java.util.List<java.util.Map<String, Object>> listSoftwareExportDeployments(String namespace) {
+        try {
+            return serviceRuntimeGateway.listSoftwareExportDeployments(namespace);
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    @Override
+    public java.util.List<java.util.Map<String, Object>> listSoftwareExportServices(String namespace) {
+        try {
+            return serviceRuntimeGateway.listSoftwareExportServices(namespace);
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    @Override
+    public java.util.List<java.util.Map<String, Object>> readSoftwareExportDeployments(String namespace,
+                                                                                      java.util.List<String> names) {
+        try {
+            return serviceRuntimeGateway.readSoftwareExportDeployments(namespace, names);
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    @Override
+    public java.util.List<java.util.Map<String, Object>> readSoftwareExportServices(String namespace,
+                                                                                   java.util.List<String> names) {
+        try {
+            return serviceRuntimeGateway.readSoftwareExportServices(namespace, names);
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    /**
+     * 还原 Deployment：厂商对所有写失败都"记日志、继续下一个"（`importSoftwareInfo:1298-1330`），
+     * 所以这里也**吞掉** KubernetesClientException（只记日志），不抛给领域层。
+     */
+    @Override
+    public void createOrReplaceSoftwareDeployment(String namespace, java.util.Map<String, Object> deployment,
+                                                  String registryHost) {
+        try {
+            serviceRuntimeGateway.createOrReplaceSoftwareDeployment(namespace, deployment, registryHost);
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            log.warn("导入 Deployment 失败，继续下一个：{}", e.getMessage());
+        }
+    }
+
+    @Override
+    public void createOrReplaceService(String namespace, java.util.Map<String, Object> service) {
+        try {
+            serviceRuntimeGateway.createOrReplaceService(namespace, service);
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            log.warn("导入 Service 失败，继续下一个：{}", e.getMessage());
+        }
+    }
+
+
     @Override
     public java.util.List<java.util.Map<String, Object>> listDeploymentSnapshots(String namespace) {
         try {
             return serviceRuntimeGateway.listDeploymentSnapshots(namespace);
-        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
-            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
         }
     }
 
@@ -906,6 +980,35 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
     }
 
     /**
+     * 与 {@link #queryServices} 同一口径但**不分页**（厂商 `tenxCloud.allPageService(null)` 会翻完所有页；
+     * `GET /v1/service/serviceInfoByNode` 用的就是它）。
+     */
+    @Override
+    public List<ServiceRuntimeEntity> queryAllServices(String namespace) {
+        Map<String, Service> serviceByName = new LinkedHashMap<>();
+        for (Service svc : serviceRuntimeGateway.listServices(namespace)) {
+            serviceByName.put(svc.getMetadata().getName(), svc);
+        }
+        List<ServiceRuntimeEntity> workloads = new ArrayList<>();
+        for (StatefulSet ss : serviceRuntimeGateway.listStatefulSets(namespace)) {
+            workloads.add(toEntity(namespace, ss.getMetadata().getName(),
+                    ss.getSpec() != null ? ss.getSpec().getReplicas() : null,
+                    serviceByName.get(ss.getMetadata().getName()),
+                    serviceRuntimeGateway.toSnapshot(ss)));
+        }
+        for (Deployment d : serviceRuntimeGateway.listDeployments(namespace)) {
+            workloads.add(toEntity(namespace, d.getMetadata().getName(),
+                    d.getSpec() != null ? d.getSpec().getReplicas() : null,
+                    serviceByName.get(d.getMetadata().getName()),
+                    serviceRuntimeGateway.toSnapshot(d)));
+        }
+        return workloads.stream()
+                .sorted(Comparator.comparing(ServiceRuntimeEntity::getCreatedAt,
+                        Comparator.nullsLast(Comparator.reverseOrder())))
+                .toList();
+    }
+
+    /**
      * 从 workload 快照里取标签 `system/appType`（厂商 `GET /v1/service/gaop` 的过滤依据）。
      * <p>标签名为厂商常量 `AppTypeLabelsEnum.TYPE_LABEL_NAME`，取值 `gaop-core`/`gaop-base`/`business`。
      */
@@ -1109,5 +1212,107 @@ public class ServiceRuntimePort implements IServiceRuntimePort {
                 })
                 .toList();
         return serviceRuntimeGateway.replaceDeploymentEnv(namespace, serviceName, fabric8Env);
+    }
+
+    // ================================================================ 最后一批端点
+
+    /** 厂商 `TenxCloudImpl.deleteNode:785-800` 的 `coreV1Api.deleteNode(nodeName, …)`。 */
+    @Override
+    public void deleteNode(String nodeName) {
+        try {
+            kubernetesClient.nodes().withName(nodeName).delete();
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    /**
+     * 厂商 `ComputerService.getCpuNumByService:1015-1023` 等三处的
+     * `readNamespacedDeployment(...).getMetadata().getLabels()`：**只读 Deployment**（不回退 StatefulSet）。
+     */
+    @Override
+    public Map<String, String> readDeploymentLabels(String namespace, String serviceName) {
+        try {
+            var d = kubernetesClient.apps().deployments().inNamespace(namespace).withName(serviceName).get();
+            return d == null || d.getMetadata() == null ? null : d.getMetadata().getLabels();
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    /** 厂商 `TenxService.createDeploymentYaml:1134-1150` / `createAppDeployment:2574-2600` 的 create。 */
+    @Override
+    public void createDeploymentSnapshot(String namespace, Map<String, Object> deployment) {
+        try {
+            var d = io.fabric8.kubernetes.client.utils.Serialization.unmarshal(
+                    io.fabric8.kubernetes.client.utils.Serialization.asJson(deployment),
+                    io.fabric8.kubernetes.api.model.apps.Deployment.class);
+            if (d.getMetadata() != null && d.getMetadata().getNamespace() == null) {
+                d.getMetadata().setNamespace(namespace);
+            }
+            kubernetesClient.apps().deployments().inNamespace(namespace).resource(d).create();
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    /** 厂商 `ServiceController.updateServiceConfig:1259` 的 `replaceNamespacedDeployment`（整份 PUT）。 */
+    @Override
+    public void replaceDeploymentSnapshot(String namespace, Map<String, Object> deployment) {
+        try {
+            var d = io.fabric8.kubernetes.client.utils.Serialization.unmarshal(
+                    io.fabric8.kubernetes.client.utils.Serialization.asJson(deployment),
+                    io.fabric8.kubernetes.api.model.apps.Deployment.class);
+            kubernetesClient.apps().deployments().inNamespace(namespace)
+                    .withName(d.getMetadata().getName()).replace(d);
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    /** 厂商 `TenxService.createServiceYaml:1152-1178` 的 `createNamespacedService`。 */
+    @Override
+    public void createServiceSnapshot(String namespace, Map<String, Object> service) {
+        try {
+            var s = io.fabric8.kubernetes.client.utils.Serialization.unmarshal(
+                    io.fabric8.kubernetes.client.utils.Serialization.asJson(service),
+                    io.fabric8.kubernetes.api.model.Service.class);
+            if (s.getMetadata() != null && s.getMetadata().getNamespace() == null) {
+                s.getMetadata().setNamespace(namespace);
+            }
+            kubernetesClient.services().inNamespace(namespace).resource(s).create();
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    /** 厂商 `ServiceController.updateServiceConfig:1363` 的 `deleteNamespacedService`。 */
+    @Override
+    public void deleteService(String namespace, String serviceName) {
+        try {
+            kubernetesClient.services().inNamespace(namespace).withName(serviceName).delete();
+        } catch (io.fabric8.kubernetes.client.KubernetesClientException e) {
+            throw new com.csm.paas.core.types.exception.K8sApiException(e.getMessage());
+        }
+    }
+
+    /**
+     * 厂商 `TenxService.getNodes:1913-1919`：`capacity` 为空 ⇒ `memory_total_kb` 保持 **null**
+     * （域层随后 `null.longValue()` 会 NPE ⇒ 500，照抄）；`capacity` 非空但没 `memory` 键 ⇒ **0**。
+     */
+    @Override
+    public Map<String, Long> listNodeCapacityMemoryKb() {
+        Map<String, Long> out = new LinkedHashMap<>();
+        for (var node : serviceRuntimeGateway.listNodes()) {
+            String name = node.getMetadata() == null ? null : node.getMetadata().getName();
+            Long memoryKb = null;
+            var capacity = node.getStatus() == null ? null : node.getStatus().getCapacity();
+            if (capacity != null && !capacity.isEmpty()) {
+                var memory = capacity.get("memory");
+                memoryKb = memory == null ? 0L : memory.getNumericalAmount().longValue() / 1024L;
+            }
+            out.put(name, memoryKb);
+        }
+        return out;
     }
 }

@@ -38,4 +38,10 @@
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-crypto</artifactId>
         </dependency>
+        <!-- 少数写用例需要 @Transactional（本仓既有做法是放在 infrastructure 仓储；
+             这里按厂商语义保留在域服务上，故补 spring-tx）。版本由 BOM 管理。 -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-tx</artifactId>
+        </dependency>
     </dependencies></project>

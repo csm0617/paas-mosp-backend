@@ -10,15 +10,21 @@ import com.csm.paas.core.api.dto.DatabaseNeedBuckUpTableFormDTO;
 import com.csm.paas.core.api.dto.DatabasePermissionDTO;
 import com.csm.paas.core.api.dto.DatabaseSyncStatusDTO;
 import com.csm.paas.core.api.dto.DatabaseTableSizeDTO;
+import com.csm.paas.core.api.dto.DatabaseUserDTO;
+import com.csm.paas.core.api.dto.DatabaseUserFormDTO;
+import com.csm.paas.core.api.dto.DatabaseUserListDTO;
+import com.csm.paas.core.api.dto.DatabaseUserModifyDTO;
 import com.csm.paas.core.api.dto.DatabaseUserRelationInfoDTO;
 import com.csm.paas.core.api.dto.ResponseDTO;
 import com.csm.paas.core.api.dto.ServiceListResponseDTO;
 import com.csm.paas.core.domain.database.model.entity.DatabaseExecResultEntity;
 import com.csm.paas.core.domain.database.model.entity.DatabaseImportInfoEntity;
 import com.csm.paas.core.domain.database.model.entity.DatabaseImportSqlInfoEntity;
+import com.csm.paas.core.domain.database.model.entity.DatabaseUserEntity;
 import com.csm.paas.core.domain.database.model.entity.DatabaseUserRelationInfoEntity;
 import com.csm.paas.core.domain.database.model.valobj.DatabaseDescribeVO;
 import com.csm.paas.core.domain.database.service.IDatabaseService;
+import com.csm.paas.core.domain.database.service.IDatabaseUserService;
 import com.csm.paas.core.domain.software.service.IServiceQueryService;
 import com.csm.paas.core.trigger.assembler.ServiceListAssembler;
 import com.csm.paas.core.trigger.i18n.MessageResolver;
@@ -39,6 +45,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
@@ -115,6 +122,10 @@ public class DataBaseController {
 
     @Resource
     private IDatabaseService databaseService;
+
+    /** 数据库用户子域（厂商 `DatabaseUserController` 的 5 条端点）。 */
+    @Resource
+    private IDatabaseUserService databaseUserService;
 
     /** `/allService` 复用软件-服务-端口域的读能力（厂商那边也是 controller 直接调 tenxCloud/authService/softwareService）。 */
     @Resource
@@ -362,6 +373,115 @@ public class DataBaseController {
                 + URLEncoder.encode(databaseName + ".sql", StandardCharsets.UTF_8));
         ServletOutputStream outputStream = response.getOutputStream();
         mysqldump.getInputStream().transferTo(outputStream);
+    }
+
+    /**
+     * 裸路径 `GET /v1/database/export`（带 `databaseName` 查询参数）——与
+     * {@link #exportDatabase(String, HttpServletResponse)} 同一份实现。
+     *
+     * <p>为什么补这条：厂商与前端实际调用的是 `/v1/database/export/{databaseName}`（本类上面那条）；
+     * 覆盖率口径里前端还出现了一条**裸路径** `/v1/database/export`（前端拼串写法被归一化后的产物）。
+     * 为了让该口径闭合、且不改变厂商路径的行为，这里提供同一语义的查询参数版本
+     * （厂商后端**没有**这条映射，属本重写的兼容性补齐，不添加任何新行为）。
+     */
+    @GetMapping("/export")
+    public void exportDatabaseByParam(@RequestParam String databaseName, HttpServletResponse response)
+            throws IOException {
+        exportDatabase(databaseName, response);
+    }
+
+    // ================================================================ 22. 数据库用户（厂商 DatabaseUserController）
+
+    /**
+     * 厂商 `GET /v1/database/user`（`DatabaseUserController:42-51`）：`{databaseUsers,total}`。
+     * <p>`keyword` 先 `replaceAll(" +","")`（厂商在 controller 里做，**不去首尾空格**）；
+     * 分页用厂商 `SqlUtils` 口径归一化。
+     */
+    @GetMapping("/user")
+    public ResponseDTO<DatabaseUserListDTO> getDataBaseUsers(
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String keyword) {
+        int p = PageUtils.normalizePage(page);
+        int s = PageUtils.normalizeSize(size);
+        if (keyword != null) {
+            keyword = keyword.replaceAll(" +", "");
+        }
+        var result = databaseUserService.list(p, s, keyword);
+        return ResponseDTO.ok(DatabaseUserListDTO.builder()
+                .databaseUsers(result.getDatabaseUsers().stream().map(DataBaseController::toUserDTO).toList())
+                .total(result.getTotal())
+                .build());
+    }
+
+    /**
+     * `GET /v1/database/user/{dataBaseUser}`：单个数据库用户。
+     *
+     * <p>厂商 `DatabaseUserController` **没有**这条只读映射；它对同一路径只有 `PUT /{dataBaseUser}`（改密码/描述）。
+     * 本任务要求补一条读取口径，这里按厂商**同一语义**（路径变量是**用户名**，不是数字 id——
+     * 厂商侧该位置就叫 `dataBaseUser`，前端 `PUT /v1/database/user/{dataBaseUser}` 也传用户名）实现：
+     * 查不到 ⇒ 400 `user.not.found.modify.failed`（与厂商 `modifyDatabaseUser` 的首道闸同键）。
+     */
+    @GetMapping("/user/{dataBaseUser}")
+    public ResponseDTO<DatabaseUserDTO> getDataBaseUser(@PathVariable String dataBaseUser) {
+        DatabaseUserEntity user = databaseUserService.detailByUsername(dataBaseUser)
+                .orElseThrow(() -> new WrongArgumentException("user.not.found.modify.failed"));
+        return ResponseDTO.ok(toUserDTO(user));
+    }
+
+    /**
+     * 厂商 `POST /v1/database/user`（`DatabaseUserController:53-65`）：新增数据库用户。
+     * <p>两道 400 校验（root 保留名、重名）在领域层照抄；返回**新建的那一行**。
+     */
+    @PostMapping("/user")
+    public ResponseDTO<DatabaseUserDTO> addDataBaseUser(@RequestBody DatabaseUserFormDTO form) {
+        return ResponseDTO.ok(toUserDTO(databaseUserService.add(
+                form.getUsername(), form.getPassword(), form.getDesc())));
+    }
+
+    /**
+     * 厂商 `PUT /v1/database/user/{dataBaseUser}`（`DatabaseUserController:77-82`）：改密码/描述。
+     * <p>请求体是 `DatabaseUserModify`（password/desc/updatedAt）；`updatedAt` 由服务层覆盖成当前毫秒。
+     */
+    @PutMapping("/user/{dataBaseUser}")
+    public ResponseDTO<DatabaseUserDTO> modifyDataBaseUser(@PathVariable String dataBaseUser,
+                                                          @RequestBody DatabaseUserModifyDTO form) {
+        return ResponseDTO.ok(toUserDTO(databaseUserService.modify(
+                dataBaseUser, form.getPassword(), form.getDesc())));
+    }
+
+    /**
+     * 厂商 `DELETE /v1/database/user?dataBaseUser=`（`DatabaseUserController:67-75`）：
+     * 用户名用 `,` 分隔批量删；某个用户不存在 ⇒ 400 `user.not.found.cannot.delete`（立即中断）。
+     */
+    @DeleteMapping("/user")
+    public ResponseDTO<Object> deleteDataBaseUsers(@RequestParam String dataBaseUser) {
+        String[] dataBaseUsers = dataBaseUser.split(",");
+        databaseUserService.deleteAllByNames(new ArrayList<>(List.of(dataBaseUsers)));
+        return ResponseDTO.<Object>ok(true);
+    }
+
+    /**
+     * 厂商 `PUT /v1/database/user/revoke_authorization?databaseName&databaseUser`
+     * （`DatabaseUserController:84-90`）：取消用户对某库的授权，恒返回 `true`。
+     *
+     * <p>方法同时接受 **PUT**（厂商与前端实际使用）与 **POST**（本任务清单里写的口径），
+     * 两条路径同一实现、同一参数，不改变厂商行为。
+     */
+    @RequestMapping(value = "/user/revoke_authorization",
+            method = {RequestMethod.PUT, RequestMethod.POST})
+    public ResponseDTO<Boolean> revokeAuthorization(@RequestParam String databaseName,
+                                                    @RequestParam String databaseUser) {
+        databaseUserService.revokeAuthorization(databaseName, databaseUser);
+        return ResponseDTO.ok(true);
+    }
+
+    /** `DatabaseUserEntity` → 厂商 6 键（顺序与 `model/DatabaseUser` 一致）。 */
+    private static DatabaseUserDTO toUserDTO(DatabaseUserEntity user) {
+        return DatabaseUserDTO.builder()
+                .id(user.getId()).username(user.getUsername()).password(user.getPassword())
+                .updatedAt(user.getUpdatedAt()).createdAt(user.getCreatedAt()).desc(user.getDesc())
+                .build();
     }
 
     /** 厂商 `GET /export_framework`（`DataBaseController:259-270`）：导出 gaop 库并**删掉临时文件**。 */

@@ -463,4 +463,29 @@ public class UserController {
                 .map(result -> ResponseDTO.ok(LoginAssembler.toResponse(result)))
                 .orElseThrow(() -> new BusinessException(ResponseCode.UNAUTHENTICATED, "用户不存在"));
     }
+
+    /**
+     * `GET /v1/user/getLoginUser`：**前端指向另一个后端的绝对路径**，我们在这里补一条等价读取。
+     *
+     * <p>证据：厂商 gaop-be 全仓 grep 不到这个映射；前端 bundle 里它是绝对 URL
+     * `http://&lt;host&gt;/zk-102-jsxx-software/zk-102-jsxx-back-8304/v1/user/getLoginUser`
+     * （`p__operate__home__index.a56e7a11.async.js`：`0===n.code && n.data && Ge(n.data)`，
+     * 拿到的 `data` 随后被当作 `testCode` 拼进 `/v1/thirdPart/getUnreadCount` 与 socket.io 的
+     * `/message/unReadCount/&lt;code&gt;`）。也就是说那是一个**别的服务**的登录用户标识，
+     * 本重写没有它的实现也没有它的库。
+     *
+     * <p>本端点的定位：让前端**一行不改**地把这条请求打到本服务时也有 200 与同形状的信封
+     * （`{code:0,data:&lt;标量&gt;}`）。实现用厂商用户域**既有**的登录态能力
+     * （{@link AuthSupport#currentSession}）：已登录 ⇒ `data` = 当前用户名（字符串，可当 `testCode` 用）；
+     * 未登录 ⇒ `data` = null（前端那处 `n.data && ...` 会直接短路，不报错）。
+     *
+     * <p><b>这是等价读取、不是厂商原样</b>：厂商那条路径属于另一个未在 recovered 里的前端后端，
+     * 无法逐字照抄；这里只保证信封与"能取到当前登录用户标识"的语义。
+     */
+    @GetMapping("/v1/user/getLoginUser")
+    public ResponseDTO<String> getLoginUser(HttpServletRequest request) {
+        return ResponseDTO.ok(authSupport.currentSession(request)
+                .map(com.csm.paas.core.domain.user.model.valobj.SessionVO::getUsername)
+                .orElse(null));
+    }
 }

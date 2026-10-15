@@ -69,6 +69,14 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
     @Resource
     private com.csm.paas.core.domain.software.adapter.port.IPrometheusMetricPort prometheusMetricPort;
 
+    /** `PUT /v1/service/patch` 的镜像 host 替换用（厂商 `dockerConfig.getRegistryHost()`）。 */
+    @Resource
+    private com.csm.paas.core.domain.image.adapter.port.IDockerRegistryPort dockerRegistryPort;
+
+    /** 厂商 `node.label`（`application.yml:194-195`，默认 `control-plane`）：找 master 节点的标签后缀。 */
+    @Value("${node.label:control-plane}")
+    private String nodeLabel;
+
     /** 厂商 `K8s.NAMESPACE`（`/v1/software/top` 的 `namespace` 参数为空时的兜底）。 */
     @Value("${gaop.k8s.namespace:gaop-namespace}")
     private String defaultNamespace;
@@ -2437,4 +2445,895 @@ public class ServiceQueryServiceImpl implements IServiceQueryService {
                 .services(services)
                 .build();
     }
+
+    // ================================================================ 最后一批端点（node / patch / serviceInfoByNode）
+
+    /** 厂商 `ServiceController.deleteNode:2886-2902` + `TenxCloudImpl.deleteNode:785-800`。 */
+    @Override
+    public boolean deleteNode(String nodeName) {
+        try {
+            serviceRuntimePort.deleteNode(nodeName);
+        } catch (Exception e) {
+            // 厂商：时速云那层的 WrongArgumentException/SystemException 都被控制器 catch (Exception) 接住，
+            // 统一翻成 400 `alert.delete.node.info.error`。
+            log.error("删除节点信息出错，异常为", e);
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("alert.delete.node.info.error");
+        }
+        return true;
+    }
+
+    /** 厂商 `ServiceController.updateServiceConfig:1165-1402`（`PUT /v1/service/patch`）。 */
+    @Override
+    public boolean updateServiceConfig(String namespace, Map<String, Object> deployment,
+                                       Map<String, Object> service, Map<String, Object> nodePortService) {
+        String registryHost = dockerRegistryPort.registryHost() == null ? "" : dockerRegistryPort.registryHost();
+        // 厂商第一步就是 deploymentToYaml(...)：它会**原地改写** deployment（清 strategy/metadata、换镜像 host）。
+        // 后面那段 maxSurge/maxUnavailable 的 % 归一化因此永远进不去（见下面注释）。
+        Map<String, Object> deploymentDoc = toDeploymentMap(deployment, registryHost);
+        String appName = labelOf(deploymentDoc, "system/appName");
+        String deploymentName = nameOf(deploymentDoc);
+
+        // 1) 时速云 App 段（本平台等价为原生 K8s 的 existApp/existService/create，见接口 javadoc）
+        ensureAppAndDeployment(namespace, appName, deploymentName, deploymentDoc);
+
+        // 2) 读 Deployment：读不到 ⇒ 400（厂商 readNamespacedDeployment 的 ApiException）
+        boolean deploymentExists;
+        try {
+            deploymentExists = serviceRuntimePort.deploymentExists(namespace, deploymentName);
+        } catch (Exception e) {
+            log.error("获取Deployment失败，异常为：", e);
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("k8s.get.deployment.failed");
+        }
+        if (!deploymentExists) {
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("k8s.get.deployment.failed");
+        }
+        Map<String, Object> spec = asMap(deploymentDoc.get("spec"));
+        // 照抄的死代码：spec.strategy 已在 toDeploymentMap 里被置 null ⇒ 这段永远不会执行。
+        Object strategy = spec == null ? null : spec.get("strategy");
+        if (strategy != null) {
+            normalizeRollingUpdateStrategy(asMap(strategy));
+        }
+        Map<String, Object> metadata = asMap(deploymentDoc.get("metadata"));
+        Map<String, Object> annotations = metadata == null ? null : asMap(metadata.get("annotations"));
+        if (annotations != null) {
+            if (annotations.get("kubectl.kubernetes.io/last-applied-configuration") != null) {
+                annotations.put("kubectl.kubernetes.io/last-applied-configuration", null);
+            }
+            if (annotations.get("rollingupdate/target") != null) {
+                annotations.put("rollingupdate/target", null);
+            }
+        }
+        Map<String, Object> doc = generateDeploymentDoc(deploymentDoc, registryHost);
+        try {
+            serviceRuntimePort.replaceDeploymentSnapshot(namespace, doc);
+        } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+            log.error("调用API失败: {}", e.getMessage());
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("service.change.config.failed");
+        } catch (Exception e) {
+            log.error("导入服务Deployment失败", e);
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("service.import.service.deployment.error");
+        }
+
+        // 3) Service 段
+        if (service != null) {
+            String serviceName = nameOf(service);
+            Map<String, Object> existingService;
+            try {
+                existingService = serviceRuntimePort.readServiceSnapshot(namespace, serviceName);
+            } catch (Exception e) {
+                log.error("获取service失败，异常为：", e);
+                throw new com.csm.paas.core.types.exception.WrongArgumentException("k8s.get.service.failed");
+            }
+            if (existingService == null) {
+                throw new com.csm.paas.core.types.exception.WrongArgumentException("k8s.get.service.failed");
+            }
+            String nodePortServiceName = serviceName + "-nodeport";
+            // 厂商：读 `<name>-nodeport` 的 ApiException 只记日志（此时 ports 保持 null ⇒ 走创建分支）。
+            Map<String, Object> existingNodePort = null;
+            try {
+                existingNodePort = serviceRuntimePort.readServiceSnapshot(namespace, nodePortServiceName);
+            } catch (Exception e) {
+                log.error("查询nodePoft服务未找到的异常:", e);
+                log.info("未找到该服务{}的nodeport服务发现", serviceName);
+            }
+            List<Map<String, Object>> existingPorts = existingNodePort == null ? null : portsOf(existingNodePort);
+            if (nodePortService != null) {
+                if (existingPorts != null) {
+                    List<com.csm.paas.core.domain.software.model.valobj.ServicePortSpecVO> ports = new ArrayList<>();
+                    for (Map<String, Object> p : portsOf(nodePortService)) {
+                        ports.add(com.csm.paas.core.domain.software.model.valobj.ServicePortSpecVO.builder()
+                                .appProtocol(strOf(p.get("appProtocol")))
+                                .name(strOf(p.get("name")))
+                                .port(intOf(p.get("port")))
+                                .nodePort(intOf(p.get("nodePort")))
+                                .protocol(strOf(p.get("protocol")))
+                                .targetPort(intOf(p.get("targetPort")))
+                                .build());
+                    }
+                    try {
+                        // 厂商：selector 置 {name: 主服务名}、type 置 NodePort，再整份 merge-patch；
+                        // 已存在的 nodeport 服务本来就是这个 selector，所以这里传 type=NodePort 等价。
+                        serviceRuntimePort.patchServicePorts(namespace, nodePortServiceName, "NodePort", ports);
+                    } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+                        log.error("调用API失败: {}", e.getMessage());
+                        throw new com.csm.paas.core.types.exception.WrongArgumentException("k8s.call.api.failed");
+                    } catch (Exception e) {
+                        log.error("导入服务service失败", e);
+                        throw new com.csm.paas.core.types.exception.WrongArgumentException(
+                                "service.import.service.service.error");
+                    }
+                } else {
+                    // 厂商 AppService.generateServiceDoc(nodePortServiceName, deployment 的 labels, containers)
+                    List<com.csm.paas.core.domain.software.model.valobj.ServicePortSpecVO> ports = new ArrayList<>();
+                    List<Map<String, Object>> requestPorts = portsOf(nodePortService);
+                    for (int i = 0; i < requestPorts.size(); i++) {
+                        Map<String, Object> p = requestPorts.get(i);
+                        Integer port = intOf(p.get("port"));
+                        String protocol = strOf(p.get("protocol"));
+                        ports.add(com.csm.paas.core.domain.software.model.valobj.ServicePortSpecVO.builder()
+                                .name(protocol == null ? null
+                                        : protocol.toLowerCase() + "-" + nodePortServiceName + "-" + i)
+                                .protocol(protocol)
+                                .port(port)
+                                .targetPort(port)
+                                .build());
+                    }
+                    try {
+                        serviceRuntimePort.createNodePortService(namespace, nodePortServiceName, "NodePort",
+                                ports, deploymentName);
+                    } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+                        log.error("调用API失败: {}", e.getMessage());
+                        throw new com.csm.paas.core.types.exception.WrongArgumentException("k8s.call.api.failed");
+                    } catch (Exception e) {
+                        log.error("创建服务失败", e);
+                        throw new com.csm.paas.core.types.exception.WrongArgumentException("service.create.failed");
+                    }
+                }
+            } else if (existingNodePort != null) {
+                try {
+                    serviceRuntimePort.deleteService(namespace, nodePortServiceName);
+                } catch (Exception e) {
+                    // 厂商对 ApiException 只记日志（不报错）。
+                    log.error("删除服务失败, serviceName = {}, response = {}", nodePortServiceName, e.getMessage());
+                }
+            }
+            List<com.csm.paas.core.domain.software.model.valobj.ServicePortSpecVO> mainPorts = new ArrayList<>();
+            for (Map<String, Object> p : portsOf(service)) {
+                mainPorts.add(com.csm.paas.core.domain.software.model.valobj.ServicePortSpecVO.builder()
+                        .protocol(strOf(p.get("protocol")))
+                        .name(strOf(p.get("name")))
+                        .nodePort(intOf(p.get("nodePort")))
+                        .port(intOf(p.get("port")))
+                        .targetPort(intOf(p.get("targetPort")))
+                        .appProtocol(null)
+                        .build());
+            }
+            Map<String, Object> existingSpec = asMap(existingService.get("spec"));
+            String type = existingSpec == null ? null : strOf(existingSpec.get("type"));
+            try {
+                serviceRuntimePort.patchServicePorts(namespace, serviceName, type, mainPorts);
+            } catch (com.csm.paas.core.types.exception.K8sApiException e) {
+                log.error("调用API失败: {}", e.getMessage());
+                throw new com.csm.paas.core.types.exception.WrongArgumentException("k8s.call.api.failed");
+            } catch (Exception e) {
+                log.error("导入服务service失败", e);
+                throw new com.csm.paas.core.types.exception.WrongArgumentException(
+                        "service.import.service.service.error");
+            }
+        }
+        return true;
+    }
+
+    /** 厂商 `AppService.deploymentToMap:225-280` 的等价实现（**原地改写**入参）。 */
+    private Map<String, Object> toDeploymentMap(Map<String, Object> deployment, String registryHost) {
+        Map<String, Object> spec = asMap(deployment.get("spec"));
+        Map<String, Object> template = spec == null ? null : asMap(spec.get("template"));
+        Map<String, Object> podSpec = template == null ? null : asMap(template.get("spec"));
+        if (podSpec != null) {
+            replaceImageHosts(castList(podSpec.get("containers")), registryHost);
+            replaceImageHosts(castList(podSpec.get("initContainers")), registryHost);
+        }
+        Map<String, Object> metadata = asMap(deployment.get("metadata"));
+        if (metadata != null) {
+            metadata.put("resourceVersion", null);
+            metadata.put("creationTimestamp", null);
+            metadata.put("selfLink", null);
+            metadata.put("uid", null);
+            metadata.put("namespace", null);
+        }
+        Map<String, Object> templateMetadata = template == null ? null : asMap(template.get("metadata"));
+        Map<String, Object> annotations = templateMetadata == null ? null : asMap(templateMetadata.get("annotations"));
+        if (annotations != null && annotations.containsKey("gaop/nodeIndex")) {
+            Integer index = Integer.valueOf(String.valueOf(annotations.get("gaop/nodeIndex")));
+            String indexName = nodeIndexName(index);
+            if ("-1".equals(indexName)) {
+                podSpec.put("nodeSelector", null);
+            } else {
+                Map<String, Object> nodeSelector = podSpec == null ? null : asMap(podSpec.get("nodeSelector"));
+                if (nodeSelector != null) {
+                    log.info("未获取到导入节点调度绑定节点");
+                    nodeSelector.put("kubernetes.io/hostname", indexName);
+                    nodeSelector.put("beta.kubernetes.io/os", "linux");
+                } else {
+                    log.info("未拿到node节点绑定设置默认调度");
+                    podSpec.put("nodeSelector", null);
+                }
+            }
+            annotations.put("gaop/nodeIndex", null);
+        }
+        // 厂商 `deploymentToMap:265`：整份清掉 strategy（后面那段 % 归一化因此是死代码）。
+        if (spec != null) {
+            spec.put("strategy", null);
+        }
+        deployment.put("apiVersion", "apps/v1");
+        deployment.put("kind", "Deployment");
+        // 厂商 deleteFeilds:282-293：managedFields 里"fields 为 null"的条目把该键删掉（等价 no-op）。
+        if (metadata != null) {
+            List<Map<String, Object>> managedFields = castList(metadata.get("managedFields"));
+            if (managedFields != null) {
+                for (Map<String, Object> managedField : managedFields) {
+                    if (managedField.get("fields") == null) {
+                        managedField.remove("fields");
+                    }
+                }
+            }
+        }
+        return deployment;
+    }
+
+    /** 厂商 `AppService.generateDeploymentDoc:396-429`（+ 控制器的 `setApiVersion("apps/v1")`）。 */
+    private Map<String, Object> generateDeploymentDoc(Map<String, Object> deployment, String registryHost) {
+        Map<String, Object> spec = asMap(deployment.get("spec"));
+        Map<String, Object> template = spec == null ? null : asMap(spec.get("template"));
+        Map<String, Object> podSpec = template == null ? null : asMap(template.get("spec"));
+        if (podSpec != null) {
+            replaceImageHosts(castList(podSpec.get("containers")), registryHost);
+            replaceImageHosts(castList(podSpec.get("initContainers")), registryHost);
+        }
+        Map<String, Object> metadata = asMap(deployment.get("metadata"));
+        if (metadata != null) {
+            metadata.put("resourceVersion", null);
+            metadata.put("creationTimestamp", null);
+            metadata.put("selfLink", null);
+            metadata.put("uid", null);
+            metadata.put("namespace", null);
+        }
+        if (podSpec != null) {
+            Map<String, Object> nodeSelector = asMap(podSpec.get("nodeSelector"));
+            if (nodeSelector == null) {
+                nodeSelector = new java.util.LinkedHashMap<>();
+                podSpec.put("nodeSelector", nodeSelector);
+            }
+            nodeSelector.put("beta.kubernetes.io/os", "linux");
+        }
+        deployment.put("apiVersion", "apps/v1");
+        deployment.put("kind", "Deployment");
+        return deployment;
+    }
+
+    /** 厂商 `AppService.replaceHost:487-496`：把镜像前缀里的 `<ip>:<port>` 换成镜像仓库地址。 */
+    private static String replaceHost(String imageFullName, String registryHost) {
+        if (imageFullName == null) {
+            // 厂商这里会 NPE（Pattern.matcher(null)）⇒ 500；照抄会故意留一个 NPE，故按"不改"处理。
+            return null;
+        }
+        java.util.regex.Matcher matcher = IMAGE_HOST_PATTERN.matcher(imageFullName);
+        if (matcher.lookingAt()) {
+            String registry = matcher.group(1);
+            return imageFullName.replace(registry, registryHost);
+        }
+        return imageFullName;
+    }
+
+    private static void replaceImageHosts(List<Map<String, Object>> containers, String registryHost) {
+        if (containers == null) {
+            return;
+        }
+        for (Map<String, Object> container : containers) {
+            Object image = container.get("image");
+            if (image instanceof String) {
+                container.put("image", replaceHost((String) image, registryHost));
+            }
+        }
+    }
+
+    /** 厂商 `AppService.getNdoeIndexName:295-327`（`getNodeInfo()` 失败 ⇒ `-1`）。 */
+    private String nodeIndexName(Integer index) {
+        if (index != null && index == -1) {
+            return "-1";
+        }
+        List<String> nameList = new ArrayList<>();
+        try {
+            for (com.csm.paas.core.domain.software.model.valobj.NodeInfoVO node : serviceRuntimePort.listNodes()) {
+                nameList.add(node.getName());
+            }
+        } catch (Exception e) {
+            log.error("调用tenxcloud获取node信息出现错误，导入或导出服务配置时出现异常:", e);
+            return "-1";
+        }
+        java.util.Collections.sort(nameList);
+        if (index != null && index < nameList.size()) {
+            return nameList.get(index);
+        }
+        log.info("导入节点数量比当前节点多，无法获取下标节点名称");
+        return "-1";
+    }
+
+    /**
+     * 厂商的"时速云 App"段（`existApp`/`existService`/`createApp`/`createDeploymentYaml`）在
+     * `TenxCloudImpl` 里其实全是**原生 K8s**实现，这里按同一净效果复刻：
+     * `existApp:1119-1132` = 按 `system/appName` 列 Deployment；`existService:2367-2396` = 按
+     * `system/svcName` 列 Deployment/**StatefulSet**；`createApp:2553-2572` = 把 YAML 拆成
+     * Deployment + Service 两份分别 create。
+     *
+     * <p><b>本实现的已知简化</b>：`serviceExists` 只看 **Deployment**（`listDeploymentSnapshots`），
+     * 没查 StatefulSet——所以"StatefulSet 带 `system/svcName` 但 Deployment 不存在"这种组合下，
+     * 我们会多试一次 create（厂商会跳过），create 冲突时同样落 400 `service.create.failed`。
+     */
+    private void ensureAppAndDeployment(String namespace, String appName, String deploymentName,
+                                        Map<String, Object> deploymentDoc) {
+        boolean appExists = false;
+        boolean serviceExists = false;
+        for (Map<String, Object> d : serviceRuntimePort.listDeploymentSnapshots(namespace)) {
+            Map<String, String> labels = labelsOf(d);
+            if (appName != null && appName.equals(labels.get("system/appName"))) {
+                appExists = true;
+            }
+            if (deploymentName != null && deploymentName.equals(labels.get("system/svcName"))) {
+                serviceExists = true;
+            }
+        }
+        if (appExists) {
+            if (serviceExists) {
+                log.debug("已存在 service: {}，不创建该服务", deploymentName);
+                return;
+            }
+            log.info("不存在服务:{}，开始创建", deploymentName);
+            createDeploymentForPatch(namespace, deploymentDoc);
+            return;
+        }
+        log.info("不存在apps应用服务，开始进行创建apps");
+        createDeploymentForPatch(namespace, deploymentDoc);
+        createServiceForPatch(namespace, deploymentName, deploymentDoc);
+    }
+
+    private void createDeploymentForPatch(String namespace, Map<String, Object> deploymentDoc) {
+        try {
+            serviceRuntimePort.createDeploymentSnapshot(namespace, deploymentDoc);
+        } catch (Exception e) {
+            log.error("创建服务失败", e);
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("service.create.failed");
+        }
+    }
+
+    /**
+     * 厂商 `createApp` 的第二半（`TenxService.createServiceYaml:1152-1178` + `AppService.test:353-394`）：
+     * labels 被改写成 `{name, system/appName, system/svcName}` 且 `system/appType=business`。
+     */
+    private void createServiceForPatch(String namespace, String deploymentName, Map<String, Object> deploymentDoc) {
+        Map<String, Object> spec = asMap(deploymentDoc.get("spec"));
+        Map<String, Object> template = spec == null ? null : asMap(spec.get("template"));
+        Map<String, Object> podSpec = template == null ? null : asMap(template.get("spec"));
+        List<Map<String, Object>> containers = podSpec == null ? null : castList(podSpec.get("containers"));
+        List<Map<String, Object>> ports = new ArrayList<>();
+        if (containers != null && !containers.isEmpty()) {
+            List<Map<String, Object>> containerPorts = castList(containers.get(0).get("ports"));
+            if (containerPorts != null) {
+                for (int i = 0; i < containerPorts.size(); i++) {
+                    Integer port = intOf(containerPorts.get(i).get("containerPort"));
+                    String protocol = strOf(containerPorts.get(i).get("protocol"));
+                    Map<String, Object> p = new java.util.LinkedHashMap<>();
+                    p.put("name", protocol == null ? null
+                            : protocol.toLowerCase() + "-" + deploymentName + "-" + i);
+                    p.put("protocol", protocol);
+                    p.put("port", port);
+                    p.put("targetPort", port);
+                    ports.add(p);
+                }
+            }
+        }
+        Map<String, String> labels = new java.util.LinkedHashMap<>();
+        labels.put("name", deploymentName);
+        labels.put("system/appName", deploymentName);
+        labels.put("system/svcName", deploymentName);
+        labels.put("system/appType", "business");
+        Map<String, String> annotations = new java.util.LinkedHashMap<>();
+        annotations.put("system/lbgroup", "none");
+        Map<String, String> selector = new java.util.LinkedHashMap<>();
+        selector.put("name", deploymentName);
+
+        Map<String, Object> metadata = new java.util.LinkedHashMap<>();
+        metadata.put("name", deploymentName);
+        metadata.put("labels", labels);
+        metadata.put("annotations", annotations);
+        Map<String, Object> serviceSpec = new java.util.LinkedHashMap<>();
+        serviceSpec.put("ports", ports);
+        serviceSpec.put("selector", selector);
+        Map<String, Object> serviceDoc = new java.util.LinkedHashMap<>();
+        serviceDoc.put("kind", "Service");
+        serviceDoc.put("apiVersion", "v1");
+        serviceDoc.put("metadata", metadata);
+        serviceDoc.put("spec", serviceSpec);
+        try {
+            serviceRuntimePort.createServiceSnapshot(namespace, serviceDoc);
+        } catch (Exception e) {
+            log.error("创建服务失败", e);
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("service.create.failed");
+        }
+    }
+
+    /** 厂商那段（因 `strategy` 已被清空而不可达的）`maxSurge`/`maxUnavailable` 补 `%` 逻辑。 */
+    private void normalizeRollingUpdateStrategy(Map<String, Object> strategy) {
+        if (strategy == null) {
+            return;
+        }
+        boolean endSurge = false;
+        boolean endUnavailable = false;
+        if ("RollingUpdate".equals(strOf(strategy.get("type")))) {
+            Map<String, Object> rolling = asMap(strategy.get("rollingUpdate"));
+            if (rolling != null) {
+                String maxSurge = strOf(rolling.get("maxSurge"));
+                String maxUnavailable = strOf(rolling.get("maxUnavailable"));
+                endSurge = maxSurge != null && maxSurge.endsWith("%");
+                endUnavailable = maxUnavailable != null && maxUnavailable.endsWith("%");
+            }
+        }
+        Map<String, Object> rollingUpdate = asMap(strategy.get("rollingUpdate"));
+        if (rollingUpdate != null) {
+            String maxSurge = strOf(rollingUpdate.get("maxSurge"));
+            if (!endSurge) {
+                rollingUpdate.put("maxSurge", maxSurge + "%");
+            }
+            String maxUnavailable = strOf(rollingUpdate.get("maxUnavailable"));
+            if (!endUnavailable) {
+                rollingUpdate.put("maxUnavailable", maxUnavailable + "%");
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------- serviceInfoByNode（厂商 :1691-1810）
+
+    /** 厂商 `ServiceController.getServiceListByNode:1691-1728`。 */
+    @Override
+    public com.csm.paas.core.domain.node.model.valobj.ServiceNodeListVO queryServiceInfoByNode(
+            String namespace, String nodeName, String keyword, Integer order, int page, int size) {
+        String masterNodeName;
+        try {
+            masterNodeName = masterNodeName();
+        } catch (Exception e) {
+            log.error("获取节点信息错误，异常为:", e);
+            throw new com.csm.paas.core.types.exception.WrongArgumentException("k8s.get.node.info.failed");
+        }
+        // 厂商用 masterNodeName 拼 Caffeine 缓存 key（30 秒）；本平台不做缓存（差异只在新鲜度）。
+        List<com.csm.paas.core.domain.node.model.valobj.ServiceNodeItemVO> itemList =
+                getServiceNodeItems(namespace, nodeName, keyword, masterNodeName);
+        if (!itemList.isEmpty() && order != null) {
+            if (order == 1) {
+                itemList.sort(java.util.Comparator.comparingDouble(
+                        (com.csm.paas.core.domain.node.model.valobj.ServiceNodeItemVO o) -> sumCpuOrder(o)));
+            } else if (order == 2) {
+                itemList.sort(java.util.Comparator.comparingDouble(
+                        (com.csm.paas.core.domain.node.model.valobj.ServiceNodeItemVO o) -> sumCpuOrder(o)).reversed());
+            } else if (order == 3) {
+                itemList.sort(java.util.Comparator.comparingDouble(
+                        (com.csm.paas.core.domain.node.model.valobj.ServiceNodeItemVO o) -> sumMemoryOrder(o)));
+            } else if (order == 4) {
+                itemList.sort(java.util.Comparator.comparingDouble(
+                        (com.csm.paas.core.domain.node.model.valobj.ServiceNodeItemVO o) -> sumMemoryOrder(o)).reversed());
+            } else if (order == 5) {
+                itemList.sort(java.util.Comparator.comparing(
+                        (com.csm.paas.core.domain.node.model.valobj.ServiceNodeItemVO o) -> o.getGpuOrder()));
+            } else if (order == 6) {
+                itemList.sort(java.util.Comparator.comparing(
+                        (com.csm.paas.core.domain.node.model.valobj.ServiceNodeItemVO o) -> o.getGpuOrder()).reversed());
+            }
+        }
+        long start = System.currentTimeMillis();
+        com.csm.paas.core.domain.node.model.valobj.ServiceNodeListVO serviceList =
+                paginateServiceNodeItems(itemList, page, size);
+        log.info("调用serviceInfoByNode接口花费时间:{}毫秒", System.currentTimeMillis() - start);
+        return serviceList;
+    }
+
+    /** 厂商 `getMasterNodeName:203-218`。 */
+    private String masterNodeName() {
+        List<com.csm.paas.core.domain.software.model.valobj.NodeInfoVO> items = serviceRuntimePort.listNodes();
+        if (items.size() == 1) {
+            return items.get(0).getName();
+        }
+        for (com.csm.paas.core.domain.software.model.valobj.NodeInfoVO item : items) {
+            Map<String, String> labels = item.getLabels();
+            String roleLabel = "node-role.kubernetes.io/" + nodeLabel;
+            if (labels == null || !labels.containsKey(roleLabel)) {
+                continue;
+            }
+            log.info("拿到master节点的名称为:{}", item.getName());
+            return item.getName();
+        }
+        return null;
+    }
+
+    /** 厂商 `getServicesItems:1730-1810` + `getServiceItemInfo:1812-1873`。 */
+    private List<com.csm.paas.core.domain.node.model.valobj.ServiceNodeItemVO> getServiceNodeItems(
+            String namespace, String nodeName, String keyword, String masterNodeName) {
+        log.info("查询所有节点的pod 参数 nodeName={} keyword={} master={}", nodeName, keyword, masterNodeName);
+        Map<String, com.csm.paas.core.domain.node.model.valobj.ServiceNodeBelongPodVO> podBelongInfo =
+                new java.util.LinkedHashMap<>();
+        Map<String, List<String>> serviceBelongPodList = new java.util.LinkedHashMap<>();
+        for (Map<String, Object> pod : serviceRuntimePort.listAllPods(namespace)) {
+            Map<String, Object> podSpec = asMap(pod.get("spec"));
+            String podNodeName = podSpec == null ? null : strOf(podSpec.get("nodeName"));
+            // 厂商用 fieldSelector `spec.nodeName=<nodeName>`（服务端过滤）；这里等价地在客户端过滤。
+            if (nodeName != null && !nodeName.isEmpty() && !nodeName.equals(podNodeName)) {
+                continue;
+            }
+            Map<String, Object> podMetadata = asMap(pod.get("metadata"));
+            String podName = podMetadata == null ? null : strOf(podMetadata.get("name"));
+            var belongPodInfo = com.csm.paas.core.domain.node.model.valobj.ServiceNodeBelongPodVO.builder()
+                    .podName(podName)
+                    .nodeName(podNodeName)
+                    .build();
+            Integer restartCount = 0;
+            String serviceName = "";
+            List<Map<String, Object>> containers = podSpec == null ? null : castList(podSpec.get("containers"));
+            if (containers != null && !containers.isEmpty()) {
+                serviceName = strOf(containers.get(0).get("name"));
+            }
+            Map<String, Object> status = asMap(pod.get("status"));
+            List<Map<String, Object>> containerStatuses = status == null ? null : castList(status.get("containerStatuses"));
+            if (containerStatuses != null) {
+                Integer count = intOf(containerStatuses.get(0).get("restartCount"));
+                if (count != null) {
+                    restartCount = count;
+                }
+            }
+            belongPodInfo.setServiceName(serviceName);
+            belongPodInfo.setRestartCount(restartCount);
+            podBelongInfo.put(podName, belongPodInfo);
+            serviceBelongPodList.computeIfAbsent(serviceName, k -> new ArrayList<>()).add(podName);
+        }
+        java.util.Set<String> serviceNamed = serviceBelongPodList.keySet();
+
+        // 厂商数据源是 tenxCloud.allPageService(null)（外部客户端，会翻完所有页）；
+        // 本平台用同命名空间 Deployment/StatefulSet 直读（不分页，见 queryAllServices）。
+        List<ServiceRuntimeEntity> items = serviceRuntimePort.queryAllServices(namespace);
+        // 授权状态：与列表端点同口径（厂商 allPageService 出来的项也带 serviceAuth）。
+        Map<String, ServiceAuthEntity> authByService = serviceAuthRepository.queryAll().stream()
+                .collect(Collectors.toMap(ServiceAuthEntity::getServiceId, Function.identity(), (a, b) -> a));
+        items.forEach(s -> s.setServiceAuth(authByService.get(s.getName())));
+        List<ServiceRuntimeEntity> servicesItemList = new ArrayList<>();
+        for (ServiceRuntimeEntity item : items) {
+            String label = item.getServiceLabel();
+            if (label != null && !label.trim().isEmpty()
+                    && item.getName() != null && serviceNamed.contains(item.getName())) {
+                servicesItemList.add(item);
+            }
+        }
+        if (keyword != null && !keyword.isEmpty()) {
+            List<ServiceRuntimeEntity> filtered = new ArrayList<>();
+            for (ServiceRuntimeEntity item : servicesItemList) {
+                String name = item.getName();
+                String label = item.getServiceLabel();
+                if ((name != null && name.contains(keyword)) || (label != null && label.contains(keyword))) {
+                    filtered.add(item);
+                }
+            }
+            servicesItemList = filtered;
+        }
+
+        // 厂商 24 小时窗口 + 每服务并发补齐（本平台顺序执行，结果一致、只是慢一些）。
+        java.time.Instant end = java.time.Instant.now();
+        java.time.Instant start = end.minus(1L, java.time.temporal.ChronoUnit.DAYS);
+        long startSeconds = start.toEpochMilli() / 1000L;
+        long endSeconds = end.toEpochMilli() / 1000L;
+        List<com.csm.paas.core.domain.node.model.valobj.ServiceNodeItemVO> out = new ArrayList<>();
+        for (ServiceRuntimeEntity servicesItem : servicesItemList) {
+            var nodeItem = com.csm.paas.core.domain.node.model.valobj.ServiceNodeItemVO.builder()
+                    .runtime(servicesItem)
+                    .cpuOrder(0.0)
+                    .memoryOrder(0.0)
+                    .gpuOrder(0.0)
+                    .build();
+            out.add(nodeItem);
+            try {
+                fillServiceNodeItem(nodeItem, podBelongInfo, serviceBelongPodList, startSeconds, endSeconds);
+            } catch (Exception e) {
+                // 厂商是 CompletableFuture 里 catch (Exception) 只记日志 ⇒ 该项保持部分字段。
+                log.error("获取服务[{}]监控信息失败", servicesItem.getName(), e);
+            }
+        }
+        return out;
+    }
+
+    /** 厂商 `getServiceItemInfo:1812-1873` + `getPodCpuInfo:1899-1921` + `getPodMemoryInfo:1875-1897`。 */
+    private void fillServiceNodeItem(com.csm.paas.core.domain.node.model.valobj.ServiceNodeItemVO nodeItem,
+                                     Map<String, com.csm.paas.core.domain.node.model.valobj.ServiceNodeBelongPodVO> podBelongInfo,
+                                     Map<String, List<String>> serviceBelongPodList,
+                                     long startSecond, long endSecond) {
+        ServiceRuntimeEntity servicesItem = nodeItem.getRuntime();
+        Map<String, Object> deployment = servicesItem.getDeploymentSnapshot();
+        Map<String, Object> resources = container0Resources(deployment);
+        if (resources != null) {
+            Map<String, Object> limits = asMap(resources.get("limits"));
+            if (limits != null) {
+                String gpuConfigSize = strOf(limits.get("nvidia.com/gpu"));
+                if (gpuConfigSize != null) {
+                    nodeItem.setGpuOrder(Double.valueOf(gpuConfigSize));
+                }
+            }
+            Map<String, Object> requests = asMap(resources.get("requests"));
+            if (requests != null) {
+                // 照抄：厂商对 requestCpu 不判空 ⇒ 缺键 NPE（由调用处的 catch 吞掉，该项保持部分字段）。
+                String requestCpu = strOf(requests.get("cpu"));
+                if (!requestCpu.endsWith("m")) {
+                    double cpuSize = Double.parseDouble(requestCpu);
+                    nodeItem.setCpuOrder(cpuSize * 1024.0);
+                } else {
+                    String cpuInfo = requestCpu.replace("m", "");
+                    nodeItem.setCpuOrder(Double.valueOf(cpuInfo));
+                }
+            }
+            if (requests != null) {
+                String requestMemory = strOf(requests.get("memory"));
+                if (requestMemory.endsWith("Mi")) {
+                    String memoryInfo = requestMemory.replace("Mi", "");
+                    nodeItem.setMemoryOrder(Double.valueOf(memoryInfo));
+                } else {
+                    String memoryInfo = requestMemory.replace("Gi", "");
+                    double memorySize = Double.parseDouble(memoryInfo);
+                    nodeItem.setMemoryOrder(memorySize * 1024.0);
+                }
+            }
+        }
+        String name = servicesItem.getName();
+        // 厂商传的 podNames 恒为空列表（照抄）。
+        List<String> podInfoList = new ArrayList<>();
+        List<com.csm.paas.core.domain.node.model.valobj.ServiceMonitorSeriesVO> cpu =
+                serviceCpuMonitorForNodeItem(name, startSecond, endSecond, podInfoList);
+        List<com.csm.paas.core.domain.node.model.valobj.ServiceMonitorSeriesVO> memory =
+                serviceMemoryMonitorForNodeItem(name, startSecond, endSecond, podInfoList);
+
+        Map<String, com.csm.paas.core.domain.node.model.valobj.ServiceNodePodVO> podMap =
+                new java.util.LinkedHashMap<>();
+        getPodCpuInfo(podMap, name, cpu);
+        getPodMemoryInfo(podMap, name, memory);
+        nodeItem.setPodInfoList(new ArrayList<>(podMap.values()));
+
+        java.util.Set<String> belongNodeHashSet = new java.util.LinkedHashSet<>();
+        Integer maxCount = 0;
+        for (String p : serviceBelongPodList.getOrDefault(name, List.of())) {
+            var belongPodInfo = podBelongInfo.get(p);
+            if (belongPodInfo == null) {
+                continue;
+            }
+            String infoNodeName = belongPodInfo.getNodeName();
+            if (infoNodeName != null && !infoNodeName.trim().isEmpty()) {
+                belongNodeHashSet.add(infoNodeName);
+            }
+            if (belongPodInfo.getRestartCount() != null && belongPodInfo.getRestartCount() > maxCount) {
+                maxCount = belongPodInfo.getRestartCount();
+            }
+        }
+        nodeItem.setRestartCount(maxCount);
+        nodeItem.setBelongNodeList(new ArrayList<>(belongNodeHashSet));
+    }
+
+    /** 厂商 `getPodCpuInfo:1899-1921`：所有采样点扁平化后取 max/min/avg，挂到 `podName=<Deployment 名>` 一项上。 */
+    private void getPodCpuInfo(Map<String, com.csm.paas.core.domain.node.model.valobj.ServiceNodePodVO> podMap,
+                               String name,
+                               List<com.csm.paas.core.domain.node.model.valobj.ServiceMonitorSeriesVO> monitors) {
+        try {
+            List<com.csm.paas.core.domain.node.model.valobj.MonitorSeriesVO.Point> metrics = new ArrayList<>();
+            for (var monitor : monitors) {
+                if (monitor.getMetrics() != null) {
+                    metrics.addAll(monitor.getMetrics());
+                }
+            }
+            var info = podMap.computeIfAbsent(name,
+                    k -> com.csm.paas.core.domain.node.model.valobj.ServiceNodePodVO.builder().build());
+            info.setPodName(name);
+            info.setCpuMaxUsed(metrics.stream()
+                    .mapToDouble(n -> Double.parseDouble(n.getValue())).max().orElse(0.0));
+            info.setCpuMinUsed(metrics.stream()
+                    .mapToDouble(n -> Double.parseDouble(n.getValue())).min().orElse(0.0));
+            info.setCpuAvgUsed(metrics.stream()
+                    .mapToDouble(n -> Double.parseDouble(n.getValue())).average().orElse(0.0));
+        } catch (Exception e) {
+            log.error("获取CPU使用失败", e);
+        }
+    }
+
+    /** 厂商 `getPodMemoryInfo:1875-1897`：memory 用 `Long.parseLong`（科学计数法会失败 ⇒ 三项保持 null）。 */
+    private void getPodMemoryInfo(Map<String, com.csm.paas.core.domain.node.model.valobj.ServiceNodePodVO> podMap,
+                                  String name,
+                                  List<com.csm.paas.core.domain.node.model.valobj.ServiceMonitorSeriesVO> monitors) {
+        try {
+            List<com.csm.paas.core.domain.node.model.valobj.MonitorSeriesVO.Point> metrics = new ArrayList<>();
+            for (var monitor : monitors) {
+                if (monitor.getMetrics() != null) {
+                    metrics.addAll(monitor.getMetrics());
+                }
+            }
+            var info = podMap.computeIfAbsent(name,
+                    k -> com.csm.paas.core.domain.node.model.valobj.ServiceNodePodVO.builder().build());
+            info.setMemoryMaxUsed(metrics.stream()
+                    .mapToLong(n -> Long.parseLong(n.getValue())).max().orElse(0L));
+            info.setMemoryMinUsed(metrics.stream()
+                    .mapToLong(n -> Long.parseLong(n.getValue())).min().orElse(0L));
+            info.setMemoryAvgUsed(metrics.stream()
+                    .mapToDouble(n -> Double.parseDouble(n.getValue())).average().orElse(0.0));
+            info.setPodName(name);
+        } catch (Exception e) {
+            log.error("获取内存使用失败", e);
+        }
+    }
+
+    /** 厂商 `getServiceCpuMonitor:1090-1099`（`podNames` 为空 ⇒ 正则 `name-.*`）。 */
+    private List<com.csm.paas.core.domain.node.model.valobj.ServiceMonitorSeriesVO> serviceCpuMonitorForNodeItem(
+            String name, long start, long end, List<String> podNames) {
+        String podNameExp = name + "-.*";
+        if (!podNames.isEmpty()) {
+            podNameExp = String.join("|", podNames);
+        }
+        String query = "sum(rate(container_cpu_usage_seconds_total{pod_name=~\"" + podNameExp
+                + "\",container_name!=\"\",container_name!=\"POD\"}[5m]))  by (pod) ";
+        return toServiceSeriesFromMetricPod(
+                prometheusMetricPort.queryRange(query, start, end, stepBySecond(start, end)));
+    }
+
+    /** 厂商 `getServiceMemoryMonitor:1101-1109`。 */
+    private List<com.csm.paas.core.domain.node.model.valobj.ServiceMonitorSeriesVO> serviceMemoryMonitorForNodeItem(
+            String name, long start, long end, List<String> podNames) {
+        String podNameExp = name + "-.*";
+        if (!podNames.isEmpty()) {
+            podNameExp = String.join("|", podNames);
+        }
+        String query = "container_memory_usage_bytes{pod=~\"" + podNameExp
+                + "\",container_name!=\"\",container_name!=\"POD\"}";
+        return toServiceSeriesFromMetricPod(
+                prometheusMetricPort.queryRange(query, start, end, stepBySecond(start, end)));
+    }
+
+    /** 厂商 `getServiceMonitorInfo:909-955`：`podName = metric.pod`，值取原始串。 */
+    private List<com.csm.paas.core.domain.node.model.valobj.ServiceMonitorSeriesVO> toServiceSeriesFromMetricPod(
+            List<com.csm.paas.core.domain.software.adapter.port.IPrometheusMetricPort.RangeSeries> seriesList) {
+        List<com.csm.paas.core.domain.node.model.valobj.ServiceMonitorSeriesVO> out = new ArrayList<>();
+        try {
+            for (var series : seriesList) {
+                String podName = series.metric().get("pod");
+                if (podName == null) {
+                    throw new NullPointerException("metric.pod 缺失（厂商此处 .toString() 会 NPE）");
+                }
+                var serviceMonitor = com.csm.paas.core.domain.node.model.valobj.ServiceMonitorSeriesVO.builder()
+                        .podName(podName)
+                        .metrics(new ArrayList<>())
+                        .build();
+                for (var sample : series.values()) {
+                    serviceMonitor.getMetrics().add(
+                            com.csm.paas.core.domain.node.model.valobj.MonitorSeriesVO.Point.builder()
+                                    .timestamp(offsetDateTime(sample.timestamp()))
+                                    .value(sample.value())
+                                    .floatValue(sample.value())
+                                    .build());
+                }
+                out.add(serviceMonitor);
+            }
+        } catch (Exception e) {
+            log.error("请求获取service信息接口出错:", e);
+            return new ArrayList<>();
+        }
+        return out;
+    }
+
+    private static String offsetDateTime(long epochSecond) {
+        return java.time.OffsetDateTime.ofInstant(java.time.Instant.ofEpochSecond(epochSecond),
+                java.time.ZoneId.systemDefault()).toString();
+    }
+
+    /** 厂商 `getStepBySecond:1077-1088`。 */
+    private static int stepBySecond(long start, long end) {
+        if (start >= end) {
+            return 60;
+        }
+        double minStepRequiredSeconds = (double) (end - start) / 10000.0;
+        int calculatedStepSeconds = (int) Math.ceil(minStepRequiredSeconds);
+        return Math.max(calculatedStepSeconds, 60);
+    }
+
+    private static double sumCpuOrder(com.csm.paas.core.domain.node.model.valobj.ServiceNodeItemVO item) {
+        return item.getPodInfoList().stream()
+                .map(com.csm.paas.core.domain.node.model.valobj.ServiceNodePodVO::getCpuMaxUsed)
+                .mapToDouble(Double::doubleValue).sum() / 1000.0;
+    }
+
+    private static double sumMemoryOrder(com.csm.paas.core.domain.node.model.valobj.ServiceNodeItemVO item) {
+        return item.getPodInfoList().stream()
+                .map(com.csm.paas.core.domain.node.model.valobj.ServiceNodePodVO::getMemoryMaxUsed)
+                .mapToDouble(Long::longValue).sum() / 1000.0;
+    }
+
+    /** 厂商 `pagination:2136-2158`（`runningDeployment` **从不赋值** ⇒ 恒 0）。 */
+    private com.csm.paas.core.domain.node.model.valobj.ServiceNodeListVO paginateServiceNodeItems(
+            List<com.csm.paas.core.domain.node.model.valobj.ServiceNodeItemVO> list, int page, int size) {
+        boolean hasNextPage = list.size() % size != 0;
+        int totalPage = list.size() / size + (hasNextPage ? 1 : 0);
+        if (page > totalPage) {
+            return com.csm.paas.core.domain.node.model.valobj.ServiceNodeListVO.builder()
+                    .runningDeployment(0)
+                    .services(new ArrayList<>())
+                    .count(0)
+                    .total(list.size())
+                    .build();
+        }
+        if (list.size() < size) {
+            return com.csm.paas.core.domain.node.model.valobj.ServiceNodeListVO.builder()
+                    .runningDeployment(0)
+                    .services(list)
+                    .total(list.size())
+                    .count(list.size())
+                    .build();
+        }
+        int endIndex = page * size;
+        List<com.csm.paas.core.domain.node.model.valobj.ServiceNodeItemVO> sub =
+                list.subList((page - 1) * size, Math.min(endIndex, list.size()));
+        return com.csm.paas.core.domain.node.model.valobj.ServiceNodeListVO.builder()
+                .runningDeployment(0)
+                .services(sub)
+                .total(list.size())
+                .count(sub.size())
+                .build();
+    }
+
+    /** Deployment 第一个容器的 `resources`（没有容器 ⇒ null）。 */
+    private static Map<String, Object> container0Resources(Map<String, Object> deploymentSnapshot) {
+        if (deploymentSnapshot == null) {
+            return null;
+        }
+        Map<String, Object> spec = asMap(deploymentSnapshot.get("spec"));
+        Map<String, Object> template = spec == null ? null : asMap(spec.get("template"));
+        Map<String, Object> podSpec = template == null ? null : asMap(template.get("spec"));
+        List<Map<String, Object>> containers = podSpec == null ? null : castList(podSpec.get("containers"));
+        if (containers == null || containers.isEmpty()) {
+            return null;
+        }
+        return asMap(containers.get(0).get("resources"));
+    }
+
+    // ---------------------------------------------------------------- Map 快照的小工具（`asMap`/`intOf` 复用本类已有实现）
+
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> castList(Object value) {
+        return value instanceof List ? (List<Map<String, Object>>) value : null;
+    }
+
+    private static String strOf(Object value) {
+        return value == null ? null : String.valueOf(value);
+    }
+
+    private static String nameOf(Map<String, Object> doc) {
+        Map<String, Object> metadata = asMap(doc.get("metadata"));
+        return metadata == null ? null : strOf(metadata.get("name"));
+    }
+
+    private static Map<String, String> labelsOf(Map<String, Object> snapshot) {
+        Map<String, Object> metadata = asMap(snapshot.get("metadata"));
+        Object labels = metadata == null ? null : metadata.get("labels");
+        Map<String, String> out = new java.util.LinkedHashMap<>();
+        if (labels instanceof Map<?, ?> map) {
+            map.forEach((k, v) -> out.put(String.valueOf(k), v == null ? null : String.valueOf(v)));
+        }
+        return out;
+    }
+
+    private static String labelOf(Map<String, Object> doc, String key) {
+        return labelsOf(doc).get(key);
+    }
+
+    private static List<Map<String, Object>> portsOf(Map<String, Object> serviceDoc) {
+        Map<String, Object> spec = asMap(serviceDoc.get("spec"));
+        return spec == null ? null : castList(spec.get("ports"));
+    }
+
+    private static final java.util.regex.Pattern IMAGE_HOST_PATTERN =
+            java.util.regex.Pattern.compile("^(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}:\\d+)/*");
 }

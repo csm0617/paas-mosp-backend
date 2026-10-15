@@ -603,6 +603,281 @@ public class ServiceRuntimeGateway {
                 .map(this::toSnapshot).toList();
     }
 
+    // ---------------------------------------------------------------- 软件整包导出/还原（厂商 exportSoftwareForms / importSoftwareInfo）
+
+    /**
+     * 厂商 `SoftwareService.setSoftwareInfo:847-902` 的 type=1（导出**全部**软件）Deployment 过滤 + 擦拭：
+     * <ol>
+     *   <li>`metadata.labels` 为空 ⇒ 丢；带 `ingress-lb` ⇒ 丢；`metadata.annotations.displayName == "gaop"` ⇒ 丢；
+     *       `labels["system/appName"] == "gaop"` ⇒ 丢；</li>
+     *   <li>清 `metadata.annotations` / `creationTimestamp` / `managedFields`；</li>
+     *   <li>`spec.template.spec.nodeSelector` 非空 ⇒ 往 **pod 模板** 注解写 `gaop/nodeIndex`；</li>
+     *   <li>清 `status.conditions[*]` 的时间与 message。</li>
+     * </ol>
+     * <p>`gaop/nodeIndex` 的值来自厂商 `getNodeInfo()`/`getIndex()`：厂商调时速云取节点列表，
+     * 本环境没有该客户端（且厂商一致地在取不到时返回 **-1**）⇒ 这里恒写 `"-1"`
+     * （与厂商在节点信息不可用时的可观测结果一致）。
+     */
+    public List<Map<String, Object>> listSoftwareExportDeployments(String namespace) {
+        return kubernetesClient.apps().deployments().inNamespace(namespace).list().getItems().stream()
+                .filter(d -> {
+                    if (d.getMetadata() == null || d.getMetadata().getLabels() == null) {
+                        return false;
+                    }
+                    var labels = d.getMetadata().getLabels();
+                    if (labels.get("ingress-lb") != null) {
+                        return false;
+                    }
+                    var annotations = d.getMetadata().getAnnotations();
+                    if (annotations != null && "gaop".equals(annotations.get("displayName"))) {
+                        return false;
+                    }
+                    return !"gaop".equals(labels.get("system/appName"));
+                })
+                .map(d -> {
+                    var metadata = d.getMetadata();
+                    metadata.setAnnotations(null);
+                    metadata.setCreationTimestamp(null);
+                    metadata.setManagedFields(null);
+                    metadata.setUid(null);
+                    metadata.setResourceVersion(null);
+                    if (d.getSpec() != null && d.getSpec().getTemplate() != null
+                            && d.getSpec().getTemplate().getSpec() != null) {
+                        var nodeSelector = d.getSpec().getTemplate().getSpec().getNodeSelector();
+                        if (nodeSelector != null && !nodeSelector.isEmpty()) {
+                            var templateMetadata = d.getSpec().getTemplate().getMetadata();
+                            var templateAnnotations = templateMetadata.getAnnotations() == null
+                                    ? new java.util.LinkedHashMap<String, String>()
+                                    : new java.util.LinkedHashMap<>(templateMetadata.getAnnotations());
+                            templateAnnotations.put("gaop/nodeIndex", "-1");
+                            templateMetadata.setAnnotations(templateAnnotations);
+                        }
+                    }
+                    if (d.getStatus() != null && d.getStatus().getConditions() != null) {
+                        d.getStatus().getConditions().forEach(c -> {
+                            c.setLastTransitionTime(null);
+                            c.setLastUpdateTime(null);
+                            c.setMessage("");
+                        });
+                    }
+                    return toSnapshot(d);
+                })
+                .toList();
+    }
+
+    /**
+     * 厂商 `setSoftwareInfo:903-957` 的 type=1 Service 过滤 + 擦拭：
+     * 标签为空 ⇒ 丢；带 `ingress-lb` ⇒ 丢；有 `system/appType` ⇒ 只留 `business`；
+     * 否则 `annotations.displayName == "gaop"` ⇒ 丢、有 `release` 标签 ⇒ 丢、`system/appName == "gaop"` ⇒ 丢；
+     * 最后清 `uid`/`annotations`/`creationTimestamp`/`managedFields`。
+     */
+    public List<Map<String, Object>> listSoftwareExportServices(String namespace) {
+        return kubernetesClient.services().inNamespace(namespace).list().getItems().stream()
+                .filter(s -> {
+                    if (s.getMetadata() == null || s.getMetadata().getLabels() == null) {
+                        return false;
+                    }
+                    var labels = s.getMetadata().getLabels();
+                    if (labels.get("ingress-lb") != null) {
+                        return false;
+                    }
+                    String appType = labels.get("system/appType");
+                    if (appType != null) {
+                        return "business".equals(appType);
+                    }
+                    var annotations = s.getMetadata().getAnnotations();
+                    if (annotations != null && "gaop".equals(annotations.get("displayName"))) {
+                        return false;
+                    }
+                    if (labels.get("release") != null) {
+                        return false;
+                    }
+                    return !"gaop".equals(labels.get("system/appName"));
+                })
+                .map(s -> {
+                    resetExportMetadata(s.getMetadata());
+                    return toSnapshot(s);
+                })
+                .toList();
+    }
+
+    /**
+     * 厂商 `setSoftwareInfo:958-1020` 的 type=2（导出**指定软件**）Deployment 部分：
+     * 按服务名逐个 `readNamespacedDeployment`，读不到的跳过（只记日志）；
+     * 每份：清 `creationTimestamp`/`annotations`、清 conditions 的时间与 message、
+     * nodeSelector 非空则写 `gaop/nodeIndex = -1`、清 `managedFields`、`apiVersion` 置 null。
+     */
+    public List<Map<String, Object>> readSoftwareExportDeployments(String namespace, List<String> names) {
+        List<Map<String, Object>> result = new java.util.ArrayList<>();
+        for (String name : names) {
+            var d = kubernetesClient.apps().deployments().inNamespace(namespace).withName(name).get();
+            if (d == null) {
+                continue;
+            }
+            var metadata = d.getMetadata();
+            metadata.setCreationTimestamp(null);
+            metadata.setAnnotations(null);
+            metadata.setManagedFields(null);
+            if (d.getStatus() != null && d.getStatus().getConditions() != null) {
+                d.getStatus().getConditions().forEach(c -> {
+                    c.setLastTransitionTime(null);
+                    c.setLastUpdateTime(null);
+                    c.setMessage("");
+                });
+            }
+            if (d.getSpec() != null && d.getSpec().getTemplate() != null
+                    && d.getSpec().getTemplate().getSpec() != null) {
+                var nodeSelector = d.getSpec().getTemplate().getSpec().getNodeSelector();
+                if (nodeSelector != null && !nodeSelector.isEmpty()) {
+                    var templateMetadata = d.getSpec().getTemplate().getMetadata();
+                    var templateAnnotations = templateMetadata.getAnnotations() == null
+                            ? new java.util.LinkedHashMap<String, String>()
+                            : new java.util.LinkedHashMap<>(templateMetadata.getAnnotations());
+                    templateAnnotations.put("gaop/nodeIndex", "-1");
+                    templateMetadata.setAnnotations(templateAnnotations);
+                }
+            }
+            d.setApiVersion(null);
+            result.add(toSnapshot(d));
+        }
+        return result;
+    }
+
+    /**
+     * 厂商 `setSoftwareInfo:960-985` 的 type=2 Service 部分：每个服务读一份 Service **再读一份
+     * `&lt;name&gt;-nodeport`**（读不到只记日志）；每份清 `creationTimestamp`/`annotations`/`uid`，
+     * 之后统一清 `managedFields` 并把 `apiVersion` 置 null。
+     */
+    public List<Map<String, Object>> readSoftwareExportServices(String namespace, List<String> names) {
+        List<Map<String, Object>> result = new java.util.ArrayList<>();
+        List<io.fabric8.kubernetes.api.model.Service> services = new java.util.ArrayList<>();
+        for (String name : names) {
+            var svc = kubernetesClient.services().inNamespace(namespace).withName(name).get();
+            if (svc != null) {
+                var metadata = svc.getMetadata();
+                metadata.setCreationTimestamp(null);
+                metadata.setAnnotations(null);
+                metadata.setUid(null);
+                services.add(svc);
+            }
+            var nodePort = kubernetesClient.services().inNamespace(namespace).withName(name + "-nodeport").get();
+            if (nodePort != null) {
+                services.add(nodePort);
+            }
+        }
+        for (var svc : services) {
+            svc.setApiVersion(null);
+            if (svc.getMetadata() != null) {
+                svc.getMetadata().setManagedFields(null);
+            }
+            result.add(toSnapshot(svc));
+        }
+        return result;
+    }
+
+    /**
+     * 厂商 `importSoftwareInfo:1253-1330` 的 Deployment 还原：`resourceVersion`/`uid` 置 null、
+     * 去掉 pod 模板注解 `gaop/nodeIndex`、镜像地址换成本集群 registry host、已存在则整份
+     * replace（并套 `maxSurge=0/maxUnavailable=1` 的 RollingUpdate），不存在则 create。
+     * <p>读不到/写失败按厂商"记日志继续下一个"处理（不抛）。
+     */
+    public void createOrReplaceSoftwareDeployment(String namespace, Map<String, Object> snapshot,
+                                                  String registryHost) {
+        var deployment = new com.fasterxml.jackson.databind.ObjectMapper()
+                .convertValue(snapshot, io.fabric8.kubernetes.api.model.apps.Deployment.class);
+        if (deployment.getMetadata() != null) {
+            deployment.getMetadata().setResourceVersion(null);
+            deployment.getMetadata().setUid(null);
+        }
+        // pod 模板的 gaop/nodeIndex 注解在还原时要去掉（厂商把它置 null 再写回）
+        if (deployment.getSpec() != null && deployment.getSpec().getTemplate() != null) {
+            var templateMetadata = deployment.getSpec().getTemplate().getMetadata();
+            if (templateMetadata != null && templateMetadata.getAnnotations() != null) {
+                templateMetadata.getAnnotations().remove("gaop/nodeIndex");
+            }
+        }
+        // 镜像地址换成当前集群的 registry host（厂商 `replaceImage`）
+        if (deployment.getSpec() != null && deployment.getSpec().getTemplate() != null
+                && deployment.getSpec().getTemplate().getSpec() != null) {
+            var containers = deployment.getSpec().getTemplate().getSpec().getContainers();
+            if (containers != null) {
+                for (var container : containers) {
+                    if (container.getImage() != null) {
+                        container.setImage(replaceImageHost(container.getImage(), registryHost));
+                    }
+                }
+            }
+            var initContainers = deployment.getSpec().getTemplate().getSpec().getInitContainers();
+            if (initContainers != null) {
+                for (var container : initContainers) {
+                    if (container.getImage() != null) {
+                        container.setImage(replaceImageHost(container.getImage(), registryHost));
+                    }
+                }
+            }
+        }
+        String name = deployment.getMetadata() == null ? null : deployment.getMetadata().getName();
+        if (name == null) {
+            return;
+        }
+        var existing = kubernetesClient.apps().deployments().inNamespace(namespace).withName(name).get();
+        if (existing != null) {
+            if (deployment.getSpec() != null) {
+                var strategy = deployment.getSpec().getStrategy() == null
+                        ? new io.fabric8.kubernetes.api.model.apps.DeploymentStrategy()
+                        : deployment.getSpec().getStrategy();
+                strategy.setType("RollingUpdate");
+                var rolling = new io.fabric8.kubernetes.api.model.apps.RollingUpdateDeployment();
+                rolling.setMaxSurge(new io.fabric8.kubernetes.api.model.IntOrString(0));
+                rolling.setMaxUnavailable(new io.fabric8.kubernetes.api.model.IntOrString(1));
+                strategy.setRollingUpdate(rolling);
+                deployment.getSpec().setStrategy(strategy);
+            }
+            deployment.getMetadata().setResourceVersion(null);
+            kubernetesClient.apps().deployments().inNamespace(namespace).resource(deployment).replace();
+        } else {
+            kubernetesClient.apps().deployments().inNamespace(namespace).resource(deployment).create();
+        }
+    }
+
+    /** 厂商 `createOrUpdateService:354-...`：按名 get，存在 replace、不存在 create。 */
+    public void createOrReplaceService(String namespace, Map<String, Object> snapshot) {
+        var service = new com.fasterxml.jackson.databind.ObjectMapper()
+                .convertValue(snapshot, io.fabric8.kubernetes.api.model.Service.class);
+        if (service.getMetadata() == null || service.getMetadata().getName() == null) {
+            return;
+        }
+        if (service.getMetadata() != null) {
+            service.getMetadata().setResourceVersion(null);
+            service.getMetadata().setUid(null);
+        }
+        var existing = kubernetesClient.services().inNamespace(namespace)
+                .withName(service.getMetadata().getName()).get();
+        if (existing != null) {
+            kubernetesClient.services().inNamespace(namespace).resource(service).replace();
+        } else {
+            kubernetesClient.services().inNamespace(namespace).resource(service).create();
+        }
+    }
+
+    /** 厂商 `SoftwareService.replaceImage:1428-1440`：`host + "/" + project + "/" + rest`。 */
+    private static String replaceImageHost(String image, String registryHost) {
+        String[] split = image.split("/", 3);
+        if (split.length < 3) {
+            return image;
+        }
+        String host = registryHost == null ? split[0] : registryHost.replace("http://", "");
+        return host + "/" + split[1] + "/" + split[2];
+    }
+
+    /** 厂商 `resetMetadataFields:1021-1028`。 */
+    private static void resetExportMetadata(io.fabric8.kubernetes.api.model.ObjectMeta metadata) {
+        metadata.setUid(null);
+        metadata.setAnnotations(null);
+        metadata.setCreationTimestamp(null);
+        metadata.setManagedFields(null);
+    }
+
     /** `type=NodePort` 的 Service 原样快照。 */
     public List<Map<String, Object>> listNodePortServices(String namespace) {
         return kubernetesClient.services().inNamespace(namespace).list().getItems().stream()

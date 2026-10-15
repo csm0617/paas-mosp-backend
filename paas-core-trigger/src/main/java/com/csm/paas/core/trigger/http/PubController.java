@@ -1,19 +1,30 @@
 package com.csm.paas.core.trigger.http;
 
 import com.csm.paas.core.api.dto.PubInterfaceInfoDTO;
+import com.csm.paas.core.api.dto.PubMonitorInfoDTO;
+import com.csm.paas.core.api.dto.PubMonitorPointDTO;
 import com.csm.paas.core.api.dto.PubNodeAddByInitDTO;
 import com.csm.paas.core.api.dto.PubNodeAlertSettingDTO;
 import com.csm.paas.core.api.dto.PubNodeConnectInfoDTO;
 import com.csm.paas.core.api.dto.PubNodeDiskInfoDTO;
+import com.csm.paas.core.api.dto.PubNodeMonitorDTO;
 import com.csm.paas.core.api.dto.PubNodeNetNameIpDTO;
+import com.csm.paas.core.api.dto.PubNodeUsageDTO;
+import com.csm.paas.core.api.dto.PubServiceMonitorDTO;
 import com.csm.paas.core.api.dto.PubVipInfoDTO;
 import com.csm.paas.core.api.dto.ResponseDTO;
+import com.csm.paas.core.api.dto.TimeTypeEnum;
 import com.csm.paas.core.domain.node.model.valobj.InterfaceInfoVO;
+import com.csm.paas.core.domain.node.model.valobj.MonitorSeriesVO;
 import com.csm.paas.core.domain.node.model.valobj.NodeAddFormVO;
 import com.csm.paas.core.domain.node.model.valobj.NodeAlertSettingVO;
 import com.csm.paas.core.domain.node.model.valobj.NodeConnectInfoVO;
 import com.csm.paas.core.domain.node.model.valobj.NodeDiskVO;
+import com.csm.paas.core.domain.node.model.valobj.NodeMonitorVO;
 import com.csm.paas.core.domain.node.model.valobj.NodeNetNameIpVO;
+import com.csm.paas.core.domain.node.model.valobj.NodeUsageVO;
+import com.csm.paas.core.domain.node.model.valobj.ServiceMonitorSeriesVO;
+import com.csm.paas.core.domain.node.model.valobj.ServiceMonitorVO;
 import com.csm.paas.core.domain.node.model.valobj.VipItemVO;
 import com.csm.paas.core.domain.node.service.IComputerResourceService;
 import com.csm.paas.core.domain.node.service.INodeManagerService;
@@ -27,6 +38,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.stereotype.Component;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -43,6 +55,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 /**
@@ -208,6 +221,81 @@ public class PubController {
                 .build());
     }
 
+    /**
+     * 厂商 `PublicComputerController.getHostDetail:71-86`（`GET /v1/pub/nodeMonitor`）：节点监控。
+     *
+     * <p>参数怪点照抄：`queryTimeType=true` 时 `timeType` 必填，缺失抛的 i18n 键是
+     * **`request.parameters.are.incorrect`**（与下面 serviceMonitor 那条的键**不一样**，厂商就是两套文案）。
+     *
+     * <p><b>类 C：本环境不可验证</b>（Prometheus 不可达）。
+     */
+    @GetMapping("/nodeMonitor")
+    public ResponseDTO<PubNodeMonitorDTO> nodeMonitor(
+            @RequestParam String name,
+            @RequestParam Boolean queryTimeType,
+            @RequestParam(required = false) TimeTypeEnum timeType,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Date start,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Date end) {
+        Date from;
+        Date to;
+        if (queryTimeType) {
+            if (timeType == null) {
+                throw new WrongArgumentException("request.parameters.are.incorrect");
+            }
+            long now = System.currentTimeMillis();
+            from = timeType.getStartTime(now);
+            to = timeType.getEndTime(now);
+        } else {
+            from = start;
+            to = end;
+        }
+        return ResponseDTO.ok(toNodeMonitorDTO(computerResourceService.nodeMonitor(name, from, to)));
+    }
+
+    /**
+     * 厂商 `PublicComputerController.serviceMonitorDetail:88-103`（`GET /v1/pub/serviceMonitor`）：服务监控。
+     *
+     * <p>参数怪点照抄：`timeType` 缺失时厂商抛的键是 **`request parameters are incorrect`**
+     * （带空格、且与 nodeMonitor 那条不同）。
+     *
+     * <p><b>类 C：本环境不可验证</b>（Prometheus 不可达）。
+     */
+    @GetMapping("/serviceMonitor")
+    public ResponseDTO<PubServiceMonitorDTO> serviceMonitor(
+            @RequestParam String name,
+            @RequestParam String namespace,
+            @RequestParam(required = false) String podName,
+            @RequestParam Boolean queryTimeType,
+            @RequestParam(required = false) TimeTypeEnum timeType,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Date start,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Date end) {
+        Date from;
+        Date to;
+        if (queryTimeType) {
+            if (timeType == null) {
+                throw new WrongArgumentException("request parameters are incorrect");
+            }
+            long now = System.currentTimeMillis();
+            from = timeType.getStartTime(now);
+            to = timeType.getEndTime(now);
+        } else {
+            from = start;
+            to = end;
+        }
+        return ResponseDTO.ok(toServiceMonitorDTO(
+                computerResourceService.serviceMonitor(name, namespace, podName, from, to)));
+    }
+
+    /**
+     * 厂商 `PublicComputerController.nodeUsage:105-111`（`GET /v1/pub/nodeUsage`）：节点利用率。
+     *
+     * <p><b>类 C：本环境不可验证</b>（Prometheus 不可达）。
+     */
+    @GetMapping("/nodeUsage")
+    public ResponseDTO<PubNodeUsageDTO> nodeUsage() {
+        return ResponseDTO.ok(toNodeUsageDTO(computerResourceService.nodeUsage()));
+    }
+
     // ================================================================ 服务器运维（原 PublicFdfsController）
 
     /** 厂商 `PublicFdfsController.restartIpFastdfs:207-210`（body 是 ip 字符串数组）。 */
@@ -364,6 +452,93 @@ public class PubController {
             list.add(PubVipInfoDTO.builder().ip(ip).netName(vip.getInterfaceName()).build());
         }
         return list;
+    }
+
+    // ================================================================ 监控三件套的装配（领域 VO → 契约 DTO）
+
+    private static PubNodeMonitorDTO toNodeMonitorDTO(NodeMonitorVO vo) {
+        return PubNodeMonitorDTO.builder()
+                .cpu(toMonitorInfoDTO(vo.getCpu()))
+                .memory(toMonitorInfoDTO(vo.getMemory()))
+                .inboundNetwork(toMonitorInfoDTO(vo.getInboundNetwork()))
+                .outboundNetwork(toMonitorInfoDTO(vo.getOutboundNetwork()))
+                .diskWriteIo(toMonitorInfoDTO(vo.getDiskWriteIo()))
+                .diskReadIo(toMonitorInfoDTO(vo.getDiskReadIo()))
+                .currEstab(toMonitorInfoDTO(vo.getCurrEstab()))
+                .tcpTimeouts(toMonitorInfoDTO(vo.getTcpTimeouts()))
+                .activeOpens(toMonitorInfoDTO(vo.getActiveOpens()))
+                .passiveOpens(toMonitorInfoDTO(vo.getPassiveOpens()))
+                .build();
+    }
+
+    private static PubServiceMonitorDTO toServiceMonitorDTO(ServiceMonitorVO vo) {
+        return PubServiceMonitorDTO.builder()
+                .cpu(toServiceSeriesList(vo.getCpu()))
+                .memory(toServiceSeriesList(vo.getMemory()))
+                .outboundNetwork(toServiceSeriesList(vo.getOutboundNetwork()))
+                .inboundNetwork(toServiceSeriesList(vo.getInboundNetwork()))
+                .diskReadIo(toServiceSeriesList(vo.getDiskReadIo()))
+                .diskWriteIo(toServiceSeriesList(vo.getDiskWriteIo()))
+                .build();
+    }
+
+    private static PubNodeUsageDTO toNodeUsageDTO(NodeUsageVO vo) {
+        return PubNodeUsageDTO.builder()
+                .cpuUsage(toNodeUsageItems(vo.getCpuUsage()))
+                .memoryUsage(toNodeUsageItems(vo.getMemoryUsage()))
+                .diskUsage(toNodeUsageItems(vo.getDiskUsage()))
+                .build();
+    }
+
+    private static List<PubNodeUsageDTO.Item> toNodeUsageItems(List<NodeUsageVO.Item> items) {
+        if (items == null) {
+            return null;
+        }
+        List<PubNodeUsageDTO.Item> out = new ArrayList<>();
+        for (NodeUsageVO.Item item : items) {
+            out.add(PubNodeUsageDTO.Item.builder()
+                    .name(item.getName()).data(item.getData()).alert(item.getAlert()).build());
+        }
+        return out;
+    }
+
+    private static List<PubServiceMonitorDTO.Series> toServiceSeriesList(List<ServiceMonitorSeriesVO> list) {
+        if (list == null) {
+            return null;
+        }
+        List<PubServiceMonitorDTO.Series> out = new ArrayList<>();
+        for (ServiceMonitorSeriesVO series : list) {
+            out.add(PubServiceMonitorDTO.Series.builder()
+                    .podName(series.getPodName())
+                    .metrics(toPointList(series.getMetrics()))
+                    .build());
+        }
+        return out;
+    }
+
+    private static PubMonitorInfoDTO toMonitorInfoDTO(MonitorSeriesVO vo) {
+        if (vo == null) {
+            return null;
+        }
+        return PubMonitorInfoDTO.builder()
+                .metrics(toPointList(vo.getMetrics()))
+                .latestTimestamp(vo.getLatestTimestamp())
+                .build();
+    }
+
+    private static List<PubMonitorPointDTO> toPointList(List<MonitorSeriesVO.Point> points) {
+        if (points == null) {
+            return null;
+        }
+        List<PubMonitorPointDTO> out = new ArrayList<>();
+        for (MonitorSeriesVO.Point point : points) {
+            out.add(PubMonitorPointDTO.builder()
+                    .timestamp(point.getTimestamp())
+                    .value(point.getValue())
+                    .floatValue(point.getFloatValue())
+                    .build());
+        }
+        return out;
     }
 
     // ================================================================ 工具

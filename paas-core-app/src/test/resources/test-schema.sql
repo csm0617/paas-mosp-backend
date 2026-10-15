@@ -169,3 +169,25 @@ CREATE TABLE IF NOT EXISTS g_upload_store_record (
     status              INT,
     relation_software_id VARCHAR(36)
 );
+
+-- 厂商 gaop-9.sql:167-182 原样（CicdController 的 g_ci_cd）
+CREATE TABLE IF NOT EXISTS g_ci_cd (
+    id                 INT AUTO_INCREMENT PRIMARY KEY,
+    user_id            VARCHAR(36)  DEFAULT NULL,
+    image_name         VARCHAR(50)  DEFAULT NULL,
+    image_tag          VARCHAR(50)  DEFAULT NULL,
+    dockerfile_id      VARCHAR(50)  DEFAULT NULL,
+    dockerfile_content VARCHAR(2000) DEFAULT NULL,
+    buildfile_id       VARCHAR(50)  DEFAULT NULL,
+    job_name           VARCHAR(50)  DEFAULT NULL,
+    job_status         INT          DEFAULT NULL,
+    description        VARCHAR(255) DEFAULT NULL,
+    create_at          BIGINT       DEFAULT NULL,
+    update_at          BIGINT       DEFAULT NULL,
+    image_storage      VARCHAR(100) DEFAULT NULL
+);
+
+-- g_service_auth 的 upsert 会写 auth_code/created_at/updated_at（authing 端点）
+ALTER TABLE g_service_auth ADD COLUMN IF NOT EXISTS auth_code  CLOB;
+ALTER TABLE g_service_auth ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL;
+ALTER TABLE g_service_auth ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL;

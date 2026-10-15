@@ -13,6 +13,15 @@ public interface IServiceRuntimePort {
     List<ServiceRuntimeEntity> queryServices(String namespace);
 
     /**
+     * 与 {@link #queryServices} **同一口径但不分页**。
+     *
+     * <p>为什么需要：厂商 `tenxCloud.allPageService(null)`（`TenxService.allPageService`）会**翻完所有页**，
+     * 而列表端点 `allService(clusterId, page)` 只取首页 10 条——`queryServices` 照抄的是后者。
+     * `GET /v1/service/serviceInfoByNode` 用的是前者，所以这里单独开一个"全量"读法。
+     */
+    List<ServiceRuntimeEntity> queryAllServices(String namespace);
+
+    /**
      * 集群里**所有节点 label** 的键与去重值（厂商 `ServiceController.getLabels:964-990`）：
      * 遍历 `listNode` 的每个 `metadata.labels`，按 label 键聚合出值集合。
      * <p><b>顺序不可依赖</b>：厂商是 `HashMap` 聚合再 `forEach`，两次调用顺序都可能不同——
@@ -320,6 +329,43 @@ public interface IServiceRuntimePort {
     /** 用整份对象**替换** ConfigMap（厂商 `importConfigMap:3383` 的 `replaceNamespacedConfigMap`）。 */
     void replaceConfigMapObject(String namespace, java.util.Map<String, Object> configMap);
 
+    // ---------- 软件整包导出/还原（厂商 SoftwareService.exportSoftwareForms / importSoftwareInfo）----------
+
+    /**
+     * type=1（导出全部软件）时那批 Deployment：过滤 + 字段擦拭后的原样快照
+     * （厂商 `setSoftwareInfo:847-902`；`gaop/nodeIndex` 在节点信息不可用时恒 `"-1"`）。
+     */
+    java.util.List<java.util.Map<String, Object>> listSoftwareExportDeployments(String namespace);
+
+    /** type=1 时那批 Service（厂商 `setSoftwareInfo:903-957`）。 */
+    java.util.List<java.util.Map<String, Object>> listSoftwareExportServices(String namespace);
+
+    /**
+     * type=2（导出指定软件）时按服务名读的 Deployment（厂商 `setSoftwareInfo:958-1020`）：
+     * 读不到的**跳过**。
+     */
+    java.util.List<java.util.Map<String, Object>> readSoftwareExportDeployments(String namespace,
+                                                                               java.util.List<String> names);
+
+    /**
+     * type=2 时按服务名读的 Service **及其 `&lt;name&gt;-nodeport`**（厂商 `setSoftwareInfo:960-985`）：
+     * 读不到的跳过。
+     */
+    java.util.List<java.util.Map<String, Object>> readSoftwareExportServices(String namespace,
+                                                                            java.util.List<String> names);
+
+    /**
+     * 还原一个 Deployment：已存在 ⇒ 整份 replace（套 `maxSurge=0/maxUnavailable=1`），
+     * 不存在 ⇒ create（厂商 `importSoftwareInfo:1253-1330`）。写失败只记日志、不抛。
+     *
+     * @param registryHost 当前集群的 registry host（用于替换镜像地址里的旧 host；null 表示沿用原 host）
+     */
+    void createOrReplaceSoftwareDeployment(String namespace, java.util.Map<String, Object> deployment,
+                                           String registryHost);
+
+    /** 还原一个 Service：已存在 ⇒ replace，不存在 ⇒ create（厂商 `createOrUpdateService:354`）。 */
+    void createOrReplaceService(String namespace, java.util.Map<String, Object> service);
+
     // ---------- 服务详情（厂商 GET /v1/service/{serviceName}）----------
 
     /**
@@ -438,4 +484,69 @@ public interface IServiceRuntimePort {
      */
     boolean replaceDeploymentEnv(String namespace, String serviceName,
                                  java.util.List<com.csm.paas.core.domain.software.model.valobj.EnvVarVO> env);
+
+    // ---------- 最后一批端点（nodeMonitor / serviceMonitor / nodeUsage / node / patch / serviceInfoByNode）----------
+
+    /**
+     * 删一个**节点**（厂商 `TenxCloudImpl.deleteNode:785-800` 的
+     * `coreV1Api.deleteNode(nodeName, null, null, null, null, null, null)`）。
+     *
+     * <p><b>破坏性</b>：直接把节点对象从集群里删掉（kubelet 仍在跑的节点会被驱逐工作负载）。
+     * 照抄厂商：**不做任何前置校验**（节点不存在时由 K8s 返回 404，调用方翻成 400
+     * `alert.delete.node.info.error`）。
+     *
+     * <p>失败抛 {@code K8sApiException}。
+     */
+    void deleteNode(String nodeName);
+
+    /**
+     * 读 Deployment 的 `metadata.labels`（厂商 `ComputerService.getCpuNumByService:1015-1023` /
+     * `getOutBoundNetWorkMonitor:1188-1196` / `getInBoundNetWorkMonitor:1230-1238` 都只取
+     * **第一个 entry** 拼成 `key=value` 当标签选择器）。
+     *
+     * @return Deployment 不存在 ⇒ **null**（厂商此时 `readNamespacedDeployment` 抛 ApiException、
+     *         被 catch 成"选择器为空串"）
+     */
+    java.util.Map<String, String> readDeploymentLabels(String namespace, String serviceName);
+
+    /**
+     * 用整份 **apps/v1 Deployment** 快照创建 Deployment（厂商 `TenxService.createDeploymentYaml:1134-1150`
+     * 与 `createAppDeployment:2574-2600` 的 `createNamespacedDeployment`）。
+     *
+     * <p>用途：`PUT /v1/service/patch` 开头那段"时速云 App"逻辑在本平台是**原生 K8s**实现
+     * （`existApp`/`existService` 都是按标签列 Deployment/StatefulSet），其净效果就是
+     * "Deployment 不存在就按导入的 YAML 建一个"。见 {@code ServiceQueryServiceImpl.updateServiceConfig}。
+     *
+     * @param deployment 已规范化（apps/v1、镜像 host 替换、metadata 清理）的整份快照
+     */
+    void createDeploymentSnapshot(String namespace, java.util.Map<String, Object> deployment);
+
+    /**
+     * 用整份 Deployment 快照 **replace**（厂商 `ServiceController.updateServiceConfig:1259`
+     * 的 `replaceNamespacedDeployment`——PUT 不是 patch）。
+     */
+    void replaceDeploymentSnapshot(String namespace, java.util.Map<String, Object> deployment);
+
+    /**
+     * 用整份 Service 快照创建 Service（厂商 `TenxService.createServiceYaml:1152-1178`，
+     * `createApp` 里用来把 YAML 的第二份文档建成 Service）。
+     */
+    void createServiceSnapshot(String namespace, java.util.Map<String, Object> service);
+
+    /**
+     * 删一个 Service（厂商 `ServiceController.updateServiceConfig:1363` 的 `deleteNamespacedService`，
+     * 请求里没有 `nodePortService` 而集群里存在 `<name>-nodeport` 时走这条）。
+     *
+     * <p>失败抛 {@code K8sApiException}；Service 不存在时厂商只记日志（不报错），调用方照抄这个语义。
+     */
+    void deleteService(String namespace, String serviceName);
+
+    /**
+     * 节点名 → `status.capacity.memory` 的 **KiB** 值（厂商 `TenxService.getNodes:1913-1919` 的
+     * `memory_total_kb = capacity["memory"] / 1024`）。
+     *
+     * <p>用途：`GET /v1/pub/nodeUsage` 把 Prometheus 的"已用字节数"换算成百分比
+     * （`data / 1024 / memory_total_kb * 100`）。
+     */
+    java.util.Map<String, Long> listNodeCapacityMemoryKb();
 }
