@@ -95,9 +95,53 @@ def _values(body):
     return [""]
 
 
+def _strip_comments(src: str) -> str:
+    """把注释换成等长空白（**保留字符位置**，这样 `class` 的位置判断仍然有效）。
+
+    为什么必须做：javadoc 里经常出现厂商注解原文（例：`厂商 \\`@PostMapping("/delete")\\``），
+    正则若直接在带注释的源码上匹配，会从注释里的注解一路吞到**真注解**，
+    再被 `_values` 的 `value=` 分支抓成别的字符串 ⇒ 该端点被算成"未实现"（假缺口）。
+    状态机跳过字符串字面量，避免把 `"http://..."` 里的 `//` 当注释。
+    """
+    out = list(src)
+    i, n = 0, len(src)
+    while i < n:
+        c = src[i]
+        if c == '"' or c == "'":
+            quote = c
+            i += 1
+            while i < n:
+                if src[i] == "\\":
+                    i += 2
+                    continue
+                if src[i] == quote:
+                    i += 1
+                    break
+                i += 1
+            continue
+        if c == "/" and i + 1 < n and src[i + 1] == "/":
+            while i < n and src[i] != "\n":
+                out[i] = " "
+                i += 1
+            continue
+        if c == "/" and i + 1 < n and src[i + 1] == "*":
+            out[i] = out[i + 1] = " "
+            i += 2
+            while i + 1 < n and not (src[i] == "*" and src[i + 1] == "/"):
+                if src[i] != "\n":
+                    out[i] = " "
+                i += 1
+            if i + 1 < n:
+                out[i] = out[i + 1] = " "
+                i += 2
+            continue
+        i += 1
+    return "".join(out)
+
+
 def _parse_file(path: pathlib.Path):
     """返回该文件里所有 (归一化路径, 是否类级) —— 类级前缀与每条方法映射。"""
-    src = path.read_text(errors="ignore")
+    src = _strip_comments(path.read_text(errors="ignore"))
     annos = list(ANNO_RE.finditer(src))
     m_cls = re.search(r"\bclass\s+\w+", src)
     class_pos = m_cls.start() if m_cls else len(src)
