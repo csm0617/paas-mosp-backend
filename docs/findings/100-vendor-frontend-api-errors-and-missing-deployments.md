@@ -21,8 +21,8 @@
 |---|---|---|---|---|
 | 1 | `GET /cloud/summary` | 500，`io.kubernetes.client.openapi.ApiException` 出自 `MetricsServerApi.getNodesAndUsage:47` | k8s metrics API 不存在 | **metrics-server** |
 | 2 | `GET /cloud/nodesummary` | 500「无法通过metrics-server获取node资源」 | 同上 | metrics-server |
-| 3 | `GET /v1/pub/nodeUsage` | 15s 无响应 / 500 | 同上 | metrics-server |
-| 4 | `GET /api/v2/dashboards/cockpit` | 500 NPE `DashboardsService.cockpit:548` | 内部先算 pod 指标再算节点曲线，前者因 1–3 为空 | metrics-server（+Prometheus） |
+| 3 | `GET /v1/pub/nodeUsage` | 15s 无响应 / 500「获取内存状态失败」 | **不是 metrics-server**：`ComputerService.getNodeUsage:1441-1509` 全部走 Prometheus（`node_filesystem_*` / `node_memory_MemTotal_bytes` / `node_cpu_seconds_total`），15s 挂起是 `SYSTEM_MONITORING=192.168.1.55:30003` 打不通（见 §五 陷阱 2）。详见 §七 更正 | **Prometheus（node-exporter）+ SYSTEM_MONITORING 纠偏** |
+| 4 | `GET /api/v2/dashboards/cockpit` | 500 NPE `DashboardsService.cockpit:548` | 内部先算 pod 指标再算节点曲线，前者因 1–2 为空 | metrics-server（+Prometheus） |
 | 5 | `GET /api/v2/dashboards/etcd` | **挂起 > 60s** | 查 Prometheus 区间数据 | **Prometheus** |
 | 6 | `GET /api/v2/dashboards/apiServer` | 同上 | 同上 | Prometheus |
 | 7 | `GET /v1/pub/nodeMonitor` | 400「获取集群资源信息失败」 | 同上 | Prometheus |
@@ -53,9 +53,9 @@
 
 | 优先级 | 组件 | 厂商包内出处 | 端口 / 命名空间 | 解决 |
 |---|---|---|---|---|
-| P0 | **metrics-server** | `amd64/helm/metrics-server-components.yaml` | kube-system | 第 1–4 项 |
-| P0 | 配置纠偏：`SSH_HOST` / `HARBOR_HOST` / `SYSTEM_MONITORING` 指向本集群 | —— | —— | 第 11 项（部分） |
-| P1 | **Prometheus**（chart `prometheus-23.1.0`）+ cadvisor DS + alertmanager | `amd64/helm/prometheus/`、`prometheus-cadvisor.yml`、`prometheus-nodeport.yaml` | ns `prometheus`，NodePort **30003** / 30007 | 第 5–8 项；需设 `SYSTEM_MONITORING=172.16.209.25:30003` |
+| P0 | **metrics-server** | `amd64/helm/metrics-server-components.yaml` | kube-system | 第 1、2、4 项 |
+| P0 | 配置纠偏：`SSH_HOST` / `HARBOR_HOST` / `SYSTEM_MONITORING` 指向本集群 | —— | —— | 第 3、11 项（部分） |
+| P1 | **Prometheus**（chart `prometheus-23.1.0`）+ cadvisor DS + alertmanager | `amd64/helm/prometheus/`、`prometheus-cadvisor.yml`、`prometheus-nodeport.yaml` | ns `prometheus`，NodePort **30003** / 30007 | 第 3、5–8 项；需设 `SYSTEM_MONITORING=172.16.209.25:30003` |
 | P1 | **Loki**（`loki-2.16.0`）+ Grafana 8.3.5 | `amd64/helm/loki-stack/`、`loki-nodeport.yml` | ns `loki`，NodePort **30008** / 30009 | 第 9–10 项；需设 `LOG_MONITORING=loki-nodeport.loki` |
 | P1 | **Harbor** | 不在安装包内（外部前提） | `:30002` | 第 11 项 |
 | P1 | **VIP daemon** | 不在安装包内（宿主机二进制） | `:5556` | 第 13 项 |
@@ -79,3 +79,36 @@
 metrics-server 镜像还写死 `192.168.1.102:1080/system_containers/metrics-server:v0.6.4`（厂商内网仓库）。
 Prometheus / Loki / Harbor / metrics-server 的 arm64 镜像需要另备（联网拉取或离线导入），
 这是 P0/P1 项的执行前提，而不是安装步骤本身的细节。
+
+## 七、更正（2026-11-08 19:40，代码复核）
+
+原文把 `GET /v1/pub/nodeUsage`（表第 3 项）归因成"缺 metrics-server"，**归因错了**，
+原因是当时按"节点类接口都缺指标组件"整体判断，没有逐端点核对查询语句。分类必须拆开：
+
+### 7.1 厂商后端是两套指标通道并存，不是一个
+
+| 通道 | 客户端 | 厂商使用点（全部） |
+|---|---|---|
+| **metrics-server**（聚合 API `metrics.k8s.io`） | `K8sApiClientManager.getMetricsServerApi()` → `MetricsServerApi.getNodesAndUsage:41` | `TenxService:790 resourceSummaryStatic`、`:855 nodeUsageRateMi`、`:882 resourceSummaryDynamic`、`:1943 getNodeSummary`、`:2423 getResourceNode` —— 共 **5 处**，全在 `TenxService` |
+| **Prometheus**（HTTP `/api/v1/query`） | `HttpRequest.get(prometheusConfig.getSystemMonitoring() + "/api/v1/query?query=...")` | `ComputerService.getNodeUsage:1441`（磁盘）、`getMemoryUsage:1511`（`node_memory_MemTotal_bytes`）、`getCpuUsage:1528`（`node_cpu_seconds_total`）；`getMonitorInfo`、`serviceMonitor`、`dashboards/{etcd,apiServer}` 同理 |
+
+对应的端点归属：
+
+- **要 metrics-server**：`GET /cloud/summary`（`/cloud` 控制器 `:252` → `resourceSummaryDynamic`+`resourceSummaryStatic`）、
+  `GET /cloud/nodesummary`、`GET /api/v2/overview/clusters/{clusterId}/nodesummary`（都是 `getNodeSummary`）。
+- **要 Prometheus**：`GET /v1/pub/nodeUsage`（表第 3 项）、`/v1/pub/nodeMonitor`、`/v1/pub/serviceMonitor`、
+  `/api/v2/dashboards/*`。
+
+### 7.2 关键推论：装了 metrics-server 修不了 `/v1/pub/nodeUsage`
+
+`getNodeUsage` 的三条 PromQL 读的全是 **node-exporter** 指标（`node_filesystem_*`、`node_memory_*`、`node_cpu_*`），
+metrics-server 不产出这些序列。所以第 3 项的正确修法是：装 Prometheus + node-exporter（chart 内已含）
+→ NodePort 30003 → 把 `SYSTEM_MONITORING` 从 `192.168.1.55:30003` 改成本集群地址。
+
+### 7.3 我们这侧的实现现状（同样的分裂，但只做了一半）
+
+- `PrometheusMetricPort`（`@Value("${prometheus.system-monitoring:http://localhost:30003}")`）
+  已实现 `queryVector` / `queryRange`，`ComputerResourceServiceImpl.nodeUsage` 就是照抄上面那三条 PromQL ⇒ **Prometheus 这一路是通的（代码层面）**。
+- **`metrics.k8s.io` 客户端一行都没写**，全仓 grep `MetricsServer` 无命中；
+  因此 `/cloud/summary`、`/cloud/nodesummary` 根本没有对应 handler（`/cloud` 控制器不存在），
+  打到 paas-core 会是 404 —— 这也是"这条报错只可能来自 gaop-be"的判据。
