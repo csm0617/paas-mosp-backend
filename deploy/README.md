@@ -107,6 +107,9 @@
 3. **镜像按用途分目录 + 一个 all-in-one** → 本包按 `paas-core / paas-web / mysql-client`
    拆分，再加 `SHA256SUMS` 与 `MANIFEST.txt`。
 
+> 完整证据（包里 27 个脚本逐个读过、21 个被 include 的缺失项、还原出的 21 步流水线与
+> 素材对照）见 [`VENDOR-CLUSTER-FLOW.md`](VENDOR-CLUSTER-FLOW.md)。
+
 厂商包里的 `amd64/` 资产若要做 arm64 节点安装包（装 K8s + 中间件 + 业务），是另一个
 工程：需要先找回缺失的主剧本，再把 etcd/minio/kubelet/CNI/helm chart 逐个换 arm64。
 本阶段不做（见 §5）。
