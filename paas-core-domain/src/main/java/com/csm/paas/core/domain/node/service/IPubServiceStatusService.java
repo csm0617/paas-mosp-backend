@@ -34,14 +34,18 @@ public interface IPubServiceStatusService {
      * <pre>
      * {
      *   "appstatus": {"deployments": [...], "pods": [...]},
-     *   "sysInfo":   {"k8s": {...}, "dns": {...}, "monitor": {...}, "apiserver": {...}, "etcd": {...}},
+     *   "sysinfo":   {"k8s": {...}, "dns": {...}, "monitor": {...}, "apiserver": {...}, "etcd": {...}},
      *   "radondbInfo": {"podList": [...], "statefulSet": {...}} | null
      * }
      * </pre>
-     * 注意三处照抄点：
+     * 注意四处要点：
      * <ol>
      *   <li>字段名是 **`appstatus`**（小写 s）——厂商用 Jackson 的 JsonProperty 覆盖了字段名
-     *       （`ServiceStatusInfo.java:13`），而 `sysInfo` 没有覆盖；</li>
+     *       （`ServiceStatusInfo.java:13`）；</li>
+     *   <li>字段名是 **`sysinfo`**（全小写）——**本仓刻意偏离厂商的 A 类修正**（deviations A-13）：
+     *       厂商该字段只标了 Gson 的 `@SerializedName("sysinfo")`、没有 `@JsonProperty`，
+     *       Jackson 实际输出 `sysInfo`，而厂商前端读的是 `data.sysinfo`，于是**永远读不到、
+     *       回落默认值**，面板左列恒显示"正常"。这里按前端实际读取的键名输出；</li>
      *   <li>`sysInfo` 里**没有 `logging` 键**——厂商声明了 `loggingName = "logging"` 却从未 `put`（死代码，
      *       `PublicController:2469-2470`）；</li>
      *   <li>`getSystemInfo` 命不中 pod 时 `status` 保持 **null**（不是 "error"），

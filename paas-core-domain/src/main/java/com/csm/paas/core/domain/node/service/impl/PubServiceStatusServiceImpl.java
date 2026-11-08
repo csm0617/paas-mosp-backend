@@ -123,7 +123,7 @@ public class PubServiceStatusServiceImpl implements IPubServiceStatusService {
             log.error("获取所有的deployment出现异常，异常为:{}", e.getMessage());
             Map<String, Object> partial = new LinkedHashMap<>();
             partial.put("appstatus", null);
-            partial.put("sysInfo", infoHashMap);
+            partial.put("sysinfo", infoHashMap);
             partial.put("radondbInfo", null);
             return partial;
         }
@@ -252,10 +252,16 @@ public class PubServiceStatusServiceImpl implements IPubServiceStatusService {
             radondbInfoOut.put("statefulSet", statefulSet);
         }
 
-        // 字段顺序照抄 `ServiceStatusInfo` 的**声明顺序**：appstatus → sysInfo → radondbInfo
+        // 字段顺序照抄 `ServiceStatusInfo` 的**声明顺序**：appstatus → sysinfo → radondbInfo
+        //
+        // 键名 `sysinfo` 是**刻意偏离厂商**（A 类，见 docs/deviations.md A-13）：
+        // 厂商 `ServiceStatusInfo.sysInfo` 只标了 Gson 的 `@SerializedName("sysinfo")`，没有
+        // `@JsonProperty`，而 Spring MVC 用 Jackson 序列化 ⇒ 实际输出 `sysInfo`；厂商前端
+        // `p__SystemOverview` 读的是 `t.data?.sysinfo`（小写）⇒ **永远读不到，回落默认值，
+        // 面板左列恒显示"正常"（monitor/etcd 即使异常也是绿的）**。这里按前端实际读取的键名输出。
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("appstatus", tenxServiceInfo);
-        result.put("sysInfo", infoHashMap);
+        result.put("sysinfo", infoHashMap);
         result.put("radondbInfo", radondbInfoOut);
         return result;
     }

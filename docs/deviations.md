@@ -26,6 +26,7 @@
 | A10 | `PUT /v1/role/{id}` | 响应 `name:null`（controller 参数传错位） | 不复制（见 B3） | `findings/35` |
 | A11 | 任意 PUT 的会话 TTL | 厂商把会话 TTL 从 86400 砍到 600 | 不复制（见 B2） | `findings/33` |
 | A12 | `PUT /v1/service/updateServiceRole` | **写入的是死代码**：`annotations.put("gaop/serviceRole", serviceKey)` 之后立刻被 `annotations = ...getAnnotations()` **重新赋值覆盖**，该注解**永远不会被写入**；且 StatefulSet 分支会对 `v1Deployment`（null）调 `getMetadata()` ⇒ NPE | **不实现该"无副作用"语义**；错误路径已对拉确认（400 `service.get.service.failed.not.found`） | `findings/69` 前的勘查（本轮） |
+| A13 | `GET /v1/pub/serviceStatus` 的 `sysinfo` 键名 | 厂商 `ServiceStatusInfo.sysInfo`（`ServiceStatusInfo.java:18`）只标了 **Gson** 的 `@SerializedName("sysinfo")`，**没有 `@JsonProperty`**；Spring MVC 用 Jackson 序列化 ⇒ 实际输出 `sysInfo`。而厂商前端 `p__SystemOverview` 读的是 `t.data?.sysinfo`（小写）⇒ **永远读不到**、回落默认值 `te.Uw` ⇒ 概览页左列（k8s/dns/logging/monitor/apiserver/etcd）恒显示"正常"——实测 `monitor.status` 明明是 `null`，面板仍是绿的 | 按**前端实际读取的键名**输出 `sysinfo`（小写），让状态真实可见；`appstatus`、`radondbInfo` 照抄 | 2026-11-08 集群实测：`/v1/pub/serviceStatus` 返回 `sysInfo` 而厂商面板全绿；`recovered-web/decompiled/p__SystemOverview.9a060da2.async.js` 读 `data.sysinfo` |
 
 ## B. 我们主动收紧（成功路径与厂商一致）
 
