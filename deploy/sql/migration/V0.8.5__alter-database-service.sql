@@ -1,0 +1,1 @@
+alter table g_database add service text null comment '所属服务';

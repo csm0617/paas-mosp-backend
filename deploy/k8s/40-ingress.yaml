@@ -1,0 +1,86 @@
+# 本包自己的入口（只在「全新环境」用；替换式部署走 switch，改厂商 ingress 的 backend）
+#
+# 为什么替换式不 apply 这份：Ingress 是 host+path 唯一匹配的，同一 host 同一条
+# `/gaop(/|$)(.*)` 若同时存在厂商 ingress 与本文件，网关会按创建时间/优先级随机选一个，
+# 造成「切了一半」的假象。所以两种场景严格分开：
+#   · 已有厂商入口 → deploy.sh switch paas|vendor（JSON patch 改 backend 名）
+#   · 空环境      → deploy.sh install --with-ingress（apply 本文件）
+#
+# 占位符：__NS__ __INGRESS_CLASS__
+---
+# 前端：/gaop/** → paas-web。rewrite 把 /gaop 前缀剥掉再给 nginx（与厂商 real deploy 一致，
+# 本包 nginx 两种拓扑都支持，见 paas-web/deploy/nginx/default.conf 文件头）
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: paas-web
+  namespace: __NS__
+  labels:
+    app.kubernetes.io/part-of: msop
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  ingressClassName: __INGRESS_CLASS__
+  rules:
+    - http:
+        paths:
+          - path: /gaop(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: paas-web
+                port:
+                  number: 80
+---
+# 后端 API：/api/gaop/** → paas-core
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: paas-api
+  namespace: __NS__
+  labels:
+    app.kubernetes.io/part-of: msop
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  ingressClassName: __INGRESS_CLASS__
+  rules:
+    - http:
+        paths:
+          - path: /api/gaop(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: paas-core
+                port:
+                  number: 8080
+---
+# 实时通道（SockJS/STOMP）。厂商入口清单里没有单列 /ws——它挂在应用自身的
+# websocket 端点上，由网关按 /ws 前缀直转。这里显式列出，避免落到 SPA 回退。
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: paas-ws
+  namespace: __NS__
+  labels:
+    app.kubernetes.io/part-of: msop
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    # SockJS 长连接：关掉代理缓冲，避免事件积压到连接结束才下发
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+spec:
+  ingressClassName: __INGRESS_CLASS__
+  rules:
+    - http:
+        paths:
+          - path: /ws(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: paas-core
+                port:
+                  number: 8080
+# 其余与厂商服务耦合的入口（/api/gaop/v1/pub/fdfs/upload、/api/gaop/v1/image/*）
+# 仍指向 gaop-fdfs / gaop-image-uploader——本包不接管这两条，替换式场景保留厂商 ingress
+# 即可；空环境若需要，按 msop-ingress.yaml 原样补，别塞进本文件（服务可能不存在）。

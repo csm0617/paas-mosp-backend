@@ -1,0 +1,38 @@
+# 容器内运行（SPRING_PROFILES_ACTIVE=k8s）的差异配置。
+#
+# 只放「容器里才成立」的项；数据源/Redis/网关等连接信息仍由 application.yml 的
+# env 占位符提供（各 Deployment 注入），避免两处默认值打架。
+#
+# 与厂商 `application-k8s.yml` 对齐的部分：日志级别与 k8s 命名空间默认值在本文件
+# 不重复声明（application.yml 已用 `${GAOP_K8S_NAMESPACE:gaop-namespace}` 表达）。
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
+
+spring:
+  lifecycle:
+    # 与 Deployment 的 terminationGracePeriodSeconds 配合：先摘流量再退
+    timeout-per-shutdown-phase: 20s
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      # 探针分存活/就绪两组（Spring Boot 内置 liveness/readiness group）。
+      # 刻意不把 db/redis 拉进 liveness：外部依赖抖动不应该触发重启。
+      probes:
+        enabled: true
+      show-details: never
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+
+logging:
+  level:
+    root: INFO
+    com.csm.paas.core: INFO

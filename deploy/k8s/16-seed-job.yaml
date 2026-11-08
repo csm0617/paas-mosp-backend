@@ -1,0 +1,63 @@
+# 最小初始化数据 Job（admin 账号 + 运维管理员门户 + 关联）
+#
+# 为什么需要：厂商初始化 SQL 把 g_user/g_user_role 的 INSERT 注释掉了，空库登录时
+# 「门户/席位」下拉为空、前端报「席位不能为空」。细节见 ../sql/README.md。
+#
+# 占位符：__NS__ __MYSQL_IMAGE__ __MYSQL_HOST__ __MYSQL_PORT__ __DB_NAME__ __APP_USER__
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: paas-seed
+  namespace: __NS__
+  labels:
+    app: paas-seed
+    app.kubernetes.io/part-of: msop
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: paas-seed
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: mysql-client
+          image: __MYSQL_IMAGE__
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: MYSQL_HOST
+              value: __MYSQL_HOST__
+            - name: MYSQL_PORT
+              value: "__MYSQL_PORT__"
+            - name: DB_NAME
+              value: __DB_NAME__
+            - name: APP_USER
+              value: __APP_USER__
+            - name: APP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: paas-db
+                  key: MYSQL_PASSWORD
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -u
+              echo "== 播种最小可登录数据（admin）=="
+              mysql -h "$MYSQL_HOST" -P "$MYSQL_PORT" -u"$APP_USER" -p"$APP_PASSWORD" "$DB_NAME" < /seed/seed.sql \
+                || { echo "!! 播种失败：先确认 schema 已灌入（g_role/g_user 存在）"; exit 1; }
+              echo "== seed 完成（★ 默认口令 admin/admin123，投产前必须改）=="
+          volumeMounts:
+            - name: seed
+              mountPath: /seed
+              readOnly: true
+          resources:
+            requests:
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+      volumes:
+        - name: seed
+          configMap:
+            name: paas-seed-sql

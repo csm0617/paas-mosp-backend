@@ -1,0 +1,155 @@
+# paas-core —— 替换 gaop-be 的 Deployment
+#
+# 并存原则（ADR-0005）：**不改厂商 gaop-be 的任何对象**，本包只新增 paas-core。
+# 切流只改 Ingress 的 backend service 名，回退改回去，秒级生效、不动数据。
+#
+# 占位符（deploy.sh 渲染）：
+#   __NS__ __BACKEND_IMAGE__ __MYSQL_HOST__ __MYSQL_PORT__ __DB_NAME__ __APP_USER__
+#   __REDIS_HOST__ __REDIS_PORT__ __GATEWAY_HOST__ __GATEWAY_PORT__ __GIS_URL__
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: paas-core
+  namespace: __NS__
+  labels:
+    app: paas-core
+    app.kubernetes.io/part-of: msop
+spec:
+  replicas: 1
+  strategy:
+    # 与厂商一致：先停后起，避免两个 JVM 同时抢内存把节点打到 OOM。
+    # 代价是切版本有几十秒不可用——灰度期由「并存双 Deployment + 改 Ingress」承担，
+    # 单 Deployment 内部不需要再滚动并发。
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: paas-core
+  template:
+    metadata:
+      labels:
+        app: paas-core
+        app.kubernetes.io/part-of: msop
+    spec:
+      serviceAccountName: paas-core
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: paas-core
+          image: __BACKEND_IMAGE__
+          imagePullPolicy: IfNotPresent      # 镜像随离线包 docker load，不走 registry
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: TZ
+              value: Asia/Shanghai
+            - name: SPRING_PROFILES_ACTIVE
+              value: k8s
+            # ── MySQL：库是两边共用的（替换式部署，ADR-0005 §共库） ──
+            - name: MYSQL_HOST
+              value: __MYSQL_HOST__
+            - name: MYSQL_PORT
+              value: "__MYSQL_PORT__"
+            - name: MYSQL_DATABASE
+              value: __DB_NAME__
+            - name: MYSQL_USER
+              value: __APP_USER__
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: paas-db
+                  key: MYSQL_PASSWORD
+            # ── Redis ──
+            - name: REDIS_HOST
+              value: __REDIS_HOST__
+            - name: REDIS_PORT
+              value: "__REDIS_PORT__"
+            # ── 平台侧依赖 ──
+            # 后端用 in-cluster 客户端读本命名空间的 Deployment/Service/Pod（服务视图、启动自检）
+            - name: GAOP_K8S_NAMESPACE
+              value: __NS__
+            # 规则变更通知网关；fire-and-forget，解析不了也不影响响应（与厂商同语义）
+            - name: GAOP_GATEWAY_HOST
+              value: __GATEWAY_HOST__
+            - name: GAOP_GATEWAY_PORT
+              value: "__GATEWAY_PORT__"
+            # GIS 状态端点会把该值当 Deployment 名去读运行状态
+            - name: GIS_URL
+              value: __GIS_URL__
+            # ── 落盘目录（映射到 emptyDir，见下方 volumes） ──
+            - name: FILE_UPLOAD_DIR
+              value: /opt/gaop/upload/client
+            - name: PATH_SAVE
+              value: /home/paas/gaop-program/
+          # startupProbe 覆盖冷启动（Spring Boot + MyBatis + fabric8 首次 discovery，
+          # 实测 40~120s）。启动期内不跑存活/就绪探针，避免把慢启动误判成死锁。
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 5
+            failureThreshold: 60          # 最多等 5 分钟
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 15
+            failureThreshold: 4
+          # 刻意不声明 CPU：本集群节点 2 核的 requests 已被占满，而 K8s 会把
+          # 「只写 limit 不写 request」的 CPU request 默认成 limit，同样调度不上。
+          # 通用环境建议补 requests.cpu=200m / limits.cpu=2000m。
+          resources:
+            requests:
+              memory: 256Mi
+            limits:
+              # MaxRAMPercentage=60 ⇒ 堆约 600Mi；Metaspace 上限 192m 已写死在镜像 ENV
+              memory: 1Gi
+          volumeMounts:
+            - name: upload
+              mountPath: /opt/gaop/upload
+            - name: program
+              mountPath: /home/paas/gaop-program
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        # 上传/程序包目录：厂商把这类文件交给 gaop-fdfs / gaop-image-uploader，
+        # 后端本地只是中转。用 emptyDir 而非 PVC：Pod 重建即清，避免残留脏文件。
+        - name: upload
+          emptyDir:
+            sizeLimit: 512Mi
+        - name: program
+          emptyDir:
+            sizeLimit: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: paas-core
+  namespace: __NS__
+  labels:
+    app: paas-core
+    app.kubernetes.io/part-of: msop
+spec:
+  selector:
+    app: paas-core
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

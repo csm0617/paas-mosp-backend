@@ -1,0 +1,63 @@
+# 可选层：空环境自带一个 Redis（替换式部署用不到）
+#
+# 服务名固定 `paas-redis`，刻意不复用厂商的 `gaop-redis`：
+#   · 灰度期两边后端都要连 Redis，共享同一实例没问题，但**不能同名覆盖**——
+#     覆盖会让回退时厂商后端连到我们新起的实例，数据（会话/登录计数）就断了；
+#   · 想让自研后端也用厂商那个，直接不 apply 本文件、把 REDIS_HOST 指向 gaop-redis 即可。
+#
+# 用 grep 从 10-foundation.yaml 拆出来会丢可读性，故独立成文件。
+# 占位符：__NS__
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: paas-redis
+  namespace: __NS__
+  labels:
+    app: paas-redis
+    app.kubernetes.io/part-of: msop
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: paas-redis
+  template:
+    metadata:
+      labels:
+        app: paas-redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7.4-alpine
+          imagePullPolicy: IfNotPresent
+          # 与厂商一致：不落盘、不 AOF，纯缓存语义；maxmemory 防止挤占节点
+          args: ["redis-server", "--save", "", "--appendonly", "no",
+                 "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
+          ports:
+            - name: redis
+              containerPort: 6379
+          readinessProbe:
+            tcpSocket:
+              port: redis
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: 32Mi
+            limits:
+              memory: 160Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: paas-redis
+  namespace: __NS__
+  labels:
+    app: paas-redis
+    app.kubernetes.io/part-of: msop
+spec:
+  selector:
+    app: paas-redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis

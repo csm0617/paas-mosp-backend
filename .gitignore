@@ -7,3 +7,6 @@ target/
 logs/
 *.log
 __pycache__/
+
+# 部署产物（镜像 tar / 离线包，单个 100MB+）：随 release 分发，不进 git
+artifacts/

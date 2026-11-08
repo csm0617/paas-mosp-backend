@@ -1,0 +1,111 @@
+# 灌 schema Job（建库 / 建用户 / 87 个迁移）
+#
+# 与厂商 `deploy-msop.sh` 的关键差异：厂商在**宿主机上**用
+#   `docker run --rm --network host mysql:8.0.32 ...` + 硬编码集群 IP `10.96.1.127`
+# 来灌 SQL。这在三种现场会直接失败：
+#   ① 目标机没有 docker CLI（只有 containerd / podman）；
+#   ② 集群 Service 网段不是 10.96.0.0/12；
+#   ③ 气隙机上没有 mysql:8.0.32 镜像。
+# 本包改为**集群内 Job**：镜像随包分发、按 Service DNS 解析、不需要宿主机任何工具。
+#
+# 占位符：__NS__ __MYSQL_IMAGE__ __MYSQL_HOST__ __MYSQL_PORT__ __DB_NAME__ __APP_USER__
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: paas-schema
+  namespace: __NS__
+  labels:
+    app: paas-schema
+    app.kubernetes.io/part-of: msop
+spec:
+  # 失败即停：schema 灌一半再重试会撞 "table already exists"，把真实原因掩盖掉
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: paas-schema
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: mysql-client
+          image: __MYSQL_IMAGE__
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: MYSQL_HOST
+              value: __MYSQL_HOST__
+            - name: MYSQL_PORT
+              value: "__MYSQL_PORT__"
+            - name: DB_NAME
+              value: __DB_NAME__
+            - name: APP_USER
+              value: __APP_USER__
+            - name: APP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: paas-db
+                  key: MYSQL_PASSWORD
+            # root 口令可选：为空时跳过「建库+建用户」，只灌 schema
+            - name: ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: paas-db
+                  key: MYSQL_ROOT_PASSWORD
+                  optional: true
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -u
+              ok=0; fail=0; failed=""
+
+              if [ -n "${ROOT_PASSWORD:-}" ]; then
+                echo "== 建库与账号（root）=="
+                mysql -h "$MYSQL_HOST" -P "$MYSQL_PORT" -uroot -p"$ROOT_PASSWORD" -e "
+                  CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+                  CREATE USER IF NOT EXISTS '$APP_USER'@'%' IDENTIFIED WITH mysql_native_password BY '$APP_PASSWORD';
+                  ALTER USER '$APP_USER'@'%' IDENTIFIED WITH mysql_native_password BY '$APP_PASSWORD';
+                  GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$APP_USER'@'%';
+                  FLUSH PRIVILEGES;" || { echo "!! 建库失败（root 口令或网络不对）"; exit 1; }
+              else
+                echo "== 未提供 root 口令，假定库与账号已存在 =="
+              fi
+
+              echo "== 灌入迁移（$(ls /sql/*.sql | wc -l | tr -d ' ') 个）=="
+              # 必须 sort -V：V0.8.10 要排在 V0.8.9 之后，字典序会颠倒
+              for f in $(ls /sql/*.sql | sort -V); do
+                if mysql -h "$MYSQL_HOST" -P "$MYSQL_PORT" -u"$APP_USER" -p"$APP_PASSWORD" "$DB_NAME" < "$f" 2>/tmp/err; then
+                  ok=$((ok+1))
+                else
+                  fail=$((fail+1)); failed="$failed $(basename "$f")"
+                  echo "   FAILED $(basename "$f")"
+                  sed -n '1,3p' /tmp/err | sed 's/^/      /'
+                fi
+              done
+              echo "   成功=$ok 失败=$fail"
+
+              echo "== 核验 =="
+              mysql -h "$MYSQL_HOST" -P "$MYSQL_PORT" -u"$APP_USER" -p"$APP_PASSWORD" -N -B -e "
+                SELECT CONCAT('表数=', COUNT(*)) FROM information_schema.tables WHERE table_schema='$DB_NAME';"
+
+              if [ "$fail" -ne 0 ]; then
+                echo "!! 有迁移失败：$failed"
+                echo "   常见原因：库非空（已灌过）、或账号缺少 DDL 权限。不要盲目重试。"
+                exit 1
+              fi
+              echo "== schema 完成 =="
+          volumeMounts:
+            - name: sql
+              mountPath: /sql
+              readOnly: true
+          resources:
+            requests:
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+      volumes:
+        # 87 个迁移以目录形式挂载（ConfigMap 的每个 key 就是一个 .sql 文件），
+        # 保留原文件名与顺序信息；总大小约 150KB，未触碰 ConfigMap 1MB 上限
+        - name: sql
+          configMap:
+            name: paas-schema-sql

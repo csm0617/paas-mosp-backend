@@ -1,0 +1,1 @@
+create index file_path on g_file (path);

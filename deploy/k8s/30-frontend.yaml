@@ -1,0 +1,79 @@
+# paas-web —— 替换 gaop-web 的静态站点 Deployment
+#
+# 与厂商 `gaop-web-arm64.yaml` 同构：Deployment + ClusterIP Service，由网关按
+# `/gaop/**` 转发。镜像里的 nginx 配置同时支持「网关剥前缀」与「不剥前缀」两种拓扑，
+# 依据见 paas-web/deploy/nginx/default.conf 文件头。
+#
+# 占位符：__NS__ __FRONTEND_IMAGE__
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: paas-web
+  namespace: __NS__
+  labels:
+    app: paas-web
+    app.kubernetes.io/part-of: msop
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1          # 静态站点无状态、内存占用极小，可以真正滚动更新
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: paas-web
+  template:
+    metadata:
+      labels:
+        app: paas-web
+        app.kubernetes.io/part-of: msop
+    spec:
+      containers:
+        - name: paas-web
+          image: __FRONTEND_IMAGE__
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 80
+          # 与厂商 gaop-web 的探针目标保持一致（/index.html），而不是 /healthz：
+          # 回退到厂商镜像时清单不需要改（两者的 /index.html 都存在）。
+          readinessProbe:
+            httpGet:
+              path: /index.html
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /index.html
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          # 静态站点不吃 CPU，同后端理由：本集群不声明 CPU，只约束内存
+          resources:
+            requests:
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            # 不 drop ALL：nginx 官方镜像的 entrypoint 需要 chown/绑定 80，
+            # 若要彻底非 root，需换 nginx-unprivileged 并把端口改 8080（本阶段不做）
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: paas-web
+  namespace: __NS__
+  labels:
+    app: paas-web
+    app.kubernetes.io/part-of: msop
+spec:
+  selector:
+    app: paas-web
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

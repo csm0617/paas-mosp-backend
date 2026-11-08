@@ -1,0 +1,1 @@
+ALTER TABLE g_user_audit MODIFY dictionary_type mediumtext comment '操作类型';

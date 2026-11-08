@@ -1,0 +1,1 @@
+alter table g_database_record modify column database_name varchar(120) COMMENT '数据库名';

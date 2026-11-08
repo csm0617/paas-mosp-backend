@@ -1,0 +1,11 @@
+INSERT INTO `g_setting` VALUES ('system.permission.behavior_audit', 'all', '行为审计', NULL, NULL);
+INSERT INTO `g_setting` VALUES ('system.permission.expired_time', '12', '登录保存时长', NULL, NULL);
+INSERT INTO `g_setting` VALUES ('system.permission.login_status', 'all', '清理登录状态', NULL, NULL);
+INSERT INTO `g_setting` VALUES ('system.permission.password_limit', '5', '密码重试次数', NULL, NULL);
+INSERT INTO `g_setting` VALUES ('system.permission.retry_protection', '30', '重试保护间隔', NULL, NULL);
+INSERT INTO `g_setting` VALUES ('system.setting.current_environment', 'prod', '当前使用环境', NULL, NULL);
+INSERT INTO `g_setting` VALUES ('system.setting.flag', '10201', '站点标识符', NULL, NULL);
+INSERT INTO `g_setting` VALUES ('system.setting.interface_style', 'nigth_modes', '界面风格', NULL, NULL);
+INSERT INTO `g_setting` VALUES ('system.setting.ip', '192.168.1.101', '站点IP地址', NULL, NULL);
+INSERT INTO `g_setting` VALUES ('system.setting.realm_name', 'yh-s1.ptkj722.com', '站点域名', NULL, NULL);
+INSERT INTO `g_setting` VALUES ('system.setting.station_name', '指挥通信与情报处理车01', '站点名称', NULL , NULL);

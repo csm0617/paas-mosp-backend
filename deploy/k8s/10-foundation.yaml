@@ -1,0 +1,86 @@
+# paas-core 部署包 —— 基础层（命名空间内的身份与数据库初始化）
+#
+# 与厂商 `msop-foundation.yaml` 的职责对应关系：
+#   厂商                                  本包
+#   MySQL ExternalName 别名 gaop-mysql  → 不建。连接地址由 Deployment 的 MYSQL_HOST 直接注入，
+#                                          不依赖别名，少一层 DNS 间接（配置见 deploy.sh）
+#   Redis Deployment gaop-redis          → 不建。替换式部署复用现场 Redis（REDIS_HOST 注入）；
+#                                          空环境请用 `--with-redis` 由本包补一个（见文末注释）
+#   建库 Job msop-create-db              → 本包由独立 Job 承担（见 15-jobs.yaml），
+#                                          并把「建库/建用户」与「灌 schema」分开
+#   SA + ClusterRoleBinding(admin)       → 同结构，但默认收窄到 paas-core-manager（RBAC=admin 可回退）
+#
+# 占位符（由 deploy.sh 渲染）：__NS__ __RBAC_ROLE__
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: __NS__
+  labels:
+    app.kubernetes.io/part-of: msop
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: paas-core
+  namespace: __NS__
+  labels:
+    app: paas-core
+    app.kubernetes.io/part-of: msop
+---
+# 受限 ClusterRole：只覆盖代码实际用到的资源。
+# 依据：paas-core 的服务/应用视图要 list-watch Deployment/StatefulSet/Pod/Service/Node，
+# 认证与门户要读写 ConfigMap/Secret，审计要读 Event。
+#
+# 与厂商的 cluster-admin 相比，这里少了：nodes/proxy、pods/exec、RBAC 对象的写权限、
+# 以及所有未列出 API 组的访问。若运行中发现 403，日志会带出具体 resource+verb，
+# 按报错补规则，或整体退回到 `RBAC=admin`（等价厂商，见 README §权限）。
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: paas-core-manager
+  labels:
+    app.kubernetes.io/part-of: msop
+rules:
+  - apiGroups: [""]
+    resources:
+      - pods
+      - pods/log
+      - services
+      - endpoints
+      - configmaps
+      - secrets
+      - namespaces
+      - nodes
+      - events
+      - persistentvolumeclaims
+      - persistentvolumes
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["batch"]
+    resources: ["jobs", "cronjobs"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # fabric8 客户端启动时要做 API discovery，缺这段会报 403 且报错不直观
+  - nonResourceURLs: ["/api", "/api/*", "/apis", "/apis/*", "/version", "/version/*", "/healthz", "/openapi/*"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: paas-core-__NS__
+  labels:
+    app.kubernetes.io/part-of: msop
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  # __RBAC_ROLE__：默认 paas-core-manager；`RBAC=admin` 时渲染成 cluster-admin（与厂商等价）
+  name: __RBAC_ROLE__
+subjects:
+  - kind: ServiceAccount
+    name: paas-core
+    namespace: __NS__
