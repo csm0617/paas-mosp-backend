@@ -47,6 +47,15 @@ BACKEND_TAR="${BACKEND_TAR:-$REPO/artifacts/paas-core-arm64-${IMG_VER}.tar.gz}"
 if [ -z "${FRONTEND_TAR:-}" ] && [ -n "$WEB_REPO" ]; then
   FRONTEND_TAR="$WEB_REPO/artifacts/paas-web-arm64-${WEB_VER}.tar.gz"
 fi
+# 显式指定 FRONTEND_TAR 时，以**包里那个 tar 的真实版本**为准，而不是 package.json。
+# 前端迭代期 package.json 可能已经 +1 但镜像还没重建；清单必须记录实际打进去的东西。
+if [ -f "$FRONTEND_TAR" ]; then
+  _fv="$(basename "$FRONTEND_TAR" | sed -n 's/^paas-web-arm64-\(.*\)\.tar\.gz$/\1/p')"
+  if [ -n "$_fv" ] && [ "$_fv" != "$WEB_VER" ]; then
+    echo "   注意：包内前端镜像 ${_fv} 与 package.json ${WEB_VER} 不同，以包内为准"
+    WEB_VER="$_fv"
+  fi
+fi
 
 NO_BUILD=0; WITH_DB_IMAGE=1; VERIFY=1
 while [ $# -gt 0 ]; do
@@ -69,21 +78,37 @@ log() { printf '\033[36m==\033[0m %s\n' "$*"; }
 
 # ── 1/5 镜像 ────────────────────────────────────────────────────────────────
 log "1/5 收集镜像"
-if [ "$NO_BUILD" = 0 ]; then
+# 优先级：已有 tar > 本机镜像直接导出 > （允许时）构建 > 报错。
+# 直接导出比重新 build 快得多，也不受沙箱/网络影响；这是前端迭代期的常态路径。
+if [ ! -f "$BACKEND_TAR" ] && docker image inspect "paas-core:${IMG_VER}-arm64" >/dev/null 2>&1; then
+  log "后端镜像已在本机，直接导出"
+  mkdir -p "$(dirname "$BACKEND_TAR")"
+  docker save "paas-core:${IMG_VER}" "paas-core:${IMG_VER}-arm64" | gzip -1 > "$BACKEND_TAR"
+fi
+if [ ! -f "$BACKEND_TAR" ] && [ "$NO_BUILD" = 0 ]; then
   log "构建后端镜像"
   "$DEPLOY/build-image.sh"
 fi
 [ -f "$BACKEND_TAR" ] || { echo "缺后端镜像包：${BACKEND_TAR}（先跑 deploy/build-image.sh）" >&2; exit 1; }
+# 防「被中断的 docker save 留下残缺 tar」：正常 150MB+，小一个量级就是坏的
+BSZ=$(wc -c < "$BACKEND_TAR")
+[ "$BSZ" -gt 100000000 ] || { echo "后端镜像包只有 ${BSZ} 字节，疑似导出被中断，删掉重导" >&2; exit 1; }
 cp "$BACKEND_TAR" "$ROOT/images/"
 echo "   后端：$(basename "$BACKEND_TAR") $(du -h "$BACKEND_TAR" | cut -f1)"
 
-if [ ! -f "$FRONTEND_TAR" ]; then
-  if [ "$NO_BUILD" = 0 ] && [ -n "$WEB_REPO" ]; then
-    log "构建前端镜像（${WEB_REPO}）"
-    ( cd "$WEB_REPO" && TAG="paas-web:${WEB_VER}" OUT="$FRONTEND_TAR" ./deploy/build-image.sh )
-  fi
+if [ ! -f "$FRONTEND_TAR" ] && [ -n "$WEB_REPO" ] \
+   && docker image inspect "paas-web:${WEB_VER}-arm64" >/dev/null 2>&1; then
+  log "前端镜像 ${WEB_VER} 已在本机，直接导出"
+  mkdir -p "$(dirname "$FRONTEND_TAR")"
+  docker save "paas-web:${WEB_VER}" "paas-web:${WEB_VER}-arm64" | gzip -1 > "$FRONTEND_TAR"
 fi
-[ -f "$FRONTEND_TAR" ] || { echo "缺前端镜像包：${FRONTEND_TAR}（设 FRONTEND_TAR= 指定）" >&2; exit 1; }
+if [ ! -f "$FRONTEND_TAR" ] && [ "$NO_BUILD" = 0 ] && [ -n "$WEB_REPO" ]; then
+  log "构建前端镜像（${WEB_REPO}）"
+  ( cd "$WEB_REPO" && TAG="paas-web:${WEB_VER}" OUT="$FRONTEND_TAR" ./deploy/build-image.sh )
+fi
+[ -f "$FRONTEND_TAR" ] || { echo "缺前端镜像包：${FRONTEND_TAR}（设 FRONTEND_TAR= 指定，或先构建 paas-web:${WEB_VER}-arm64）" >&2; exit 1; }
+FSZ=$(wc -c < "$FRONTEND_TAR")
+[ "$FSZ" -gt 20000000 ] || { echo "前端镜像包只有 ${FSZ} 字节，疑似导出被中断，删掉重导" >&2; exit 1; }
 cp "$FRONTEND_TAR" "$ROOT/images/"
 echo "   前端：$(basename "$FRONTEND_TAR") $(du -h "$FRONTEND_TAR" | cut -f1)"
 
@@ -100,7 +125,7 @@ fi
 
 # ── 2/5 脚本与清单 ──────────────────────────────────────────────────────────
 log "2/5 收集脚本、清单、SQL 与自带工具"
-cp "$DEPLOY/deploy.sh" "$DEPLOY/precheck-node.sh" "$DEPLOY/Dockerfile" "$ROOT/"
+cp "$DEPLOY/deploy.sh" "$DEPLOY/precheck-node.sh" "$DEPLOY/Dockerfile" "$DEPLOY/INSTALL-FLOW.md" "$ROOT/"
 cp "$DEPLOY"/k8s/*.yaml "$ROOT/k8s/"
 cp -r "$DEPLOY/sql/." "$ROOT/sql/"
 chmod +x "$ROOT/deploy.sh" "$ROOT/precheck-node.sh"

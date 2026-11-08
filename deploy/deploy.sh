@@ -317,7 +317,7 @@ cmd_install() {
   preflight
 
   if ! kubectl get ns "$NS" >/dev/null 2>&1; then
-    log "创建命名空间 $NS"
+    log "命名空间不存在，随 10-foundation.yaml 一起创建"
   fi
   kubectl apply -f "$WORK/10-foundation.yaml" >/dev/null
   ok "SA paas-core + ClusterRole($RBAC_ROLE) 就绪"

@@ -4,11 +4,15 @@
 K8s 清单、数据库脚本、编排脚本都在里面。目标机不需要联网、不需要 registry、
 不需要 Maven / Node。
 
+> 需要**逐步操作顺序、每步的判定与失败处置**时看 `INSTALL-FLOW.md`（同在本包里）。
+> 本文是"包里有什么、每条命令怎么用"的速查。
+
 ## 1. 包里有什么
 
 | 路径 | 内容 |
 | --- | --- |
 | `deploy.sh` | 编排入口：`doctor` / `up` / `preflight` / `install` / `switch` / `status` / `verify` / `down` |
+| `INSTALL-FLOW.md` | **安装流程**：阶段划分、顺序约束、每步判定与失败处置 |
 | `precheck-node.sh` | **节点本机**前置检查（swap/路由/DNS/时钟/磁盘/转发），只读 |
 | `bin/kubectl` | 自带 linux/arm64 kubectl v1.31.9 —— 目标机**不需要预装 kubectl** |
 | `k8s/` | 参数化清单：`10-foundation`(SA+RBAC) `11-redis-optional` `15-schema-job` `16-seed-job` `20-backend` `30-frontend` `40-ingress` |
@@ -20,6 +24,10 @@ K8s 清单、数据库脚本、编排脚本都在里面。目标机不需要联�
 
 清单里的占位符（`__NS__`、`__BACKEND_IMAGE__` 等）由 `deploy.sh` 在运行时渲染，
 **不要手工 sed 清单**——漏一个就会 apply 出字面量对象。
+
+`package.env` 记录本包的镜像 tag，是「包里到底装了什么」的唯一权威。前端迭代期它可能
+与 `paas-web/package.json` 差一个版本（打包快照早于最后一次提交），**以包里为准**；
+`MANIFEST.txt` 里的 `frontend:` 行记录的就是实际打进去的版本。
 
 ## 2. 前置条件
 
