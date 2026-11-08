@@ -43,7 +43,7 @@ while [ $# -gt 0 ]; do
     --context-only) CONTEXT_ONLY=1; shift;;
     --push)         PUSH=1; shift;;
     --with-tests)   WITH_TESTS=1; shift;;
-    -h|--help)      sed -n '2,20p' "${BASH_SOURCE[0]}"; exit 0;;
+    -h|--help)      sed -n '2,18p' "${BASH_SOURCE[0]}"; exit 0;;
     *) echo "未知参数: $1" >&2; exit 2;;
   esac
 done

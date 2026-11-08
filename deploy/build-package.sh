@@ -55,7 +55,7 @@ while [ $# -gt 0 ]; do
     --no-db-image)  WITH_DB_IMAGE=0; shift;;
     --skip-verify)  VERIFY=0; shift;;
     --out)          OUT="$2"; shift 2;;
-    -h|--help)      sed -n '2,30p' "${BASH_SOURCE[0]}"; exit 0;;
+    -h|--help)      sed -n '2,27p' "${BASH_SOURCE[0]}"; exit 0;;
     *) echo "未知参数: $1" >&2; exit 2;;
   esac
 done
@@ -99,12 +99,36 @@ else
 fi
 
 # ── 2/5 脚本与清单 ──────────────────────────────────────────────────────────
-log "2/5 收集脚本、清单与 SQL"
-cp "$DEPLOY/deploy.sh" "$DEPLOY/Dockerfile" "$ROOT/"
+log "2/5 收集脚本、清单、SQL 与自带工具"
+cp "$DEPLOY/deploy.sh" "$DEPLOY/precheck-node.sh" "$DEPLOY/Dockerfile" "$ROOT/"
 cp "$DEPLOY"/k8s/*.yaml "$ROOT/k8s/"
 cp -r "$DEPLOY/sql/." "$ROOT/sql/"
-chmod +x "$ROOT/deploy.sh"
+chmod +x "$ROOT/deploy.sh" "$ROOT/precheck-node.sh"
 echo "   k8s 清单：$(ls "$ROOT/k8s" | wc -l | tr -d ' ') 个；SQL：$(ls "$ROOT/sql/migration"/*.sql | wc -l | tr -d ' ') 个迁移"
+
+# 包内自带 kubectl（linux/arm64）：目标机不预装也能部署。见 deploy/bin/README.md
+KUBECTL_VER="${KUBECTL_VER:-v1.31.9}"
+mkdir -p "$ROOT/bin"
+if [ -f "$DEPLOY/bin/kubectl" ]; then
+  cp "$DEPLOY/bin/kubectl" "$ROOT/bin/kubectl"
+  cp "$DEPLOY/bin/kubectl.sha256" "$ROOT/bin/kubectl.sha256" 2>/dev/null || true
+else
+  echo "   本机没有 bin/kubectl，下载 ${KUBECTL_VER} linux/arm64"
+  curl -fsSL --noproxy '*' -o "$ROOT/bin/kubectl" \
+    "https://dl.k8s.io/release/${KUBECTL_VER}/bin/linux/arm64/kubectl"
+  curl -fsSL --noproxy '*' -o "$ROOT/bin/kubectl.sha256" \
+    "https://dl.k8s.io/release/${KUBECTL_VER}/bin/linux/arm64/kubectl.sha256"
+fi
+chmod +x "$ROOT/bin/kubectl"
+# ELF 的 e_machine（偏移 18，小端 2 字节）必须是 0xB7 = AArch64，防误打 amd64
+KMACH="$(od -An -tx1 -j18 -N2 "$ROOT/bin/kubectl" | tr -d ' \n')"
+[ "$KMACH" = "b700" ] || { echo "   !! bin/kubectl 不是 AArch64 ELF（e_machine=$KMACH）" >&2; exit 1; }
+if [ -f "$ROOT/bin/kubectl.sha256" ]; then
+  ( cd "$ROOT/bin" && echo "$(cat kubectl.sha256)  kubectl" | shasum -a 256 -c - >/dev/null ) \
+    && echo "   kubectl ${KUBECTL_VER} AArch64（sha256 校验通过，$(du -h "$ROOT/bin/kubectl" | cut -f1)）"
+else
+  echo "   kubectl ${KUBECTL_VER} AArch64（无 .sha256，未校验）"
+fi
 
 # ── 3/5 说明与清单 ──────────────────────────────────────────────────────────
 log "3/5 生成 README 与 MANIFEST"
@@ -129,6 +153,7 @@ SQL_FP="$(cd "$ROOT/sql/migration" && shasum -a 256 *.sql | shasum -a 256 | cut 
   echo "backend:      paas-core:${IMG_VER}-arm64   git $(git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo unknown)  dirty=$(git -C "$REPO" status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
   echo "frontend:     paas-web:${WEB_VER}-arm64    git $(git -C "$WEB_REPO" rev-parse --short HEAD 2>/dev/null || echo unknown)"
   echo "mysql-client: ${MYSQL_IMAGE}"
+  echo "kubectl:      ${KUBECTL_VER} linux/arm64  sha256 $(cat "$ROOT/bin/kubectl.sha256" 2>/dev/null || echo n/a)"
   echo "sql:          87 个迁移，目录指纹 $SQL_FP"
   echo "seed:         admin / admin123（测试口令，投产前必须改）"
   echo
@@ -167,6 +192,7 @@ if [ "$VERIFY" = 1 ]; then
   echo "   镜像包可解：$(ls "$R/images" | wc -l | tr -d ' ') 个"
 
   ( cd "$R" && shasum -a 256 -c SHA256SUMS >/dev/null ) && echo "   SHA256SUMS 校验通过"
+  [ -x "$R/bin/kubectl" ] && echo "   bin/kubectl 可执行（解包后权限保留）"
   echo "   README 行数：$(wc -l < "$R/README.md" 2>/dev/null || echo 0)"
 fi
 

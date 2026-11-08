@@ -8,12 +8,14 @@ K8s 清单、数据库脚本、编排脚本都在里面。目标机不需要联�
 
 | 路径 | 内容 |
 | --- | --- |
-| `deploy.sh` | 编排入口：`preflight` / `install` / `switch` / `status` / `verify` / `down` |
+| `deploy.sh` | 编排入口：`doctor` / `up` / `preflight` / `install` / `switch` / `status` / `verify` / `down` |
+| `precheck-node.sh` | **节点本机**前置检查（swap/路由/DNS/时钟/磁盘/转发），只读 |
+| `bin/kubectl` | 自带 linux/arm64 kubectl v1.31.9 —— 目标机**不需要预装 kubectl** |
 | `k8s/` | 参数化清单：`10-foundation`(SA+RBAC) `11-redis-optional` `15-schema-job` `16-seed-job` `20-backend` `30-frontend` `40-ingress` |
 | `sql/migration/` | 87 个迁移（V0.0.1 → V0.8.6），灌完 39 张表 |
 | `sql/seed.sql` | 最小可登录数据（admin / 运维管理员门户） |
 | `images/` | `paas-core-arm64-<ver>.tar.gz`、`paas-web-arm64-<ver>.tar.gz`、`mysql-8.0.32-arm64.tar.gz` |
-| `MANIFEST.txt` | 版本、git、镜像 sha256、SQL 目录指纹 |
+| `MANIFEST.txt` | 版本、git、镜像 sha256、kubectl 版本、SQL 目录指纹 |
 | `SHA256SUMS` | 镜像包校验和 |
 
 清单里的占位符（`__NS__`、`__BACKEND_IMAGE__` 等）由 `deploy.sh` 在运行时渲染，
@@ -22,10 +24,30 @@ K8s 清单、数据库脚本、编排脚本都在里面。目标机不需要联�
 ## 2. 前置条件
 
 - 目标节点 **linux/arm64**，集群 ≥ v1.24（清单用 `networking.k8s.io/v1`）。
-- `kubectl` 有在目标命名空间创建 Deployment/Service/Job/ConfigMap/Secret 的权限，
-  以及创建 ClusterRole/ClusterRoleBinding 的权限（首次安装）。
 - 现场已有 **MySQL 8** 与 **Redis**（替换式部署复用它们）。地址通过环境变量传入，见 §5。
 - 容器运行时是 docker 或 containerd，二者导入命令不同（见 §3）。
+- **不需要预装 kubectl**：包里 `bin/kubectl` 是 linux/arm64 的 v1.31.9，`deploy.sh`
+  会把它前置到 `PATH`（优先于目标机的任何版本）。
+
+进机房前，先在**每台要跑容器的机器上**跑一遍节点检查（只读，不改东西）：
+
+```bash
+sudo ./precheck-node.sh
+```
+
+它查的是 K8s API 里看不到的东西，也是厂商「安装注意事项」的四条 + 我们实际踩过的坑：
+
+| 检查 | 为什么 | 不满足的后果 |
+| --- | --- | --- |
+| swap 必须关闭 | kubelet 硬要求 | kubelet 直接拒绝启动 |
+| 默认路由恰好 1 条 | 多网关会让 Pod 出网方向不确定 | 间歇性连不上 API/仓库 |
+| DNS 有 nameserver | 镜像与集群 DNS 都依赖 | 拉不到镜像、域名解析超时 |
+| root 可登录（厂商要求） | Ansible/调试入口 | 后续运维动作受阻 |
+| **NTP 已同步** | SA token 有 iat/exp 硬校验 | 时钟回拨 → 全集群 401（本项目真实踩过） |
+| 磁盘 ≥ 20G / 内存 ≥ 4G | 镜像 400MB + 容器层与日志 | 导入镜像失败、节点 OOM |
+| `ip_forward=1`、`br_netfilter` | K8s 网络前提 | Service/ClusterIP 不通 |
+
+> 非 root 执行会跳过 root 密码一项；其余项不依赖 root。
 
 > 本包**不**部署 MySQL / MinIO / FastDFS / 网关。这些是厂商侧的既有设施，
 > 替换式部署的原则是「只换应用层」，把它们一起接管会让回退面变大。
@@ -48,23 +70,32 @@ for f in images/*.tar.gz; do ctr -n k8s.io images import "$f"; done
 > 镜像 tag 带 `-arm64` 后缀（如 `paas-core:1.0.0-arm64`），与清单默认值一致。
 > 混架构集群里用后缀区分，别在 amd64 节点调度。
 
-## 4. 三步部署（替换式）
+## 4. 部署（替换式）
+
+一条命令走完「体检 → 安装 → 冒烟」：
 
 ```bash
-# ① 检查：kubectl、命名空间、节点架构、依赖 Service、镜像是否已导入
-NS=gaop-namespace ./deploy.sh preflight
+NS=gaop-namespace MYSQL_HOST=gaop-mysql REDIS_HOST=gaop-redis ./deploy.sh up
+```
 
-# ② 部署（不灌库：假定现场库已由厂商安装器初始化）
-NS=gaop-namespace \
-MYSQL_HOST=gaop-mysql REDIS_HOST=gaop-redis \
-./deploy.sh install
+`up` 依次做三件事，任何一步失败就停：
 
-# ③ 切流（改 Ingress 的 backend service 名，秒级）
-./deploy.sh switch paas
+1. **doctor** —— 7 项集群侧体检（kubectl 来源、服务端版本 ≥1.24、节点架构/Ready/压力、
+   IngressClass、命名空间与依赖 Service、镜像是否已 load、重复安装检测）；
+2. **install** —— SA + RBAC → Secret → 应用层 → 等 rollout；
+3. **verify** —— 健康、前端、公开端点（见 §7）。
+
+想分步做（首次上线建议）：
+
+```bash
+./deploy.sh doctor                       # 先看清环境，不改任何东西
+./deploy.sh install                      # 不灌库：假定现场库已初始化
+./deploy.sh verify
+./deploy.sh switch paas                  # 切流（改 Ingress backend，秒级）
 ```
 
 部署完成后 `paas-core` 与 `paas-web` 与厂商的 `gaop-be` / `gaop-web` **同时存在**，
-流量仍走厂商——直到第 ③ 步。
+流量仍走厂商——直到 `switch paas`。
 
 ### 回退
 
@@ -131,6 +162,8 @@ GW=172.16.209.170 ./deploy.sh verify
 
 | 现象 | 原因 / 处置 |
 | --- | --- |
+| `kubectl: command not found` | 包内 `bin/kubectl` 缺失（打包时被跳过）。用系统 kubectl 也行，或重新解包 |
+| `bin/kubectl: cannot execute binary file` | 在非 Linux/非 arm64 上跑了包内二进制。包里只有 linux/arm64，换到目标机执行 |
 | Pod `exec format error` | 节点不是 arm64；`kubectl get node -o wide` 看 ARCH |
 | `ImagePullBackOff` | 镜像没导入，或 `imagePullPolicy` 被改成 Always。先 `docker load` |
 | `paas-core` 启动后 401/403 访问 K8s API | RBAC 不够。日志会带 resource+verb，按需补 `10-foundation.yaml` 的 ClusterRole，或 `RBAC=admin` |

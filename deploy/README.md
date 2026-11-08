@@ -77,7 +77,43 @@
 - **气隙前提**：`systemctl enable systemd-time-wait-sync` 需要内网 NTP，
   否则 kubelet 会一直等到同步成功而永不启动。上线前必须确认授时源。
 
+## 2.3 官方安装包（`msop-v1.3.4-20260416.tar.gz`，2.8G）
+
+这是厂商**安装器仓库的快照**，与本仓 `Project/msop/artifacts/k8s/` 那套集成验证脚本
+不是一回事。逐层看过之后的结论：
+
+| 有 | 说明 |
+| --- | --- |
+| `add-node-{prepare,docker,kubernetes,minio-replicate}.yml` | 4 个入口，标注「步骤 1/4 … 4/4」，用途是**往已有集群加节点** |
+| `amd64/ansible-env/`（167MB） | 自带 ansible + podman + skopeo + crun —— 目标机不预装任何工具 |
+| `amd64/images/`（352MB all-in-one + 按个拆分） | 业务 8 个镜像 + mysql 8.4.4 / redis 7.4 / kafka / flannel / ingress-nginx |
+| `amd64/executable/` | etcd / minio / k9s 二进制 + systemd unit |
+| `amd64/helm/` | ingress-nginx / prometheus / loki-stack / metrics-server chart |
+| `amd64/config/` | kubelet / docker / containerd 的 service 文件 |
+
+| 缺 | 证据 |
+| --- | --- |
+| **主安装剧本**：`install-k8s-all.yml`、`install-paas-*.yml`、`precheck-system.yml`、`site-ntp.yml` 全都不在包内 | 4 个 add-node 文件里 `include:` 了它们；包内 `.yml` 只有这 4 个 |
+| 业务清单 `k8s-yaml/` | 被厂商 `.gitignore` 排除 |
+| **arm64 目录** | `.gitignore` 里明确 `arm64/`；整包纯 amd64 |
+| `deploy-fdfs/` | `.gitignore` 排除，需单独下载 |
+
+**结论**：它能干「已有集群加节点 + 导入镜像」，不能干「从零装一套」。所以它不能直接
+变成我们的交付物，但有三点值得借：
+
+1. **自带运行环境** → 本包 `bin/kubectl`（linux/arm64 v1.31.9），目标机不预装 kubectl；
+2. **安装前置检查** → 本包 `precheck-node.sh`，把厂商「安装注意事项」4 条与项目踩过的
+   时钟/磁盘/转发坑落成可执行检查；
+3. **镜像按用途分目录 + 一个 all-in-one** → 本包按 `paas-core / paas-web / mysql-client`
+   拆分，再加 `SHA256SUMS` 与 `MANIFEST.txt`。
+
+厂商包里的 `amd64/` 资产若要做 arm64 节点安装包（装 K8s + 中间件 + 业务），是另一个
+工程：需要先找回缺失的主剧本，再把 etcd/minio/kubelet/CNI/helm chart 逐个换 arm64。
+本阶段不做（见 §5）。
+
 ## 3. 本包的对应设计
+
+
 
 | 厂商 | 本包 | 设计取舍 |
 | --- | --- | --- |
@@ -91,6 +127,8 @@
 | 无回退闸 | `down` 检测入口仍指 `paas-*` 时**拒绝执行** | 防止「删了服务页面白屏」 |
 | `verify-web-arm64.sh` 拉外部镜像 | `deploy.sh verify` 在 `paas-core` 容器里 `curl` | 后端镜像自带 curl，零额外依赖 |
 | `fix-node-clock.sh` | 不复制，文档记录现象与判据 | 节点级不属于应用交付物 |
+| `amd64/ansible-env/`（自带 ansible/podman/skopeo） | `bin/kubectl`（自带 linux/arm64 kubectl） | 只补真正的硬依赖：ansible 不用，kubectl 必用 |
+| 厂商「!安装和使用注意事项.txt」4 条 | `precheck-node.sh`（节点本机）+ `deploy.sh doctor`（集群侧） | 节点侧与集群侧分开查，各自能单独跑 |
 
 ### 3.1 与厂商的行为差异（按项目 A/B/C 口径）
 
@@ -114,9 +152,12 @@ deploy/build-image.sh        # 后端镜像：mvn package → docker build → d
 deploy/build-package.sh      # 离线包：三个镜像 + 清单 + SQL → tar.gz → 解包自检
 ```
 
-`build-package.sh` 的自检会在临时目录解包，做四件事：`bash -n` 脚本语法、
+`build-package.sh` 的自检会在临时目录解包，做五件事：`bash -n` 脚本语法、
 用示例值渲染全部清单（校验无占位符残留）、逐个 `tar tzf` 验证镜像包未损坏、
-按 `SHA256SUMS` 校验。
+按 `SHA256SUMS` 校验、确认 `bin/kubectl` 解包后仍可执行。
+
+打包时还会核对 `bin/kubectl` 的 ELF `e_machine`（偏移 18，必须是 `0xB7` = AArch64），
+防止把 amd64 版本误打进去——这个错误在目标机上要到第一次执行才暴露，代价很高。
 
 镜像基础层：
 
@@ -128,6 +169,11 @@ deploy/build-package.sh      # 离线包：三个镜像 + 清单 + SQL → tar.g
 
 ## 5. 已知未覆盖
 
+- **arm64 节点安装包**（装 K8s + 中间件 + 业务）不在本阶段：本包假定现场已有集群与
+  MySQL/Redis。厂商 `msop-v1.3.4` 安装包是 amd64 且缺主剧本（见 §2.3），要做需要先补齐
+  主剧本，再把 etcd/minio/kubelet/CNI/helm chart 逐个换 arm64。
+- **kubectl 版本**：包内固定 v1.31.9。集群升到 1.33+ 后需要替换 `bin/kubectl`
+  （见 `bin/README.md`），否则 jsonpath 与 `--dry-run=server` 行为可能不同。
 - **FastDFS 上传链路**：`/api/gaop/v1/pub/fdfs/upload` 仍指厂商 `gaop-fdfs`；本包不接管，
   也没有在无 FastDFS 的环境验证过上传。
 - **多副本**：`paas-core` 用 `maxSurge: 0 / maxUnavailable: 1`，且依赖同一个 Redis 会话。

@@ -5,14 +5,19 @@
 # 回退改回去即可（ADR-0005 / paas-web deploy/CUTOVER.md）。本脚本不删任何厂商对象、
 # 不重建已有数据库、不改厂商 Deployment。
 #
-#   deploy.sh preflight                  检查 kubectl / 命名空间 / 节点架构 / 依赖 Service / 镜像
+#   deploy.sh doctor                     集群侧完整体检（7 项，逐条报，不改任何东西）
+#   deploy.sh up [安装选项]              一条命令：doctor → install → verify
+#   deploy.sh preflight                  安装前的最低门槛检查（失败即停）
 #   deploy.sh install [选项]             部署 paas-core + paas-web 并等待就绪
 #   deploy.sh schema                     只灌数据库结构与账号（空库首次用）
 #   deploy.sh seed                       只播种最小可登录数据
 #   deploy.sh status                     状态总览 + 当前入口指向
-#   deploy.sh verify                     冒烟：健康、前端静态资源、后端接口
+#   deploy.sh verify                     冒烟：健康、前端静态资源、公开端点
 #   deploy.sh switch paas|vendor [范围]  切流（范围：all|web|api，默认 all）
 #   deploy.sh down                       删除本包对象（会先要求回到 vendor）
+#
+# 节点本机的前置检查是另一个脚本：`precheck-node.sh`（swap/路由/DNS/时钟/磁盘/转发）。
+# 分工：doctor 用 kubectl 从集群侧看；precheck-node 在节点上看 API 里没有的东西。
 #
 # install 选项：
 #   --with-schema   顺带建库+灌 87 个迁移（空库才需要）
@@ -45,6 +50,15 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 K8S="$HERE/k8s"
 SQLDIR="$HERE/sql"
 
+# 包内自带 linux/arm64 kubectl（见 bin/README.md）：前置到 PATH，让它优先于目标机的
+# 任意版本。目标机没装 kubectl 也能部署，这是「拿到就能装」的唯一硬依赖。
+# 只在 Linux 上前置——bin/kubectl 是 ELF，在开发机（macOS）上执行会报 exec format error，
+# 那种情况应该用系统 kubectl 做本地检查。
+if [ -x "$HERE/bin/kubectl" ] && [ "$(uname -s)" = "Linux" ]; then
+  PATH="$HERE/bin:$PATH"
+  export PATH
+fi
+
 # 离线包根目录下的 package.env 记录本包镜像的真实 tag（由 build-package.sh 生成）。
 # 用 `: "${VAR:=...}"` 写法，已显式设置的环境变量优先，不会被包内默认值覆盖。
 if [ -f "$HERE/package.env" ]; then
@@ -54,7 +68,13 @@ fi
 
 NS="${NS:-gaop-namespace}"
 BACKEND_IMAGE="${BACKEND_IMAGE:-paas-core:1.0.0-arm64}"
-FRONTEND_IMAGE="${FRONTEND_IMAGE:-paas-web:0.1.12-arm64}"
+# 前端版本跟仓库走：离线包里由 package.env 固化；在开发机（两个仓并排）时读
+# ../paas-web/package.json，避免手工同步版本号（前端迭代很快，忘了改就是拉错镜像）。
+if [ -z "${FRONTEND_IMAGE:-}" ] && [ -f "$HERE/../../paas-web/package.json" ] && command -v node >/dev/null 2>&1; then
+  _wv="$(node -p "require('$HERE/../../paas-web/package.json').version" 2>/dev/null || true)"
+  [ -n "${_wv:-}" ] && FRONTEND_IMAGE="paas-web:${_wv}-arm64"
+fi
+FRONTEND_IMAGE="${FRONTEND_IMAGE:-paas-web:0.1.13-arm64}"
 MYSQL_HOST="${MYSQL_HOST:-gaop-mysql}"
 MYSQL_PORT="${MYSQL_PORT:-3306}"
 DB_NAME="${DB_NAME:-gaop}"
@@ -393,7 +413,140 @@ cmd_verify() {
   [ "$failn" -eq 0 ] && { log "全部通过"; } || die "$failn 项未通过"
 }
 
-# ── down ────────────────────────────────────────────────────────────────────
+# ── doctor：集群侧体检（逐项报告，不中断）────────────────────────────────
+# 与 install 里的 preflight 的区别：preflight 是「装之前的最低门槛」，失败即停；
+# doctor 是给人看的完整体检，把所有能查的都查一遍再汇总，便于一次改完。
+cmd_doctor() {
+  local nbad=0 nsoft=0
+  d_pass() { printf '   \033[32m✓\033[0m %s\n' "$*"; }
+  d_warn() { printf '   \033[33m!\033[0m %s\n' "$*"; nsoft=$((nsoft+1)); }
+  d_fail() { printf '   \033[31m✗\033[0m %s\n' "$*"; nbad=$((nbad+1)); }
+
+  log "1/7 kubectl 与集群连通"
+  local kc; kc="$(command -v kubectl || true)"
+  if [ -z "$kc" ]; then
+    d_fail "没有 kubectl（包内 bin/kubectl 缺失，PATH 里也没有）"
+    log "体检中止"
+    return 1
+  fi
+  d_pass "kubectl: $kc"
+  case "$kc" in
+    "$HERE"/bin/*) d_pass "用的是包内自带版本（目标机无需预装）" ;;
+    *)             d_warn "用的是目标机自带 kubectl，版本可能与集群不一致" ;;
+  esac
+  if kubectl cluster-info >/dev/null 2>&1; then
+    d_pass "集群可达：$(kubectl config current-context 2>/dev/null)"
+  else
+    d_fail "连不上集群（KUBECONFIG / 网络 / 证书）"
+    log "体检中止"
+    return 1
+  fi
+
+  log "2/7 服务端版本（清单要求 ≥ 1.24）"
+  local sv maj min
+  sv="$(kubectl version -o json 2>/dev/null | tr -d ' \n' \
+    | sed -n 's/.*"serverVersion":{"major":"\([0-9]*\)"[^}]*"minor":"\([0-9]*\).*/\1.\2/p')"
+  if [ -n "$sv" ]; then
+    maj="${sv%%.*}"; min="${sv##*.}"
+    if [ "$maj" -gt 1 ] || { [ "$maj" -eq 1 ] && [ "$min" -ge 24 ]; }; then
+      d_pass "服务端 v$sv"
+    else
+      d_fail "服务端 v$sv 低于 1.24：networking.k8s.io/v1 不存在，清单无法 apply"
+    fi
+  else
+    d_warn "读不出服务端版本"
+  fi
+
+  log "3/7 节点"
+  local line name arch ready
+  while IFS=' ' read -r name arch ready; do
+    [ -n "$name" ] || continue
+    if [ "$arch" = "arm64" ]; then
+      d_pass "$name 架构 arm64"
+    else
+      d_fail "$name 架构是 ${arch:-未知}，本包镜像是 linux/arm64（会 exec format error）"
+    fi
+    case "$ready" in
+      True) d_pass "$name Ready" ;;
+      *)    d_fail "$name 未 Ready（$ready）" ;;
+    esac
+  done <<EOF
+$(kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name} {.status.nodeInfo.architecture} {.status.conditions[?(@.type=="Ready")].status}{"\n"}{end}' 2>/dev/null || true)
+EOF
+  local press
+  press="$(kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}: {range .status.conditions[?(@.type!="Ready")]}{.type}={.status},{end}{"\n"}{end}' 2>/dev/null || true)"
+  if echo "$press" | grep -q '=True'; then
+    d_warn "节点存在压力条件（Memory/Disk/PID）："; echo "$press" | grep '=True' | sed 's/^/       /'
+  else
+    d_pass "无节点压力条件"
+  fi
+
+  log "4/7 入口类 IngressClass"
+  if kubectl get ingressclass "$INGRESS_CLASS" >/dev/null 2>&1; then
+    d_pass "IngressClass $INGRESS_CLASS 存在"
+  else
+    d_fail "IngressClass $INGRESS_CLASS 不存在；用 INGRESS_CLASS= 指定现场的类名"
+  fi
+
+  log "5/7 命名空间与依赖"
+  if kubectl get ns "$NS" >/dev/null 2>&1; then
+    d_pass "命名空间 $NS 存在"
+  else
+    d_warn "命名空间 $NS 不存在（install 会创建）"
+  fi
+  local host
+  for host in "$MYSQL_HOST" "$REDIS_HOST"; do
+    if k get svc "$host" >/dev/null 2>&1; then
+      d_pass "$host 是本命名空间内的 Service"
+    else
+      d_warn "$host 在 $NS 里找不到同名 Service（外部地址可忽略）"
+    fi
+  done
+
+  log "6/7 镜像"
+  if command -v docker >/dev/null 2>&1; then
+    local img
+    for img in "$BACKEND_IMAGE" "$FRONTEND_IMAGE"; do
+      if docker image inspect "$img" >/dev/null 2>&1; then
+        d_pass "$img 已在本机"
+      else
+        d_warn "$img 本机没有（先 docker load images/*.tar.gz）"
+      fi
+    done
+  else
+    d_warn "没有 docker CLI：请确认容器运行时（containerd）里已导入 $(printf '%s ' "$BACKEND_IMAGE" "$FRONTEND_IMAGE")"
+  fi
+
+  log "7/7 重复安装检测"
+  if k get deploy paas-core >/dev/null 2>&1 || k get deploy paas-web >/dev/null 2>&1; then
+    d_warn "命名空间里已有 paas-core / paas-web：install 会原地更新（镜像 tag 变了才会重建 Pod）"
+  else
+    d_pass "没有同名对象，属于首次安装"
+  fi
+
+  echo
+  if [ "$nbad" -eq 0 ] && [ "$nsoft" -eq 0 ]; then
+    log "体检通过（0 失败 / 0 提示）"
+  elif [ "$nbad" -eq 0 ]; then
+    log "体检通过，但有 $nsoft 项提示"
+  else
+    log "体检未通过：$nbad 项失败 / $nsoft 项提示"
+    return 1
+  fi
+}
+
+# ── up：一条命令走完「体检 → 安装 → 冒烟」────────────────────────────────
+cmd_up() {
+  cmd_doctor || die "体检未通过，先处理上面的失败项（或单独跑 deploy.sh install）"
+  echo
+  cmd_install "$@"
+  echo
+  cmd_verify
+  echo
+  log "下一步：deploy.sh switch paas 把入口指过来；回退是 switch vendor"
+}
+
+
 cmd_down() {
   local force=0
   while [ $# -gt 0 ]; do
@@ -437,6 +590,8 @@ cmd_render() {
 # ── 入口 ────────────────────────────────────────────────────────────────────
 cmd="${1:-}"; shift || true
 case "$cmd" in
+  doctor)    cmd_doctor ;;
+  up)        cmd_up "$@" ;;
   preflight) render_all; preflight ;;
   install)   cmd_install "$@" ;;
   schema)    render_all; ensure_ns_or_die; ensure_db_secret; run_schema ;;
@@ -446,6 +601,6 @@ case "$cmd" in
   switch)    switch_flow "${1:-}" "${2:-all}" ;;
   down)      cmd_down "$@" ;;
   render)    cmd_render "${1:-}" ;;
-  ""|-h|--help|help) sed -n '2,40p' "${BASH_SOURCE[0]}" ;;
-  *) echo "未知命令: $cmd" >&2; sed -n '2,40p' "${BASH_SOURCE[0]}" >&2; exit 2 ;;
+  ""|-h|--help|help) sed -n '2,45p' "${BASH_SOURCE[0]}" ;;
+  *) echo "未知命令: $cmd" >&2; sed -n '2,45p' "${BASH_SOURCE[0]}" >&2; exit 2 ;;
 esac

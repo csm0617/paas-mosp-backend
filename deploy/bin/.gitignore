@@ -1,0 +1,4 @@
+# 包内自带的 kubectl（linux/arm64，约 53MB）：随离线包分发，不进 git。
+# 校验和与来源记录在 kubectl.sha256 与 README 里；build-image.sh/build-package.sh
+# 发现文件缺失时会重新下载并校验。
+kubectl
