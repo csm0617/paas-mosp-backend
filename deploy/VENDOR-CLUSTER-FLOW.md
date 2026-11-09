@@ -62,7 +62,7 @@ if [ $? -ne 0 ]; then echo "安装失败，中断脚本"; exit 1; fi
 | 8 | `install-paas-crictl.yml` | crictl v1.27.3 |
 | 9 | `install-mydumper.yaml` | MySQL 逻辑备份工具 |
 | 10 | `install-paas-etcd.yml` | **外部 etcd** + TLS（`/etc/etcd/pki/etcd_client.{crt,key}`） |
-| 11 | `install-vip-daemon.yml` | keepalived VIP（多 master 时） |
+| 11 | `install-vip-daemon.yml` | **自研 `vip-daemon`**（Go 二进制 + systemd `vip.service`），见 §4.1 |
 | 12 | `install-paas-kubernetes.yml` | 装 K8s 二进制 → 禁 swap → 主机名 → 系统参数 → `kubeadm init`（配置文件）→ 生成 static token → worker `kubeadm join` → 放开 NodePort 80-65535 → 设 `--node-ip` → 打 role 标签 |
 | 13 | `install-paas-networks-flannel.yml` | flannel CNI（`kube-flannel.yml`） |
 | 14 | `site-etcd-backup.yml` | etcd 定时备份（`roles/cron-etcd-bakdata`） |
@@ -94,7 +94,7 @@ if [ $? -ne 0 ]; then echo "安装失败，中断脚本"; exit 1; fi
 | --- | --- |
 | Kubernetes 版本 | **1.27.3** |
 | 容器运行时 | cri-dockerd：`unix:///var/run/cri-dockerd.sock` |
-| 控制面 | 单 master（`192.168.0.101:6443`），VIP 用 keepalived |
+| 控制面 | 单 master（`192.168.0.101:6443`），VIP 由自研 `vip-daemon` 维护（**不是** keepalived） |
 | **etcd** | **外部**：`https://192.168.0.101:2379`，证书 `/etc/etcd/pki/etcd_client.*` |
 | 认证 | `--token-auth-file=/etc/kubernetes/pki/static-token.csv`（静态 token，非 SA token） |
 | 网络 | podSubnet `10.244.0.0/16`、serviceSubnet `10.96.0.0/12` |
@@ -116,6 +116,62 @@ inventory（`host/hosts`）：
 ansible_password="glch.722"
 default_interface=bond6
 ```
+
+### 4.1 VIP 与镜像仓库：两处容易被名字误导的实现
+
+**VIP 不是 keepalived，是自研的 `vip-daemon`**（`amd64/vip/vip-daemon`，5.3MB Go 静态二进制，
+x86-64）。部署方式是 systemd 服务，不是 k8s 对象：
+
+```
+ExecStart=/data/paas/vip/vip-daemon -config /data/paas/vip/config.json
+User=root   Restart=always          # 必须 root，要改 ip addr
+```
+
+`config.json` 由 `install-vip-daemon.yml` 渲染，关键字段：
+
+```json
+{
+  "primary_node_id": "<groups['k8s-master'][0]>",
+  "interface": "<default_interface>",
+  "vips": [{"interface": "bond6", "vip": "192.168.0.100/32"}],
+  "peers": ["<其余所有节点>"],
+  "peer_port": 5555, "http_port": 5556,
+  "priority": 100 - (节点索引 * 10),
+  "check_k8s_url": "https://127.0.0.1:6443/healthz",
+  "ingress_url": "http://<vip>/gaop/user/login",
+  "promote_script": "/data/paas/change_cluster_etcd.sh <host> <password>",
+  "cron_script": "/data/paas/backup_gaop_mysql.sh",
+  "cron_interval": "60s", "status_interval": "30s"
+}
+```
+
+几个要点：
+
+- **探活用的是业务登录页**（`ingress_url .../gaop/user/login`），不是单纯的 TCP 或 `/healthz`——
+  这与 `更新说明.txt` v1.3.5 那条「VIP 统一检查 VIP/master 的 `/gaop/user/login` 最终 HTTP 200」一致；
+- 节点优先级按 `host/hosts` 里的顺序递减（`100 - index*10`），第一个 master 最高；
+- 切换时会调 `change_cluster_etcd.sh`（改 apiserver 的 etcd 指向），每 60s 跑一次
+  `backup_gaop_mysql.sh`；
+- **单节点时 `vips` 为 `[]`**，daemon 起来了但不做漂移——这是单 master 部署的正常形态。
+
+**镜像仓库是 `registry:2.8.3`，不是 Harbor**：
+
+| 项 | 值 |
+| --- | --- |
+| 清单 | `roles/registry/templates/registry.yml.j2` |
+| 对象 | Deployment `docker-registry` + NodePort Service，都在 `kube-system` |
+| 镜像 | `registry:2.8.3`（`amd64/images/registry/registry--2.8.3.tar.gz`） |
+| 端口 | 容器 5000 → NodePort **1080** |
+| 调度 | `nodeSelector: cur-etcd: etcd`（钉在 etcd 节点上） |
+| 数据 | `/data/paas/registry` |
+| 验收 | `curl -v http://<master>:1080/v2 -k`（任务里会重试 30 次） |
+
+**Harbor 在这个包里不存在**——没有 harbor 目录、镜像、compose 文件。但你会看到一堆
+`HARBOR_*`：`gaop-be.yaml` 的 `HARBOR_HOST=192.168.0.101:1080`、
+`roles/docker/templates/daemon.json.j2` 的 insecure-registries、
+以及诊断组件的 `harbor-compose-file: /data/paas/harbor/docker-compose.yml`。
+这些是**历史命名遗留**，实际指向的都是 1080 上的 `registry:2.8.3`；
+诊断组件里那个 compose 路径对应的文件根本不存在，属于死配置。
 
 ## 5. arm64：**脚本已支持，介质缺失**
 
@@ -155,7 +211,7 @@ ARM 分支用的是**解开的** `arm64/kubernetes/server/bin/*`（单文件）�
 | `--ignore-preflight-errors=all` | `roles/kubeadm/tasks/main.yaml` | 预检失败也继续，swap/端口冲突不会拦住安装 |
 | K8s 1.27.3 | `kubeadm_init.yaml` | 已于 2024 年停止维护；自研栈是 1.31，混用需对齐版本 |
 | 静态 token 认证 | `install-paas-basic-server.yml` | 直接 `lineinfile` 改 `/etc/kubernetes/manifests/kube-apiserver.yaml`，属于「改静态 Pod 清单」，升级后要复查 |
-| 单 master | `host/hosts` | worker 与 VIP 都是注释状态；多 master 需放开并配 keepalived |
+| 单 master | `host/hosts` | worker 与 VIP 都是注释状态；多 master 需放开并配 `vip-daemon`（`install-vip-daemon.yml`） |
 | `PODMAN_ARGS='--runtime crun'` | `prepare-ansible.sh` | 依赖包内 crun；若宿主机已有 runc 会被删掉（`rm -f /usr/local/bin/runc`） |
 
 ## 7. 与自研部署包的关系

@@ -33,8 +33,10 @@ sudo ./precheck-node.sh
 三条硬门槛：**swap 关闭**、**默认路由恰好 1 条**、**NTP 已同步**。
 第三条尤其重要——时钟回拨会让 SA token 的 `iat` 落在未来，全集群 401（本项目真实踩过）。
 
-**网络**：单一默认网关；内网 NTP 源（气隙环境必须自备）；如果要多 master，需要
-keepalived 可用的 VIP；registry 走 `192.168.0.101:1080`（厂商默认端口）。
+**网络**：单一默认网关；内网 NTP 源（气隙环境必须自备）；多 master 需要一个可漂移的 VIP，
+由厂商的 **`vip-daemon`**（自研 Go 服务 + systemd）维护，**不是 keepalived**。
+镜像仓库是 `registry:2.8.3`（NodePort **1080**），**不是 Harbor**——业务变量里的
+`HARBOR_HOST` 只是历史命名。细节见 `VENDOR-CLUSTER-FLOW.md` §4.1。
 
 **目录**：`/data/msop`（安装包）、`/data/paas`（数据与二进制落盘）。
 
