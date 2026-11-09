@@ -1,0 +1,66 @@
+# 厂商前端直连的两个宿主机端口（不是网关路径）
+#
+# 背景（findings/167 §十八）：
+#   vendor 前端 umi.js 里把两个地址**硬编码**成 window.location.hostname + 端口：
+#     le = "http://" + location.hostname + ":19527"   → gaop-fdfs
+#     ce = "http://" + location.hostname + ":19528"   → gaop-image-uploader
+#   ce 被导出为 axios 的 baseURL，`POST /v1/image/upload`、上传进度 WebSocket
+#   (`ws://<host>:19528/ws/uploadImage/<user>`) 全都走它，**完全不经过 /api/gaop 网关**。
+#
+#   厂商安装包里的对应声明：
+#     k8s-yaml/gaop-image-uploader.yaml → Service gaop-image-uploader-nodeport, nodePort 19528
+#     k8s-yaml/gaop-fdfs.yaml           → nodePort 19527
+#
+# 为什么要用 externalIPs 指向 VIP：
+#   用户通过 MetalLB 的 VIP 172.16.209.170 访问控制台，浏览器算出的地址就是
+#   http://172.16.209.170:19528。VIP 只对 Service 声明过的端口做 DNAT，
+#   单开 NodePort 只有「节点 IP:19528」能通，VIP 上仍然打不通。
+#   而 IPVS 模式下 externalIPs 映射的是 Service 的 port（不是 nodePort），
+#   所以这里直接写 port: 19528 / 19527。
+#
+# 注意：
+#   - 若集群 VIP 不是 172.16.209.170，替换 externalIPs 即可；
+#   - 这两个 Service 只是端口映射，Pod 仍是原来的 gaop-fdfs / gaop-image-uploader。
+apiVersion: v1
+kind: Service
+metadata:
+  name: gaop-image-uploader-vip
+  namespace: gaop-namespace
+  labels:
+    name: gaop-image-uploader
+    system/appName: gaop
+    system/appType: gaop-base
+    system/svcName: gaop-image-uploader
+spec:
+  type: ClusterIP
+  externalIPs:
+    - 172.16.209.170
+  selector:
+    app: gaop-image-uploader
+  ports:
+    - name: image-upload
+      port: 19528
+      targetPort: 18080
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gaop-fdfs-vip
+  namespace: gaop-namespace
+  labels:
+    name: gaop-fdfs
+    system/appName: gaop
+    system/appType: gaop-base
+    system/svcName: gaop-fdfs
+spec:
+  type: ClusterIP
+  externalIPs:
+    - 172.16.209.170
+  selector:
+    app: gaop-fdfs
+  ports:
+    - name: fdfs
+      port: 19527
+      targetPort: 9527
+      protocol: TCP

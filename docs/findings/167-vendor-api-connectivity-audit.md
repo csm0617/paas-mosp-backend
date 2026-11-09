@@ -937,3 +937,87 @@ SIGHUP 重载（带备份、幂等、临时 Pod 用完即删）。
 > 仍未处理：`g_setting.system.url.harbor` 为 NULL、`system.url.container_log = 128.0.42.3`（旧地址），
 > 以及 `projectList` 返回的 `creation_time` 是 `+58827-06-02` 这类离谱值（厂商时间解析 bug）。
 > 都不影响上传主链路，先记录。
+
+## 十八、为什么是 `:19528`：前端硬编码的直连端口（2026-11-10 02:53–03:15）
+
+用户问：`http://172.16.209.170:19528/v1/image/upload?storage=library&username=admin&type=1`
+**为什么是 19528**。
+
+### 18.1 答案：vendor 前端把它写死了，而且刻意绕开网关
+
+`umi.d08aa716.js`【码】：
+
+```js
+le = "http://" + window.location.hostname + ":19527"   // → gaop-fdfs
+ce = "http://" + window.location.hostname + ":19528"   // → gaop-image-uploader
+```
+
+`ce` 被导出成镜像模块的 axios `baseURL`（module 68843 的 `g7`），于是：
+
+- `POST /v1/image/upload`、`/v1/image/clean` 等全部打到 `http://<当前hostname>:19528`
+- 上传进度 WebSocket 也在这条链路上：
+  `new WebSocket("ws://" + location.hostname + ":19528/ws/uploadImage/" + username)`
+
+厂商安装包里的对应声明（`k8s-yaml/`）：
+
+```
+gaop-image-uploader.yaml → Service gaop-image-uploader-nodeport  nodePort: 19528 (→18080)
+gaop-fdfs.yaml           → nodePort: 19527 (→9527)
+```
+
+所以 19528 不是我们配的，是**厂商固定约定**。此前集群只建了 ClusterIP，
+既没有 19528 也没有 19527，前端一上传就 connection refused。
+
+> 也就是说：§十七里我用 `/api/gaop/v1/image/upload`（网关 ingress）验证通过，
+> **只证明网关那条路是通的，并不等于界面能用**——界面根本不走网关。
+> 教训：验证「页面上的功能」必须复现页面真实的请求地址，不能只验后端路由。
+
+### 18.2 只加 NodePort 还不够：VIP 上仍然不通
+
+用户从 VIP `172.16.209.170` 访问，浏览器算出的就是 `172.16.209.170:19528`。
+而 VIP 是金属 LB 地址，**只对 Service 声明过的端口做 DNAT**：
+
+| 目标 | 结果 |
+|---|---|
+| `172.16.209.25:19528`（节点 IP） | 200/404，通 |
+| `172.16.209.170:19528`（VIP） | connection refused |
+
+先试过给 NodePort Service 加 `externalIPs: [VIP]`，结果 VIP 上冒出来的是 `:18080`/`:9527` ——
+因为 **IPVS 模式下 `externalIPs` 映射的是 Service 的 `port`，不是 `nodePort`**。
+改成 `port: 19528 → targetPort: 18080`（ClusterIP + externalIPs）后 VIP 直接通。
+
+清单落在 `deploy/cluster/frontend-direct-ports.yaml`（两个 Service：上传 19528、fdfs 19527）。
+
+### 18.3 顺带纠正：registry 的 NodePort 是 1080，不是 30180
+
+复测时 push 报 `connect: connection refused`。查实：`kube-system/docker-registry`
+这个 Service 是 00:15 新建的，`nodePort` 是 **1080**（31 分钟前我记的 30180 那条已不存在）。
+于是 `HARBOR_HOST` 与 `insecure-registries` 都要跟着改成 `172.16.209.25:1080`。
+
+> 这类"端口漂移"说明**不能把 registry 地址写死在文档或脚本里**：
+> `tools/align-image-registry.sh` 已改成动态探测（节点 InternalIP + docker-registry 的 nodePort）。
+
+### 18.4 最终验证（完全按浏览器的路径）
+
+```
+OPTIONS http://172.16.209.170:19528/v1/image/upload   (Origin: http://172.16.209.170)
+  → 200, Access-Control-Allow-Origin: http://172.16.209.170
+     （上传服务自带 CrosConfig："/**" + allowedOriginPatterns("*")，跨域由应用放行）
+
+POST multipart file=real2.tar → 172.16.209.170:19528/v1/image/upload?storage=library...
+  → 200 {"code":0,"data":true}
+imageLog:
+  The push refers to repository [172.16.209.25:1080/library/vip-daemon]
+  AuxDetail(digest=sha256:1c0ab5…)   → 上传镜像成功
+GET /v1/image/repositories?storage=library → total=1 (library/vip-daemon)
+```
+
+测试镜像已清理（`DELETE /v1/image?name=...&tag=...` 需要**未过期**的会话，过期会 401）。
+
+### 18.5 附带发现
+
+- **registry 的数据在 MinIO（S3）**，不是容器本地盘：`registry-config` 里
+  `storage.s3.regionendpoint = http://172.16.209.25:30900`、`bucket: registry`、`delete.enabled: true`。
+  所以 Pod 重建不会丢镜像（这一条比之前担心的"emptyDir 丢数据"要好）。
+- 删除镜像后 `_catalog` 仍会列出同名空目录（`tags/list` 返回 `NAME_UNKNOWN`），
+  是 S3 上的空壳目录，`getImageListByProject` 会跳过（无 tag），不影响页面。
