@@ -150,7 +150,7 @@ Loki `30008` 实测 `/ready` 200【实】——说明纠偏路径是通的，只
 |---|---|---|
 | P0 ✅ | 把 Prometheus 探针 `timeoutSeconds` 1 → 5，并加 `GOMEMLIMIT=850MiB`、retention 降到 2h（**已执行**，见 §九） | 第 1、2 条，以及所有监控页的间歇失败 |
 | P1 | 给 `gaop-be` 显式注入 `MYSQL_HOST=<本集群 mysql>`、`VIP_HOST`、`HARBOR_HOST`，或确认这些下游"本就不部署" | 第 5~11 条 |
-| P1 | 给 10 个 Deployment 补 `limits.cpu`（`cockpit` 的 NPE 就是它） | 第 3 条 |
+| P1 ✅ | 给 11 个 Deployment 补 `limits.cpu`（**已执行**，见 §十；NPE 消除，但 cockpit 仍卡 Harbor） | 第 3 条的 NPE 部分 |
 | P2 | 把宿主机 `/var/run/docker.sock` 挂进 `gaop-be`（或确认镜像模块改走 Harbor API） | 第 12 条 |
 | P2 | `node-recovery.sh` 放到节点 `/data/paas/node-recovery/` | 第 19 条 |
 | —— | 第 4 条、第 3 条的 NPE 属厂商缺陷（A 类），重写版不复刻，已记录 | —— |
