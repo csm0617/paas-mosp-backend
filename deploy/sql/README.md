@@ -1,5 +1,12 @@
 # sql/ —— 数据层资产（自研后端自身不带迁移）
 
+> **当前状态（2026-11-10）**：测试集群的 `gaop` 库**已按 `msop/`（V1.3.5）的
+> `install-paas-init-sql.yml` 重建**（89 项全过、39 张表）。也就是说**线上库是 V1.3.5 结构，
+> 而本目录这份副本仍是 V1.3.4** —— 两者不再同版本。用它做空库初始化会退回旧结构
+>（`image_storage` 100、loki 60、「席位数据」等 6 处）。下次初始化请取
+> `msop/roles/gaop-mysql/templates/*.sql.j2`（去掉 `.j2` 即为纯 SQL），
+> 或者先把这 87 个文件同步成 V1.3.5 再重算指纹。详见 `docs/deviations.md` **D2 / D3**。
+
 ## 为什么这里有厂商的 SQL
 
 `paas-core` 是**替换 gaop-be** 的实现，两者共用同一个 `gaop` 库与同一份表结构：
@@ -69,19 +76,25 @@ SQL 在传输中是否被改动。
 | `V0.8.3__alter-language-table-character-set.sql` | `where **mode_name** = 'MAINTAIN'` | `where mode` | `g_mode` 两列都在，两版都能跑，**删的行不同** |
 | `V0.8.3_update_setting_table.sql` | loki 上限 **60** | 300 | `g_setting` 默认告警阈值 |
 
-**当前库属于哪一套，用这三处可查指纹判定**（2026-11-10 实测，全部落在 v1.3.4 一侧）：
+**当前库属于哪一套，用这三处可查指纹判定**（同一个库在两个时点被各测了一次，
+说明这三条确实能区分版本）：
 
 ```sql
 select column_type from information_schema.columns
- where table_schema='gaop' and table_name='g_ci_cd' and column_name='image_storage';  -- varchar(100)
-select val from g_setting where `key`='system.loki.log.max.memory';                    -- 60
-select database_name from g_backup where id=2;                                          -- 席位数据
+ where table_schema='gaop' and table_name='g_ci_cd' and column_name='image_storage';
+select val from g_setting where `key`='system.loki.log.max.memory';
+select database_name from g_backup where id=2;
 ```
+
+| 时点 | 实测结果 | 判定 |
+| --- | --- | --- |
+| 2026-11-10 上午（升级前） | `varchar(100)` / `60` / `席位数据` | v1.3.4 一侧 |
+| 2026-11-10 凌晨重建后 | `varchar(255)` / `300` / `战位数据` | **v1.3.5 一侧（现状）** |
 
 **含义**：气隙现场若改用 `msop/` 新包走厂商 Ansible 装库，得到的 schema 与本文档、与
 `docs/deviations.md` 里验证过的基线**不是同一套**（列宽、索引前缀、默认值、部分数据都不同），
 必须重跑一次「空库灌入 → 表数 → 契约比对」，不可直接复用现有结论。判定记录见
-`docs/deviations.md` **D1/D2**。
+`docs/deviations.md` **D2/D3**。
 
 ## 什么时候不该灌
 
