@@ -1,0 +1,99 @@
+# vip-daemon：厂商 HA VIP 守护进程的 arm64 等价实现（只读优先）
+#
+# 背景：厂商只发 amd64 的 systemd 二进制（amd64/vip/vip-daemon），arm64 集群无法运行，
+# 导致 gaop-be 的 GET /v1/pub/vip 因 feign 连不上而整条 500。
+# 本清单提供同接口的 arm64 实现，接口契约见 recovered/gaop-be 的 VipDaemonApi.java。
+#
+# 单节点语义：无 HA，VIP 列表为空（与厂商 config.json.j2 的 node_list==1 分支一致），
+# 写操作返回 501 而不是假装成功。
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vip-daemon-config
+  namespace: gaop-namespace
+data:
+  config.json: |
+    {
+      "node_id": "k8s-master",
+      "primary_node_id": "k8s-master",
+      "interface": "",
+      "vips": [],
+      "peers": [],
+      "peer_port": 5555,
+      "http_port": 5556,
+      "ignore_prefix_list": ["lo", "docker", "kube-", "flannel", "usb", "virbr", "cni", "veth", "cali", "tunl"],
+      "log_path": "/var/log/vip-daemon/app.log"
+    }
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: vip-daemon
+  namespace: gaop-namespace
+  labels:
+    app: vip-daemon
+spec:
+  selector:
+    matchLabels:
+      app: vip-daemon
+  template:
+    metadata:
+      labels:
+        app: vip-daemon
+    spec:
+      # 必须 hostNetwork：要读/管的是**宿主机**网卡，容器自己的 netns 只有 eth0 + lo
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: vip-daemon
+          image: vip-daemon:arm64-local
+          imagePullPolicy: IfNotPresent
+          args: ["-config", "/etc/vip/config.json"]
+          ports:
+            - name: http
+              containerPort: 5556
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5556
+            initialDelaySeconds: 3
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5556
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              # 厂商 cockpit 假设 limits 里 cpu/memory 成对出现，这里必须都写
+              cpu: 200m
+              memory: 64Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/vip
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: vip-daemon-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vip-daemon
+  namespace: gaop-namespace
+spec:
+  selector:
+    app: vip-daemon
+  ports:
+    - name: http
+      port: 5556
+      targetPort: 5556

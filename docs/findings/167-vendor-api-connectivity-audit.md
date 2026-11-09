@@ -549,3 +549,72 @@ log: socket 连接成功
 > 给重写版的提醒：`paas-web` 的服务配置页必须同时兼容
 > `value` / `fieldRef` / `secretKeyRef` / `configMapKeyRef` / `resourceFieldRef` 五种形态，
 > 不能像厂商那样只认前两种；render 前对 `valueFrom` 做完整判空。
+
+## 十四、`GET /v1/pub/vip` 500：补一个 arm64 的 VIP 守护进程（2026-11-09 23:55–00:15）
+
+用户报障：`/api/gaop/v1/pub/vip` 返回
+`500 feign.RetryableException: connect timed out executing GET http://192.168.1.52:5556/api/vips`。
+
+### 14.1 根因是"组件不可用"而不是"配置写错"
+
+- 地址来源：`vip.host = ${VIP_HOST:${SSH_HOST:localhost}}`，`vip.port=5556`；
+  Pod 里 `SSH_HOST=192.168.1.52`（老环境），`VIP_HOST` 未设 ⇒ 打到老地址【实】。
+- 更根本的是：**厂商只提供 amd64 的宿主二进制**
+  `msop/amd64/vip/vip-daemon`（`file` 显示 x86-64、Go 静态、`-s -w`），
+  而节点是 arm64 ⇒ 就算把 `SSH_HOST` 改对也没有 daemon 在 5556 上监听。
+- 所以单纯改配置无效，必须先有一个能听的进程。
+
+### 14.2 没有走反编译，直接按契约重写
+
+`vip-daemon` 是 `-s -w` 编的 Go 程序：`go tool nm` 报 `no symbol section`，
+但 pclntab 仍可读出 **1517 个函数名**（`main.NewVIPManager`/`NewNetworkManager`/
+`isHigherNode`/`detectCurEtcd`/`checkLinkHealth` 等），字符串里能拿到全部路由
+（`/api/vips`、`/api/vips/add|delete`、`/api/interfaces`、`/api/config/sync`、`/api/configmap`）。
+**但把汇编还原成可维护代码的成本远高于重写**，且接口契约本来就完整：
+
+- `VipDaemonApi.java`：7 个方法（GET/POST `/api/vips`、`/add`、`/delete`、`/api/interfaces`）
+- `VipItem`：`{interface, vip}`（vip 形如 `10.0.0.5/32`）
+- `InterfaceInfo`：`{name, mac, flags, addresses[]}`（`index` 是 `@JsonIgnore`）
+- `config.json.j2`：单节点分支 `vips: []`
+
+### 14.3 实现与部署
+
+代码在 `deploy/cluster/vip-daemon/`（单文件 Go、纯标准库、`CGO_ENABLED=0` 交叉编译成 arm64）：
+
+| 方法 | 路径 | 行为 |
+|---|---|---|
+| GET | `/api/vips` | `[]`（单节点无 HA，与厂商模板一致，是真实状态） |
+| GET | `/api/interfaces` | 标准库 `net.Interfaces()` 读**宿主机**真实网卡 |
+| POST | `/api/vips`、`/add`、`/delete` | **501 + 原因**（不假装成功） |
+| GET | `/health` | 探针 |
+
+部署要点：`DaemonSet` + `hostNetwork: true`（容器自己的 netns 只有 eth0+lo，看不到宿主网卡），
+`ConfigMap` 提供单节点配置，`Service` 暴露 5556，`limits` 里 cpu/memory **成对写**
+（§3.4 的教训：厂商 cockpit 假设 limits 成对）。
+
+镜像走离线导入（`docker import` 不用拉基础镜像 → 5.3MB tar）：
+临时 Pod 挂 `/run/docker.sock` + **`runAsUser: 0`**（非 root 读不了 660 的 socket，
+curl 会报 `couldn't connect` exit 7），`curl --unix-socket` 打 `/images/load`，用完即删。
+
+### 14.4 结果【实】
+
+```
+GET http://172.16.209.25:5556/api/vips
+→ []
+GET http://172.16.209.25:5556/api/interfaces
+→ [{"name":"ens160","mac":"00:0c:29:00:ff:2e","flags":"up|broadcast|multicast|running",
+    "addresses":["172.16.209.25/24","fe80::20c:29ff:fe00:ff2e/64"]}]
+
+gaop-be: VIP_HOST=vip-daemon（Service 10.96.1.210）
+GET /v1/pub/vip            → 200 {"code":0,"data":[]}        （原 500）
+GET /v1/pub/vip/interfaces → 200 真实网卡
+```
+
+浏览器验证 `/gaop/netmanager/vipmanage`：表头（序号/虚拟IP/绑定网卡/操作）+「新增虚拟IP」
+正常渲染，**0 个 4xx/5xx、0 个 pageerror**，表格显示「暂无数据」——这是单节点的正确状态。
+
+### 14.5 与既有文档的差异
+
+findings/100 把这条列为"VIP daemon 未部署，不在安装包内"。**实际在包里**
+（`amd64/vip/vip-daemon` + `templates/vip.service.j2` + `config.json.j2`），
+只是架构是 amd64，且安装方式是宿主机 systemd 而不是容器。
