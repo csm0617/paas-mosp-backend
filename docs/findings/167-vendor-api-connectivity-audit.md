@@ -302,3 +302,66 @@ NPE 消失；现在卡在 **Harbor（Docker Registry API）不可达**——feig
 
 > 副作用提醒：`cockpit` 挂起会长时间占用 Tomcat 线程（池 10），
 > 反复刷新驾驶舱页会拖慢其它接口。若近期不部署 Harbor，建议前端先禁用该页的自动刷新。
+
+## 十一、`GET /v1/service/gaop` 的 NPE 定位与修复（2026-11-09 23:05–23:25）
+
+用户报障：`/api/gaop/v1/service/gaop?type=2&page=1&size=10&keyword=` 返回
+`500 {"msg":"系统错误","code":-1}`，trace 首帧
+`NullPointerException at ServiceController.getGaopServiceList(ServiceController.java:1961)`。
+
+### 11.1 定位：字节码 + 环境事实交叉验证
+
+`javap -p -l -c` 查 `ServiceController.class`（来自运行镜像 `gaop-be-0.0.1.jar`），
+`line 1961` → 偏移 898，指令序列是：
+
+```
+885: aload 15
+887: ServicesItem.getDeployment()
+890: IoK8sApiExtensionsV1beta1Deployment.getMetadata()
+893: ...ObjectMeta.getName()
+896: astore 19
+898: aload 15                                    ← line 1961 起点
+900: getDeployment() → getSpec() → getTemplate()
+909: ...PodTemplateSpec.getMetadata()
+912: ...ObjectMeta.getAnnotations()              ← 返回 null 时
+915: ldc "gaop/serviceLabel"
+918: Map.get(...)                                ← 这里 NPE
+```
+
+即代码等价于：
+
+```java
+servicesItem.getDeployment().getSpec().getTemplate()
+            .getMetadata().getAnnotations().get("gaop/serviceLabel")
+```
+
+`getAnnotations()` 在 Pod 模板没有注解时返回 **null**（不是空 Map），紧接着 `.get()` 就抛 NPE。
+
+集群侧复核【实】：**4 个 Deployment 的 `spec.template.metadata.annotations` 为 null** ——
+`gaop-diagnostic`、`gaop-redis`、`gaop-startup`、`gaop-web`；
+其余 7 个因为有 `kubectl.kubernetes.io/restartedAt` 才躲过（说明厂商假设"平台创建的服务一定带注解"，
+而我们是手工 apply 的清单）。
+
+### 11.2 修复
+
+给 4 个 Deployment 补注解（顺带补上厂商语义里的展示名）：
+
+```
+kubectl -n gaop-namespace patch deploy <name> --type=strategic -p \
+ '{"spec":{"template":{"metadata":{"annotations":{"gaop/serviceLabel":"<name>"}}}}}'
+```
+
+结果【实】：`type=1` 与 `type=2` **均 200**，`total=6`；走网关 `172.16.209.170/api/gaop` 复验同样 200。
+全量通过率 **71 → 72 / 88（82%）**。
+
+### 11.3 两条重要教训
+
+1. **`recovered/` 的反编译源码与运行镜像不是同一版本。** 源码里 `getGaopServiceList` 在 1564 行且是纯查询；
+   jar 里同一方法行号是 1806–1966。**定位线上异常必须以 jar 的字节码为准**
+   （`unzip` 出 class + `javap -l` 查 LineNumberTable），不能直接按反编译源码的行号对。
+2. **`getAnnotations()` / `getLabels()` 在 Java k8s client 里会返回 null**，不是空集合。
+   厂商大量代码直接链式 `.get(...)`，因此"手工 apply 的工作负载"很容易踩到这类 NPE。
+   我们自己写清单时要保证 `template.metadata.annotations` 至少有一个 key。
+
+> 同类隐患：`ServiceController:1686` 还有一处 `getAnnotations().put(...)` 同样没判空，
+> 只是 `/v1/service` 恰好被前面的过滤条件跳过了。补注解顺带把这条也压住了。
