@@ -125,7 +125,8 @@ fi
 
 # ── 2/5 脚本与清单 ──────────────────────────────────────────────────────────
 log "2/5 收集脚本、清单、SQL 与自带工具"
-cp "$DEPLOY/deploy.sh" "$DEPLOY/precheck-node.sh" "$DEPLOY/Dockerfile" "$DEPLOY/INSTALL-FLOW.md" "$ROOT/"
+cp "$DEPLOY/deploy.sh" "$DEPLOY/precheck-node.sh" "$DEPLOY/Dockerfile" \
+   "$DEPLOY/INSTALL-FLOW.md" "$DEPLOY/FULL-DEPLOY-FLOW.md" "$ROOT/"
 cp "$DEPLOY"/k8s/*.yaml "$ROOT/k8s/"
 cp -r "$DEPLOY/sql/." "$ROOT/sql/"
 chmod +x "$ROOT/deploy.sh" "$ROOT/precheck-node.sh"

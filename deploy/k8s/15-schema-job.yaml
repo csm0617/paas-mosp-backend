@@ -59,16 +59,37 @@ spec:
               set -u
               ok=0; fail=0; failed=""
 
+              # 管理员连接：优先用单独的 root 口令；若应用账号本身就是 root，
+              # 则用同一个口令登录。**绝不能对 root 执行 ALTER USER**——现场 root
+              # 口令是既成事实，改掉就等于把数据库锁死。
+              ADMIN=""
               if [ -n "${ROOT_PASSWORD:-}" ]; then
-                echo "== 建库与账号（root）=="
-                mysql -h "$MYSQL_HOST" -P "$MYSQL_PORT" -uroot -p"$ROOT_PASSWORD" -e "
-                  CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
-                  CREATE USER IF NOT EXISTS '$APP_USER'@'%' IDENTIFIED WITH mysql_native_password BY '$APP_PASSWORD';
-                  ALTER USER '$APP_USER'@'%' IDENTIFIED WITH mysql_native_password BY '$APP_PASSWORD';
-                  GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$APP_USER'@'%';
-                  FLUSH PRIVILEGES;" || { echo "!! 建库失败（root 口令或网络不对）"; exit 1; }
+                ADMIN="-uroot -p${ROOT_PASSWORD}"
+                echo "== 建库（管理员 root，口令来自 MYSQL_ROOT_PASSWORD）=="
+              elif [ "${APP_USER}" = "root" ]; then
+                ADMIN="-uroot -p${APP_PASSWORD}"
+                echo "== 建库（管理员 root，口令来自 MYSQL_PASSWORD）=="
               else
-                echo "== 未提供 root 口令，假定库与账号已存在 =="
+                echo "== 未提供管理员口令，假定库与账号已存在 =="
+              fi
+
+              if [ -n "${ADMIN}" ]; then
+                # shellcheck disable=SC2086
+                mysql -h "$MYSQL_HOST" -P "$MYSQL_PORT" ${ADMIN} -e "
+                  CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;" \
+                  || { echo "!! 建库失败（管理员口令或网络不对）"; exit 1; }
+
+                if [ "${APP_USER}" != "root" ]; then
+                  # shellcheck disable=SC2086
+                  mysql -h "$MYSQL_HOST" -P "$MYSQL_PORT" ${ADMIN} -e "
+                    CREATE USER IF NOT EXISTS '${APP_USER}'@'%' IDENTIFIED WITH mysql_native_password BY '${APP_PASSWORD}';
+                    ALTER USER '${APP_USER}'@'%' IDENTIFIED WITH mysql_native_password BY '${APP_PASSWORD}';
+                    GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${APP_USER}'@'%';
+                    FLUSH PRIVILEGES;" || { echo "!! 建账号失败"; exit 1; }
+                  echo "   应用账号 ${APP_USER} 已就绪"
+                else
+                  echo "   应用账号即 root，跳过建/改用户"
+                fi
               fi
 
               echo "== 灌入迁移 =="

@@ -119,10 +119,10 @@ NS=gaop-namespace MYSQL_HOST=gaop-mysql REDIS_HOST=gaop-redis ./deploy.sh up
 | 变量 | 默认 | 说明 |
 | --- | --- | --- |
 | `NS` | `gaop-namespace` | 目标命名空间 |
-| `MYSQL_HOST` | `gaop-mysql` | MySQL Service 名；外部库填 ExternalName 或域名 |
+| `MYSQL_HOST` | `gaop-radondb-mysql-leader` | 厂商业务库（RadonDB 集群的 leader service）。**注意 `gaop-mysql` 是另一套 Deployment，不是业务库** |
 | `MYSQL_PORT` | `3306` | |
-| `DB_NAME` / `APP_USER` | `gaop` / `gaop` | 库名与账号 |
-| `MYSQL_PASSWORD` | 自动生成 | 不传则随机生成并写进 Secret `paas-db`；**要在 MySQL 侧同步这个口令** |
+| `DB_NAME` / `APP_USER` | `gaop` / `root` | 与厂商 `gaop-be.yaml` 的 `RADONDB_NAME` / `MYSQL_USERNAME` 一致 |
+| `MYSQL_PASSWORD` | 自动生成 | 不传则随机生成并写进 Secret `paas-db`；**`APP_USER=root` 时必填**（root 口令不能随机生成，也绝不能被改） |
 | `MYSQL_ROOT_PASSWORD` | 空 | 只有给了才会执行「建库+建用户」 |
 | `REDIS_HOST` / `REDIS_PORT` | `gaop-redis` / `6379` | |
 | `GATEWAY_HOST` / `GATEWAY_PORT` | `gaop-gateway-auth` / `5000` | 规则通知目标 |

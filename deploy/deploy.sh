@@ -75,10 +75,13 @@ if [ -z "${FRONTEND_IMAGE:-}" ] && [ -f "$HERE/../../paas-web/package.json" ] &&
   [ -n "${_wv:-}" ] && FRONTEND_IMAGE="paas-web:${_wv}-arm64"
 fi
 FRONTEND_IMAGE="${FRONTEND_IMAGE:-paas-web:0.1.13-arm64}"
-MYSQL_HOST="${MYSQL_HOST:-gaop-mysql}"
+MYSQL_HOST="${MYSQL_HOST:-gaop-radondb-mysql-leader}"
 MYSQL_PORT="${MYSQL_PORT:-3306}"
 DB_NAME="${DB_NAME:-gaop}"
-APP_USER="${APP_USER:-gaop}"
+# 厂商业务后端（k8s-yaml/gaop-be.yaml）用的是 root + RADONDB_NAME=gaop，
+# 库在 RadonDB 集群的 leader service 上。注意 gaop-namespace 里还有另一个
+# `gaop-mysql`（Deployment，只带 init 脚本），不是业务库——默认值不能指向它。
+APP_USER="${APP_USER:-root}"
 REDIS_HOST="${REDIS_HOST:-gaop-redis}"
 REDIS_PORT="${REDIS_PORT:-6379}"
 GATEWAY_HOST="${GATEWAY_HOST:-gaop-gateway-auth}"
@@ -152,6 +155,11 @@ ensure_db_secret() {
   fi
   local pw="${MYSQL_PASSWORD:-}"
   if [ -z "$pw" ]; then
+    # 用 root 连库时**不能**随机生成：现场 root 口令是既成事实，随机值只会让连接失败，
+    # 而 schema Job 里对 root 执行 ALTER USER 会把现场口令改掉（破坏性）。
+    if [ "$APP_USER" = "root" ]; then
+      die "APP_USER=root 时必须显式提供 MYSQL_PASSWORD（现场 root 口令）；不要让它随机生成"
+    fi
     pw="$(head -c 24 /dev/urandom | base64 | tr -d '/+=\n' | head -c 24)"
     warn "未提供 MYSQL_PASSWORD，已生成随机口令并写入 Secret paas-db"
   fi
