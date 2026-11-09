@@ -113,11 +113,23 @@ cp "$FRONTEND_TAR" "$ROOT/images/"
 echo "   前端：$(basename "$FRONTEND_TAR") $(du -h "$FRONTEND_TAR" | cut -f1)"
 
 if [ "$WITH_DB_IMAGE" = 1 ]; then
-  if ! docker image inspect "$MYSQL_IMAGE" >/dev/null 2>&1; then
-    echo "   本机没有 ${MYSQL_IMAGE}，尝试拉取（气隙环境请先在别处导出后拷入）"
-    docker pull "$MYSQL_IMAGE"
+  # 与前后端镜像同样处理：缓存成 tar 复用。mysql 镜像不会随业务版本变化，
+  # 每次 docker save 一遍是浪费，而且会让「重打包」强依赖 Docker daemon 在线。
+  MYSQL_NAME="$(echo "$MYSQL_IMAGE" | tr '/:' '--')-arm64.tar.gz"
+  MYSQL_CACHE="$REPO/artifacts/$MYSQL_NAME"
+  if [ ! -f "$MYSQL_CACHE" ]; then
+    if ! docker image inspect "$MYSQL_IMAGE" >/dev/null 2>&1; then
+      echo "   本机没有 ${MYSQL_IMAGE}，尝试拉取（气隙环境请先在别处导出后拷入）"
+      docker pull "$MYSQL_IMAGE"
+    fi
+    mkdir -p "$(dirname "$MYSQL_CACHE")"
+    docker save "$MYSQL_IMAGE" | gzip -1 > "$MYSQL_CACHE"
+    echo "   已导出并缓存：$MYSQL_CACHE"
+  else
+    echo "   复用缓存：$(basename "$MYSQL_CACHE")"
   fi
-  docker save "$MYSQL_IMAGE" | gzip -1 > "$ROOT/images/$(echo "$MYSQL_IMAGE" | tr '/:' '--')-arm64.tar.gz"
+  gzip -t "$MYSQL_CACHE" 2>/dev/null || { echo "   !! mysql 镜像缓存损坏，删掉后重跑：$MYSQL_CACHE" >&2; exit 1; }
+  cp "$MYSQL_CACHE" "$ROOT/images/$MYSQL_NAME"
   echo "   数据库客户端：$(du -h "$ROOT/images/"*mysql* | cut -f1)"
 else
   echo "   跳过 mysql 镜像（--no-db-image）：现场需自备 $MYSQL_IMAGE"
