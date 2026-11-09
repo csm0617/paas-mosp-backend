@@ -516,11 +516,35 @@ tools/check-vendor-env-shape.sh [namespace]     # 只读，发现即退出码 1
 
 接进巡检即可避免"改完清单又白屏"。
 
-### 13.5 顺带发现（未处理）
+### 13.5 顺带核查：`ws://localhost:9999` **不是缺陷，不改**
 
-同一次复现里还有个 `WebSocket connection to 'ws://localhost:9999/' failed` ——
-前端某处把终端/日志的 WS 地址写死成了 `localhost:9999`（应走当前 origin），
-连不上不影响页面渲染，属另一处待修项。
+白屏复现时 console 里还有一条 `WebSocket connection to 'ws://localhost:9999/' failed`。
+查产物后确认它的性质：
+
+```js
+var L = "/api/gaop";
+var N = new WebSocket("ws://localhost:9999");            // ① 本地客户端通道（硬编码）
+N.onmessage = e => { if ("auto-login-client" === t.key) document.cookie = t.payload } // 自动写登录 cookie
+...
+I.webSocketFactory = () => new SockJS(L + "/ws");        // ② 实时推送（STOMP，相对路径）
+I.activate();
+```
+
+- **① `ws://localhost:9999` 是厂商桌面客户端的约定端口**：客户端在本机起 WS 服务，浏览器端连上后接收
+  `auto-login-client` 消息自动注入 `gateway-token`。在浏览器里访问本就没有这个客户端，
+  连不上是**设计内的预期**，而且代码只 `new` 一次、没有重连、`isClient` 也不会被误置 true。
+- **② 真正的实时推送是 STOMP over SockJS，走相对路径 `/api/gaop/ws`**，与访问地址同源，配置正确。
+
+浏览器实测【实】：
+
+```
+WS OPEN ws://172.16.209.170/api/gaop/ws/834/eqgk5bam/websocket
+GET  /api/gaop/ws/info?t=...
+log: socket 连接成功
+```
+
+**结论：不改。** 收益为零（只是少一条 console 噪音），代价却是改厂商打包产物（升级即被覆盖）
+并可能破坏桌面客户端集成。若确实要消除噪音，正确做法是让客户端侧或产品侧决定，而不是在服务端产物里打补丁。
 
 > 给重写版的提醒：`paas-web` 的服务配置页必须同时兼容
 > `value` / `fieldRef` / `secretKeyRef` / `configMapKeyRef` / `resourceFieldRef` 五种形态，
