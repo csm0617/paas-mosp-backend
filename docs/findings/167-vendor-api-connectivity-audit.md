@@ -1021,3 +1021,63 @@ GET /v1/image/repositories?storage=library → total=1 (library/vip-daemon)
   所以 Pod 重建不会丢镜像（这一条比之前担心的"emptyDir 丢数据"要好）。
 - 删除镜像后 `_catalog` 仍会列出同名空目录（`tags/list` 返回 `NAME_UNKNOWN`），
   是 S3 上的空壳目录，`getImageListByProject` 会跳过（无 tag），不影响页面。
+
+## 十九、创建服务后一直「已停止」、点启动无效：缺 ServiceAccount `gaop-operator`（2026-11-10 04:23–04:45）
+
+用户报障：界面上创建 `test-nginx` 成功，但状态一直是「已停止 / 0/0 全部停止」，
+点「启动」也没有变化。
+
+### 19.1 根因：Pod 被 RBAC 拒了，不是「启动」按钮失效
+
+`kubectl get deploy test-nginx` 的 `status.conditions` 里直接写着【实】：
+
+```
+ReplicaFailure=True  reason=FailedCreate
+message: pods "test-nginx-5f4cc58bcc-" is forbidden:
+  error looking up service account gaop-namespace/gaop-operator:
+  serviceaccount "gaop-operator" not found
+```
+
+即：**gaop-be 的 `createService` 把 pod 模板的 `serviceAccountName` 固定写成 `gaop-operator`**，
+而集群里只有 `default` 和 `msop` 两个 SA ⇒ ReplicaSet 每次建 Pod 都被 API Server 拒 ⇒
+Deployment 永远 0 可用 ⇒ 界面按 ready 数显示「已停止」。点启动只是把 replicas 设成 1，
+Pod 仍然建不出来，所以「还是已停止」。
+
+### 19.2 修复：按厂商清单补 SA
+
+厂商安装包里本来就有 `msop/k8s-yaml/gaop-sa.yaml`：SA `gaop-operator` + ClusterRoleBinding 到
+`cluster-admin`。已固化到本仓 `deploy/cluster/gaop-operator-sa.yaml`（内容与厂商一致）。
+
+补完后 `kubectl rollout restart`（或 scale 0→1）触发一次新的 ReplicaSet，Pod 才真正起来：
+
+```
+test-nginx-5f88654fdb-9g4tj   1/1   Running
+Progressing=True  NewReplicaSetAvailable
+```
+
+> 注意：已经 `ProgressDeadlineExceeded` 的 Deployment **不会**因为 SA 出现就立刻重试，
+> 需要一次滚动/扩缩把它推一下。这一步很容易误以为「补了还是没好」。
+
+### 19.3 顺带纠正两个接口语义（我一开始也搞错了）
+
+| 动作 | 接口 | 说明 |
+|---|---|---|
+| 启动 / 停止 | `PUT /v1/service/scale?scale=1\|0&serviceName=X` | 界面按钮走这个，改 spec.replicas |
+| 延时启动 | `POST /v1/service/startUp`，body `{"list":["X"],"time":秒}` | **不是**启停。`time=0` 只清掉 initContainer 并 replace Deployment，**不碰 replicas**；`time>0` 才注入 startup initContainer 做延时 |
+
+我第一次用 `{"serviceName":"..."}` 调 startUp，得到
+`NPE at ServiceController.setServiceStartUpInfo:4960`：字节码显示该方法第一句就是
+`InitServiceInfo.getTime().longValue()`，`time` 为 null 必然 NPE。**是我参数错，不是产品缺陷。**
+
+### 19.4 验证【实】
+
+```
+scale=0 → 200，replicas=0（界面「已停止」）
+scale=1 → 200，replicas=1 / ready=1（界面「运行中」）
+```
+
+### 19.5 安全提示
+
+`gaop-operator` 绑定的是 `cluster-admin`（厂商原样）。本集群平台自身的 `msop` SA 也是
+`cluster-admin`，posture 一致；但**业务容器其实一个 k8s API 都不需要调用**，
+仅 SA 存在即可让 Pod 创建成功。若后续要收紧，可把 ClusterRoleBinding 去掉或换成最小权限。

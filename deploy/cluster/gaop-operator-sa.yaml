@@ -1,0 +1,41 @@
+# 平台创建服务所需的 ServiceAccount（findings/167 §十九）
+#
+# 现象：界面上「创建服务」成功后一直是「已停止」，点「启动」也不变。
+#
+# 根因：gaop-be 的 createService 会把 pod 模板的 serviceAccountName 固定写成
+#       `gaop-operator`，而集群里没有这个 SA，ReplicaSet 创建 Pod 直接被拒：
+#
+#   pods "test-nginx-5fcf..." is forbidden:
+#     error looking up service account gaop-namespace/gaop-operator:
+#     serviceaccount "gaop-operator" not found
+#
+#       ⇒ Deployment 一直 0 可用，界面就显示「已停止 / 0/0 全部停止」。
+#
+# 本文件内容与厂商安装包 `msop/k8s-yaml/gaop-sa.yaml` 完全一致（含 cluster-admin 绑定），
+# 也是本集群既有 posture：平台自己的 SA `msop` 同样绑定了 cluster-admin。
+#
+# 安全提示：cluster-admin 权限很大。如果后续「业务服务」不需要访问 k8s API，
+# 可以把 ClusterRoleBinding 换成最小权限（多数业务容器其实一个 API 都不调，
+# 仅 ServiceAccount 存在即可让 Pod 正常创建）。
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gaop-operator
+  namespace: gaop-namespace
+  labels:
+    control-plane: gaop-operator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: gaop-operator
+  labels:
+    control-plane: gaop-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: gaop-operator
+    namespace: gaop-namespace
