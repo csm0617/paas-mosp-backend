@@ -90,6 +90,22 @@
 
 ---
 
+## D. 数据层基线（不是接口偏离，是 schema 归属声明）
+
+A/B/C 三类判的是**接口语义**；下面两条判的是**表结构本身从哪来**。它们不改变任何端点的
+响应，但决定了「契约比对时所连的那个库」到底是什么——基线错了，前面所有结论都失去参照。
+
+| # | 内容 | 结论 | 证据 |
+| --- | --- | --- | --- |
+| D1 | 当前测试库的来源 | **不是按厂商安装包跑的**。`gaop` 库跑在环境既有的 `default/mysql-deployment`（`mysql:8.0.32`，109 天前建，PVC + NodePort 3306:30306）上；`gaop-namespace/gaop-mysql` 只是指向 `mysql-service.default.svc.cluster.local` 的 **ExternalName**。43 张表 = **39 张业务表 + 4 张 `*_bak_20261108`**（11-08 修中文乱码时手建的备份表），建表时间集中在 `2026-10-13 15:57–15:58`，由 `Project/msop/artifacts/k8s/deploy-msop.sh schema` 灌入 | **运行实测**：`desc g_ci_cd` / `mysql.user.plugin=caching_sha2_password`（厂商 `gaop-mysql-init-script` 会强制 `mysql_native_password`，没改过 ⇒ 未走厂商清单）；`deploy-msop.sh` 注释自述「MySQL 复用 default 命名空间已有的 mysql-service」；表 `create_time` 分布 |
+| D2 | 本目录基线对应的版本 | 基线 = **MSOP v1.3.4**（`gaop-be:V1.3.4-20260415-1857`）。`PaaS/msop/`（VERSION 20260811，后端 V1.3.5）的 `roles/gaop-mysql/templates/*.sql.j2` 与本目录有 **6 个文件实质不同**：`image_storage` 100→255、loki 上限 60→300、`g_language` 索引 `text_key` 500→55、`g_mode` 删除条件 `mode_name`→`mode`（两列都在，删的行不同）、文案「席位数据」→「战位数据」、`V0.2.4` 头像 base64 不同。**升级到 V1.3.5 必须重跑「空库灌入 → 39 张表 → 契约比对」，不可复用现结论** | **代码事实**：两套逐字节比对（81/87 一致，6 个不同）；模板内 Jinja 变量数 = 0，渲染即原样拷贝，可直接 `cmp`。**运行实测**：三处指纹（`image_storage`=varchar(100)、`system.loki.log.max.memory`=60、`g_backup` id=2=「席位数据」）全部落在 v1.3.4 一侧。详见 `deploy/sql/README.md` §与 V1.3.5 安装包的差异 |
+
+> 补充（同样是**代码事实**）：`msop/roles/gaop-mysql/tasks/main.yml` 里 `Create database tables from SQL files`
+> 与 `Update database tables` 两个 task 都写了 `ignore_errors: true`，单条 SQL 失败既不中断也不报错。
+> 这意味着厂商自己的 Ansible 流程「跑通」不等于「全部 SQL 生效」，不能用它的成功作为结构正确的证据。
+
+---
+
 ## 附：契约比对的既有机制（不是偏离，但相关）
 
 - 读取路径契约：`docs/findings/read-paths.json`（+ `paas-core-trigger/src/test/resources/vendor/read-paths.json` 镜像），
