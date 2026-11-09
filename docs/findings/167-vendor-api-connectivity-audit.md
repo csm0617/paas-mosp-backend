@@ -643,3 +643,51 @@ findings/100 把这条列为"VIP daemon 未部署，不在安装包内"。**实�
 
 **方法结论**：这个组件能对拉就不该猜。判据是 `VipDaemonApi` 的 7 个方法与两个 DTO，
 对拉一次比读 1500 个函数名有用得多。
+
+## 十五、基础服务列表的 `--`：服务名与镜像是两套来源（2026-11-10 01:00–01:30）
+
+用户截图：`/gaop/software/application/base-service`（菜单「框架服务 / 系统镜像」）里，
+3 行「服务名称」是 `--`，3 行「镜像」是 `--`。
+
+### 15.1 两个列的数据源（前端硬编码路径，【码】来自 `p__BaseServices` chunk）
+
+```js
+// 服务名称
+dataIndex: ["deployment","spec","template","metadata","annotations","gaop/serviceLabel"],
+render: e => <Tooltip title={e}>{e || "--"}</Tooltip>
+
+// 镜像：取容器 image 后按 "system_containers/" 前缀切分
+```
+
+所以：
+
+- **服务名称** = Pod 模板注解 `gaop/serviceLabel`，没有就 `--`。实测 9 个 gaop 服务里
+  只有 5 个有这个 key（`auth/be/gateway-auth` 与 `fdfs/image-uploader` 没有）。
+  这与第十一节是**同一批注解**，只是上次只为"修 NPE"补了 4 个，没做全量。
+- **镜像** = 容器 `image` 字符串，**只有带 `system_containers/` 前缀的才能解析出**
+  `name:tag`；`gaop-be:V1.3.4-...` 这种无前缀的直接显示 `--`。
+
+### 15.2 处理
+
+| 问题 | 处置 |
+|---|---|
+| 9 个服务缺 `gaop/serviceLabel` | 全部补上（`auth/be/gateway-auth/fdfs/image-uploader` 5 个） |
+| `gaop-be` 镜像缺前缀 | 厂商原版 RepoTags 是 `system_containers/gaop-be:V1.3.5-...`，我们导入 arm64 版时丢了前缀；`docker tag` 补 `system_containers/gaop-be:V1.3.4-...` 并更新 Deployment |
+| `gateway-auth` 镜像缺前缀 | 厂商原版就是 `gaop-gateway-auth:v1.0.12`（无前缀），页面 `--` 是**厂商前端缺陷**；为让显示完整也补了前缀 |
+| `redis` 镜像缺前缀 | 厂商原版 `redis:7.4` 同样无前缀 ⇒ 保持原样，该列仍显示 `--`（与厂商一致） |
+
+### 15.3 踩到一个会自我复制的坑
+
+把 `gaop-redis` 的 image 改成 `system_containers/redis:7.4` 之后，**`gaop-startup` 判定"redis 服务缺失"，
+自动创建了一个全新的 `redis` Deployment + Service**（labels 齐全：`system/appName=gaop`、
+`system/appType=gaop-base`、`system/svcName=redis`，但 **annotations 为 null**）。
+
+后果：`GET /v1/service/gaop?type=2` 立刻回到 §十一 的 NPE（`getAnnotations()` 为 null）。
+也就是说**一次"修显示"的操作引发了一个新的 500**。
+
+处置：把 `gaop-redis` 镜像改回 `redis:7.4`，删掉重复的 `redis` Deployment/Service，
+观察 100 秒未再重建，`type=1/2` 均 200、`total=6`。
+
+> 教训：厂商这批"基础服务"有 `gaop-startup` 兜底创建（日志里能看到 `serviceName: gaop-redis`）。
+> **改这些服务的 image 名会被判定为"服务缺失"而重建一份**，命名必须与厂商保持一致。
+> 想改显示只能改前端，不能改 image。
