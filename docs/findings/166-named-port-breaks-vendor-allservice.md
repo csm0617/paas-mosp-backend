@@ -116,6 +116,7 @@ lambda$allService$49` 的最后一条停在 `21:23:29`（报障时刻），修�
 - 我们走 **fabric8 原生模型**，`IntOrString` 天然支持命名端口，没有 GSON→Jackson 的二次转换；
 - `ServiceQueryServiceImpl` 的 running 计数是 `s.getReplicas() != null && s.getReplicas() > 0`（262、2398、2438 行），空值安全；
 - 进 `deviations.md` **A14**：厂商缺陷不复制，且不把"转换失败"降级成 null 继续往下跑。
+- 待办与验收口径落在 **`docs/issue-list.md` ISSUE-01**（模型层已有两个回归测试；仍缺 fail-soft 用例与集群端到端实测）。
 
 ## 6. 教训（并存期硬约束）
 
