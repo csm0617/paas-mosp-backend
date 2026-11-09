@@ -107,6 +107,10 @@ def main():
         params = {q["name"]: VALUES.get(q["name"], "1") for q in qs}
         if u == "/audit":  # 审计的 start/end 是 Long 毫秒，与 dashboards 的 Date 不同
             params["start"], params["end"] = str(now_ms - 3600000), str(now_ms)
+        if u in ("/v1/pub/nodeMonitor", "/v1/pub/existNodeName",
+                 "/v1/service/serviceInfoByNode", "/cloud/nodes/resource-consumption"):
+            # 这几个的 name/nodeName 要的是**节点名**，不是服务名，传错会 404/400
+            params["name"] = params["nodeName"] = "k8s-master"
         tasks.append((base, token, u, params))
 
     with ThreadPoolExecutor(max_workers=args.workers) as ex:

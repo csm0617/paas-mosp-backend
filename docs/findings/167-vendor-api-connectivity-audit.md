@@ -14,9 +14,9 @@
 （方法+路径逐条匹配，0 缺口）【实】。当前调不通的 19 条，**全部是运行时依赖问题或厂商代码健壮性缺陷**，
 按根因分四类：**Prometheus 被探针反复杀、下游地址仍指厂商老环境、docker socket 未挂、厂商 NPE**。
 
-88 个 GET 实测：**69 通过（78%），19 失败**。第一轮裸打是 68/20，多出的那 1 条是
-`/audit` —— 它的 `start/end` 是 `Long` 毫秒（与 dashboards 的 `Date` 同名字段不同类型），
-改传毫秒后 200，属探针参数错误而非接口故障，已从失败数里扣掉。
+88 个 GET 实测：修复前 **69 通过（78%）/ 19 失败**；修完 Prometheus 后 **71 通过（81%）/ 17 失败**（详见 §九）。
+第一轮裸打是 68/20，多出的那 1 条是 `/audit` —— 它的 `start/end` 是 `Long` 毫秒
+（与 dashboards 的 `Date` 同名字段不同类型），改传毫秒后 200，属探针参数错误而非接口故障。
 
 > 复跑：`python3 tools/probe-vendor-api.py`（需先 `kubectl proxy --port=18001`；详见 §八）。
 
@@ -26,7 +26,7 @@
 |---|---|---|---|---|
 | 1 | `GET /v1/pub/nodeUsage` | 500「获取内存状态失败」 | Prometheus 不可用（`SYSTEM_MONITORING=172.16.209.25:30003` 间歇挂） | 组件 |
 | 2 | `GET /v1/pub/nodeMonitor` | 400 `k8s.get.cluster.resource.info.failed` | 同上 | 组件 |
-| 3 | `GET /api/v2/dashboards/cockpit` | 500 NPE `DashboardsService.cockpit:548` | Prometheus 无 pod 指标 ⇒ `pm.getMetrics()` 为 null，厂商未做空判断（源码 517 行 `pm.getMetrics().isEmpty()`） | 厂商 NPE |
+| 3 | `GET /api/v2/dashboards/cockpit` | 500 NPE `DashboardsService.cockpit:548` | **Deployment 的 `resources.limits` 只有 memory 没有 cpu** ⇒ 字节码偏移 307 处 `limits.get("cpu").getNumber()` 对 null 调方法（见 §3.4） | 清单 |
 | 4 | `GET /v1/service/gaop` | 500 NPE `ServiceController.getGaopServiceList:1961` | 厂商 NPE（应用列表装配，`type=1/2` 均复现） | 厂商 NPE |
 | 5 | `GET /v1/pub/vip` | 500 feign `connect timed out ... http://192.168.1.52:5556/api/vips` | VIP daemon 未部署，且地址是厂商老环境 `192.168.1.52` | 地址 |
 | 6 | `GET /v1/pub/vip/interfaces` | 500 同上 `/api/interfaces` | 同上 | 地址 |
@@ -95,8 +95,27 @@ Loki `30008` 实测 `/ready` 200【实】——说明纠偏路径是通的，只
 
 ### 3.4 厂商 NPE 两处（A 类，不复制）
 
-- `DashboardsService.cockpit`【码】：`if (!pm.getMetrics().isEmpty())` 未判空。Prometheus 返回空/异常时
-  `metrics=null` ⇒ 500。**这与 3.1 联动：Prometheus 一挂，驾驶舱必崩。**
+- **`DashboardsService.cockpit`【码+实】**：`javap -l` 查到 `line 548` 对应字节码偏移 307，
+  该处是 `limits.get("cpu")` → `checkcast Quantity` → `getNumber()`：
+
+  ```
+  300: aload 24            // V1ResourceRequirements
+  302: invokevirtual getLimits()Ljava/util/Map;
+  305: astore 25
+  307: aload 25            // ← line 548
+  309: ldc "cpu"
+  311: invokeinterface Map.get
+  316: checkcast Quantity
+  319: invokevirtual Quantity.getNumber()   // ← cpu 缺失时 NPE
+  ```
+
+  本集群 **10 个 Deployment 的 `resources.limits` 全部只有 `memory`、没有 `cpu`**【实】，
+  于是第一个进入循环的工作负载就抛 NPE。厂商代码假设 limits 里 cpu/memory 必成对出现。
+  **修法**：给工作负载补 `limits.cpu`（只影响上限，不增加调度占用）。
+
+  > 更正：本文初稿把它归因成"Prometheus 无 pod 指标 ⇒ `pm.getMetrics()` 为 null"，
+  > **是错的**。`convertPrometheusData` 对 null 入参返回**空 list** 而不是 null（源码 943 行），
+  > 所以 metrics 永远不会是 null；真正的 NPE 在资源上限那句。
 - `ServiceController.getGaopServiceList:1961`【码】：应用服务列表装配 NPE，`type=1/2` 都复现。
   与 findings/166 的 `allService` NPE **不是同一处**（166 那条靠数字端口已恢复，`/v1/service` 现在 200【实】）。
 
@@ -129,8 +148,9 @@ Loki `30008` 实测 `/ready` 200【实】——说明纠偏路径是通的，只
 
 | 优先级 | 动作 | 解决 |
 |---|---|---|
-| P0 | 把 Prometheus 探针 `timeoutSeconds` 1 → 5（或删 liveness） | 第 1、2、3 条，以及所有监控页的间歇失败 |
+| P0 ✅ | 把 Prometheus 探针 `timeoutSeconds` 1 → 5，并加 `GOMEMLIMIT=850MiB`、retention 降到 2h（**已执行**，见 §九） | 第 1、2 条，以及所有监控页的间歇失败 |
 | P1 | 给 `gaop-be` 显式注入 `MYSQL_HOST=<本集群 mysql>`、`VIP_HOST`、`HARBOR_HOST`，或确认这些下游"本就不部署" | 第 5~11 条 |
+| P1 | 给 10 个 Deployment 补 `limits.cpu`（`cockpit` 的 NPE 就是它） | 第 3 条 |
 | P2 | 把宿主机 `/var/run/docker.sock` 挂进 `gaop-be`（或确认镜像模块改走 Harbor API） | 第 12 条 |
 | P2 | `node-recovery.sh` 放到节点 `/data/paas/node-recovery/` | 第 19 条 |
 | —— | 第 4 条、第 3 条的 NPE 属厂商缺陷（A 类），重写版不复刻，已记录 | —— |
@@ -155,3 +175,57 @@ curl -s --noproxy '*' -X POST \
   -H 'Content-Type: application/json' \
   -d '{"username":"admin","password":"admin123","role":"admin"}'
 ```
+
+## 九、修复记录：Prometheus（2026-11-09 22:20–22:50）
+
+### 9.1 第一刀：探针超时 1s → 5s（必要，但不是全部）
+
+```
+kubectl -n prometheus patch deploy prometheus --type=strategic -p \
+ '{"spec":{"template":{"spec":{"containers":[{"name":"prometheus",
+   "livenessProbe":{"timeoutSeconds":5},"readinessProbe":{"timeoutSeconds":5}}]}}}}'
+```
+
+滚动更新后 `/-/healthy` 从"时通时断"变成稳定 5~7ms【实】，`nodeUsage` 立即恢复：
+
+```json
+{"code":0,"data":{"cpuUsage":[{"name":"k8s-master","data":23.72,"alert":false}],
+ "memoryUsage":[{"name":"k8s-master","data":82.40,"alert":true}],
+ "diskUsage":[{"name":"k8s-master","data":66.70,"alert":false}]}}
+```
+
+### 9.2 第二刀：真正的主因是 OOMKilled，不是探针
+
+修完探针后新 Pod 仍在 8 分钟后被杀，`lastState.terminated` 显示 **`reason: OOMKilled`**【实】。
+`limits.memory=1Gi`，而它已涨到 **854Mi**，且 head series 有 **71 210** 条（cadvisor 全节点容器指标）。
+即：探针超时只是"表象之一"，**内存把 1Gi 打爆才是反复重启的主因**；两者叠加才导致 219 次重启。
+
+处置（不动 limit 值，先压内存）：
+
+```
+--storage.tsdb.retention.time=6h  →  2h        # 减少 chunk
+env GOMEMLIMIT=850MiB                           # Go 堆软上限，逼 GC 提前回收
+```
+
+结果【实】：滚动更新后 **4.5 分钟内 0 重启**，RSS 稳定 862Mi（留 ~160Mi 余量），
+`/-/healthy` 200、`cadvisor/node-exporter/kube-state-metrics` 全部 up。
+
+> 若后续仍 OOM：节点共 8GB、已用 6GB（76%），还能给到 1.5Gi；
+> 但优先考虑缩小采集面（`kubernetes-apiservers`、`etcd` 两个 target 始终 `unknown`，可先摘掉）。
+
+### 9.3 修复后的接口变化
+
+| 接口 | 修复前 | 修复后 | 说明 |
+|---|---|---|---|
+| `GET /v1/pub/nodeUsage` | 500 | **200（有数据）** | 主因已除 |
+| `GET /v1/pub/nodeMonitor` | 400 | **200（有数据）** | 修复后才发现原先那条 400 是**探针把 `name` 传成了服务名**（`readNode("gaop-be")` 必然 404）；传 `k8s-master` 才公平 |
+| `GET /api/v2/dashboards/etcd` | 500/挂起 | **200（有曲线）** | — |
+| `GET /api/v2/dashboards/apiServer` | 500/挂起 | **200** | 偶发 6s，可接受 |
+| `GET /api/v2/dashboards/cockpit` | 500 | 仍 500 | 与 Prometheus 无关，是 §3.4 的 `limits.cpu` 缺失 |
+
+**总通过率：69/88（78%）→ 71/88（81%）。**
+
+### 9.4 仍未做（需决策）
+
+给 10 个 Deployment 补 `limits.cpu` 会让 cockpit 恢复，但这要**全部滚动重启**厂商控制台，
+影响面比 Prometheus 大得多，本轮未动。若要做，建议在维护窗口执行，且 cpu limit 设为节点核数（2）避免误杀。
