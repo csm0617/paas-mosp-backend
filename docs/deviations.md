@@ -59,6 +59,7 @@
 | B29 | 导入 Excel 的关联列填 `[]`（空 JSON 数组）时**按"空列表 = 不动"处理** | 厂商的 `isInWhenPresent(空集合)` 会**去掉整个 where** ⇒ 退化成"全表"：子角色导入的 `[]` 表示**关联所有用户/所有战位**（`SubRoleServiceImpl:598-612`）；战位导入的子角色列 `[]` 则**清空该战位的全部子角色关联**（`RoleService:997-1000`）。前端导出对空列表写的是**空单元格**（不是 `[]`），所以这条路径上产不出 `[]`；照抄等于给手改文件留一个"清库"开关 | `findings/158` §4 |
 | B30 | `GET /v1/service/{serviceName}`：pod 的 `containers` 为空时**跳过该 pod** | 厂商 `getServiceDetail:1419-1425` 让 `name` 保持 null，紧接着 `if (!name.equals(serviceName))` ⇒ **NPE ⇒ 500**。空容器列表在 K8s 里可发生（如刚创建/被驱逐的 pod） | `findings/161` §4 |
 | B31 | `GET /v1/service/imageStorage`：`df` 输出不足两列时**返回 `{0,0}`** | 厂商 `SshUtil.getImageStorage:527-529` 直接取 `split[0]`/`split[1]`，`df` 报错时输出只有一段 ⇒ **ArrayIndexOutOfBounds ⇒ 500**；厂商本意就是"拿不到就给 0"（连接失败分支就是这么写的） | `findings/161` §4 |
+| B33 | 前端「告警记录」查询**要求时间范围必填**且起止合法 | SRS FR-M10-12 验收要点明确要求；厂商实现可以三个条件全空直接查（等于把整张告警记录表拉回前端）。我们保留必填 + `start > end` 提示，**只在非法输入时**与厂商表现不同，成功路径（带时间范围查询）响应一致 | 2026-11-09 实测：厂商 `p__ResourceAlertRecord` 的 `立即查询` 直接 `form.submit()`，无必填校验；SRS `03-功能需求.md` FR-M10-12「验收要点」第 1 条 |
 | B32 | `POST /v1/service/logs`：Loki 返回**非 200** 时按"空日志"处理 | 厂商 OkHttp 版不看状态码，直接 `mapper.readTree(body)`；body 不是 JSON（例如 Loki 的 404 纯文本）⇒ **JsonProcessingException ⇒ 500**。控制器本来就会把"日志服务没给出可用响应"翻成 `data:null` | `findings/161` §4 |
 
 ## C. 参考环境限制导致无法对拉（按代码实现 + 标注证据来源）
