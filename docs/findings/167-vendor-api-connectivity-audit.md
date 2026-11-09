@@ -251,3 +251,54 @@ env:     GOMEMLIMIT=850MiB                # 堆仍有软上限，不会真涨到
 
 > 三层防护的分工要分清：**探针 timeout 管"别误杀"**、**GOMEMLIMIT 管"别涨"**、
 > **limits.memory 管"涨了也不死"**。只做其中一层都会复发。
+
+## 十、补 `limits.cpu`（2026-11-09 22:55–23:15）
+
+### 10.1 动作
+
+`gaop-namespace` 实际是 **11 个** Deployment（此前说 10 个漏了 `paas-web-preview`）。
+逐个 `kubectl patch --type=strategic`，**只加 `limits.cpu: 2`**，`requests` 与 `limits.memory` 原样保留
+（strategic merge 对 `limits` 是 map 合并，不会删掉 memory）：
+
+```
+kubectl -n gaop-namespace patch deploy <name> --type=strategic -p \
+ '{"spec":{"template":{"spec":{"containers":[{"name":"<c>","resources":{"limits":{"cpu":"2"}}}]}}}}'
+```
+
+顺序按影响面从小到大：`paas-web-preview` → `paas-web` → `gaop-web` → `gaop-diagnostic` →
+`gaop-redis` → `gaop-fdfs` → `gaop-image-uploader` → `gaop-startup` → `gaop-auth` →
+`gaop-gateway-auth` → `gaop-be`。每个都等 `rollout status` 到 `1/1` 再进行下一个，避免同时重启抢资源。
+
+取值依据：节点 **4 核**（`allocatable.cpu=4`），当前用量约 1.4 核；给 2 核上限不会 throttle，
+也不会增加调度占用（`limits` 不参与调度，只有 `requests` 参与）。
+
+结果【实】：**11/11 全部 `limits={cpu:2, memory:原值}`，`requests` 未变，逐个 `1/1` Ready。**
+
+### 10.2 效果：NPE 确实没了，但 cockpit 换了个地方卡住
+
+补完后 `/api/v2/dashboards/cockpit` **不再是 500 NPE**，而是**挂起 40s 无响应**。
+`jcmd 1 Thread.print` 抓到当前线程栈（关键帧）：
+
+```
+java.net.PlainSocketImpl.socketConnect(Native Method)          ← 卡在建连
+  ...
+  feign.Client$Default.execute
+  $Proxy183.getCatalogListData
+  DockerRegistryApiService.getImageListByProject:36
+  K3sImageServiceImpl.getRepositories:274
+  K3sImageServiceImpl.getHarborInfo:636
+  DashboardsService.cockpit:723                                 ← 已越过 line 548 的 NPE
+  DashboardsController.cockpit:88
+```
+
+**这恰好证明 §3.4 的 `limits.cpu` 归因是对的**：执行已经推进到 723 行（远在 548 行之后），
+NPE 消失；现在卡在 **Harbor（Docker Registry API）不可达**——feign 的 connect 没有短超时，
+所以表现为长时间挂起而不是快速报错。
+
+### 10.3 因此本轮通过率不变（71/88）
+
+`cockpit` 仍算失败，但**失败性质变了**：从"厂商代码 NPE（由我们清单缺 cpu 触发）"
+变成"外部前提缺失（Harbor 未部署）"。等 Harbor 就位后这条才有机会转 200。
+
+> 副作用提醒：`cockpit` 挂起会长时间占用 Tomcat 线程（池 10），
+> 反复刷新驾驶舱页会拖慢其它接口。若近期不部署 Harbor，建议前端先禁用该页的自动刷新。
