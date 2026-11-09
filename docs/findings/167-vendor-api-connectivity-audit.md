@@ -365,3 +365,84 @@ kubectl -n gaop-namespace patch deploy <name> --type=strategic -p \
 
 > 同类隐患：`ServiceController:1686` 还有一处 `getAnnotations().put(...)` 同样没判空，
 > 只是 `/v1/service` 恰好被前面的过滤条件跳过了。补注解顺带把这条也压住了。
+
+## 十二、服务详情报「服务不存在」：缺 `system/svcName` 标签（2026-11-09 23:15–23:45）
+
+用户报障：`GET /api/gaop/v1/service/gaop-diagnostic` 返回
+`400 {"msg":"服务gaop-diagnostic不存在","code":400}`，trace 指
+`ServiceController.getServiceDetail:1611`。
+
+### 12.1 根因：不是 TenX 平台，是 K8s 标签选择器
+
+`javap` 看 `getServiceDetail` 前 70 个字节码偏移，逻辑只有三步：
+
+```
+0:  tenxCloud.clusters().getClusters().get(0).getClusterID()
+25: tenxCloud.existService(clusterID, serviceName)
+37: existService.isData() → ifne 67
+48: new WrongArgumentException("service.service.name.not.found", serviceName)  ← line 1611
+```
+
+而 `TenxService.existService` 的实现是**直接查 K8s**，不碰 TenX 服务：
+
+```java
+appsV1Api.listNamespacedDeployment(NAMESPACE, ..., "system/svcName=" + deployName, ...);
+if (size == 0)
+    appsV1Api.listNamespacedStatefulSet(NAMESPACE, ..., "system/svcName=" + deployName, ...);
+```
+
+**我们用这个 selector 实测：`kubectl get deploy -n gaop-namespace -l system/svcName=gaop-be` → 空。**
+即所有服务都"不存在"，与具体是哪个服务无关（`gaop-be`、`gaop-web` 同样 400，只有 `nginx-not-exist` 才该 400）【实】。
+
+### 12.2 厂商创建服务时会写 5 个标签 + 1 个注解
+
+`PublicController.createService`（源码 822–835）【码】：
+
+```java
+deployment.metadata.labels.put("app",            serviceName);
+deployment.metadata.labels.put("name",           serviceName);
+deployment.metadata.labels.put("system/appName", serviceName);
+deployment.metadata.labels.put("system/svcName", serviceName);   // ← 详情接口靠它找服务
+deployment.metadata.labels.put("system/appType", "business");
+deployment.spec.template.metadata.labels         // 同一套（app/name/appName/svcName/appType）
+deployment.spec.template.metadata.annotations.put("gaop/serviceLabel", serviceName);
+```
+
+类型枚举 `AppTypeLabelsEnum`：`gaop-base`（基础服务）/ `gaop-core`（框架服务）/ `business`（业务）。
+
+**我们的清单只有 `app` 和 `system/appName: gaop`**，缺 `name` / `system/svcName` / `system/appType` / `gaop/serviceLabel`
+—— 这就同时解释了本文第十一节（annotations 为 null → NPE）和本节（svcName 缺失 → 不存在）**两个报障**。
+
+### 12.3 修复：只补 `metadata.labels.system/svcName`（不重启 Pod）
+
+```
+kubectl -n gaop-namespace patch deploy <name> --type=merge -p \
+ '{"metadata":{"labels":{"system/svcName":"<name>"}}}'
+```
+
+改 `metadata` 不会触发滚动更新（只有 `spec.template` 变了才会）。9 个 gaop-* 全部补齐，
+`paas-web` / `paas-web-preview` **故意不加**（它们不是厂商服务，加进去会污染服务列表）。
+
+结果【实】：
+
+| 接口 | 修复前 | 修复后 |
+|---|---|---|
+| `GET /v1/service/gaop-diagnostic` | 400 不存在 | **200**（0.83s，返回 service+deployment 详情） |
+| 其余 8 个 gaop 服务详情 | 全部 400 | **全部 200**（0.10–0.43s） |
+| `GET /v1/service/gaop?type=2` | 200，total=6 | 200，total=6（**未受影响**） |
+
+### 12.4 刻意没做：`system/appType`
+
+加 `system/appType` 会让 `getGaopServiceList` 的类型过滤真正生效
+（type=1 只留 `gaop-core`，type=2 只留 `gaop-base`），而现在 appType 为 null 时走名字匹配兜底，
+两个 tab 都能看到 6 个服务。**在没确认 9 个内置服务各自该归 core 还是 base 之前，贸然打标会让列表变空**。
+这一项留作待办。
+
+### 12.5 固化
+
+运行时 patch 在集群重建后会丢，且这批清单是**手工 apply** 的（集群里没有 helm release，厂商 chart 也不写这些标签）。
+已提供幂等脚本：`tools/align-vendor-service-labels.sh [--dry-run] [--with-label]`
+—— 默认只补 svcName（不重启）；`--with-label` 才补 `gaop/serviceLabel`（会滚动更新）。
+
+> 给重写版的提醒：`paas-core` 实现服务详情时**不要**依赖 `system/svcName` 标签
+> （那是厂商的历史约定），直接用 Deployment 名查即可；若为兼容老数据需要回退，也应先按名查、标签仅作兜底。
