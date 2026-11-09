@@ -1081,3 +1081,85 @@ scale=1 → 200，replicas=1 / ready=1（界面「运行中」）
 `gaop-operator` 绑定的是 `cluster-admin`（厂商原样）。本集群平台自身的 `msop` SA 也是
 `cluster-admin`，posture 一致；但**业务容器其实一个 k8s API 都不需要调用**，
 仅 SA 存在即可让 Pod 创建成功。若后续要收紧，可把 ClusterRoleBinding 去掉或换成最小权限。
+
+## 二十、驾驶舱又 500：`gaop-mysql` 缺 cpu limit（2026-11-10 07:46–08:00）
+
+用户报障：`GET /api/gaop/api/v2/dashboards/cockpit` 返回
+`500 {"msg":"系统错误","code":-1}`，trace 首帧
+`NullPointerException at DashboardsService.cockpit(DashboardsService.java:548)`。
+
+**这是 §3.4 / §十 的同一个缺陷第二次复发**，机制完全一样，只是触发者换了。
+
+### 20.1 为什么必然 NPE：取 map 不做 key 判空
+
+`javap` 看 `cockpit` 的 line 548 → 偏移 307 起的指令【码】：
+
+```
+280: container.getResources()            → astore 24
+287: ifnull 465                          // resources == null 才跳过
+294: resources.getLimits()               → ifnull 465   // limits == null 才跳过
+307: limits.get("cpu").getNumber()        ← 只判了 limits 整体非空
+324: limits.get("memory").getNumber()
+```
+
+即代码等价于：
+
+```java
+Map<String, Quantity> limits = container.getResources().getLimits();
+double cpuMilli = limits.get("cpu").getNumber().doubleValue() * 1000;   // ← 缺 cpu 就 NPE
+double mem     = limits.get("memory").getNumber().doubleValue();
+```
+
+**它要求每个容器都「cpu + memory 成对」声明 limits，缺任意一个就整页崩。**
+
+### 20.2 这次的触发者是 `gaop-mysql`【实】
+
+```
+gaop-mysql   limits={"memory":"1Gi"}     ← 只有 memory，没有 cpu
+其余 15 个    limits={"cpu":"2","memory":"..."}   ✓
+```
+
+`gaop-mysql` 是手工 apply 的清单，而**厂商自己的 `msop/k8s-yaml/gaop-mysql.yaml` 也没写 cpu limit**，
+所以每次重新 apply 这份清单都会把这个坑重新埋回来。
+
+处置（strategic merge 对 `limits` 是 map 合并，不会覆盖已有 memory）：
+
+```
+kubectl -n gaop-namespace patch deploy gaop-mysql --type=strategic \
+  -p '{"spec":{"template":{"spec":{"containers":[{"name":"gaop-mysql",
+       "resources":{"limits":{"cpu":"2"}}}]}}}}'
+```
+
+### 20.3 结果【实】
+
+```
+GET /api/gaop/api/v2/dashboards/cockpit  → 200，1.06s
+serviceCpuLimit      list[16]  gaop-mysql 2000.0m …
+serviceMemoryLimit   list[16]  gaop-be 1024.0Mi …
+nodeInfo / podCpuUsageList[17] / podMemoryUsageList[34] / nodeStatusList
+podHealthRateInfo / systemService / harborInfo ✓
+```
+
+注意 **`harborInfo` 也有值了**：§十 里 cockpit 卡在 `getHarborInfo` → 连 Harbor 超时，
+是因为当时 `HARBOR_HOST` 指向不存在的地址；修好 registry 地址（§十七/§十八）之后这条自动通了。
+
+### 20.4 防复发
+
+```
+tools/check-container-limits.sh [命名空间...] [--json]     # 只读，有问题退出码 1
+```
+
+遍历 Deployment/StatefulSet/DaemonSet 的所有容器（含 initContainers），
+凡 limits 缺 cpu 或 memory 就报出来，并给出 patch 示例。
+
+> 为什么不用 `LimitRange` 自动兜底：LimitRange 的 `default` 会同时给没有 limits 的容器补
+> **cpu 和 memory**，而我们没有合理的通用 memory 默认值——乱补会让驾驶舱的
+> 「内存分配」统计变成假数据。宁可显式检查 + 显式声明。
+
+### 20.5 给重写版的提醒
+
+这一类 NPE 的根源是**厂商把「清单必须成对声明 limits」当成隐性契约**。
+`paas-core` 实现同样逻辑时必须：
+
+- `limits` 取值一律走 `getOrDefault` / 显式判空，缺失时按「无限制」或 0 处理；
+- 不要因为某个容器没写 limits 就让整个接口 500——一条缺失不该毁掉整页数据。
