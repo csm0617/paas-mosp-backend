@@ -618,3 +618,28 @@ GET /v1/pub/vip/interfaces → 200 真实网卡
 findings/100 把这条列为"VIP daemon 未部署，不在安装包内"。**实际在包里**
 （`amd64/vip/vip-daemon` + `templates/vip.service.j2` + `config.json.j2`），
 只是架构是 amd64，且安装方式是宿主机 systemd 而不是容器。
+
+### 14.6 补充：拿厂商二进制做对拉，改掉 5 处不一致（2026-11-10 00:15）
+
+初版实现是"照契约猜"的，随后发现**厂商的 amd64 二进制其实能跑**——Docker Desktop 的 amd64 模拟足够，
+于是把 `amd64/vip/vip-daemon` 打成镜像在本地起了一份（`v1.0.9-20260731-link-health`），
+用同一份 config、同一批请求对拉。**第一次对拉就抓到 5 处偏差**：
+
+| 项 | 厂商【实】 | 我们初版 | 处置 |
+|---|---|---|---|
+| `InterfaceInfo.index` | 输出 `{"index":1,...}` | 省略 | 补；Java 的 `@JsonIgnore` 只作用于 gaop-be→前端，不影响 daemon→gaop-be 反序列化 |
+| 网卡过滤 | **不过滤**（`lo`/`cali*` 原样返回） | 按前缀过滤 | 去掉；过滤在 `PubVipController.interfaces()` |
+| 空 `addresses` | `null` | `[]` | 改 nil 切片 |
+| 无标志 `flags` | `"0"` | `""` | 映射 |
+| `/api/config/sync`、`/api/configmap` | **404**（strings 残留，未注册） | 501 | 删路由，保持 404 |
+
+**保留的两处有意偏离**（记 B 类）：写接口厂商是 `200 + 文本 OK`（先写内存并回写 `config.json`，
+再异步 `ip addr`/`nmcli`，失败也 200），我们返回 501；`/health` 厂商 404，我们 200 给探针用。
+
+**连带发现**：daemon 改成原样返回后，`/v1/pub/vip/interfaces` 冒出 **38 个网卡**——
+`application.yml` 的 `vip.ignore-prefix-list` 默认值没有 `cali`/`tunl`。
+给 gaop-be 补 `VIP_IGNORE_PREFIX_LIST=lo,docker,kube-,flannel,usb,virbr,cni,veth,cali,tunl`
+（Spring 的 List 支持逗号分隔绑定）后只剩真实网卡 `ens160`。
+
+**方法结论**：这个组件能对拉就不该猜。判据是 `VipDaemonApi` 的 7 个方法与两个 DTO，
+对拉一次比读 1500 个函数名有用得多。

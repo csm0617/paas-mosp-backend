@@ -39,6 +39,10 @@ type VipItem struct {
 // InterfaceInfo 对应 InterfaceInfo.java。
 // 注意 index 在 Java 侧是 @JsonIgnore，这里**故意不输出**，保持响应形状一致。
 type InterfaceInfo struct {
+	// index 必须输出：实测厂商 /api/interfaces 返回 [{"index":1,...}, ...]
+	// （Java 侧 InterfaceInfo.index 标了 @JsonIgnore，只影响 gaop-be→前端的序列化，
+	//   不影响 daemon→gaop-be 的反序列化，所以这里不能省）
+	Index     int      `json:"index"`
 	Name      string   `json:"name"`
 	Mac       string   `json:"mac"`
 	Flags     string   `json:"flags"`
@@ -122,22 +126,27 @@ func (d *daemon) interfaces() ([]InterfaceInfo, error) {
 	}
 	out := make([]InterfaceInfo, 0, len(ifaces))
 	for _, ifc := range ifaces {
-		if d.ignored(ifc.Name) {
-			continue
-		}
-		addrs := []string{}
-		if as, err := ifc.Addrs(); err == nil {
+		// 不过滤！实测厂商 daemon 原样返回全部网卡（含 lo），
+		// 前缀过滤发生在 gaop-be 的 PubVipController.interfaces()（用 vip.ignore-prefix-list）。
+		// 在 daemon 再过滤一次会造成双重过滤。
+		var addrs []string // 无地址时保持 nil → JSON 输出 null，与厂商一致
+		if as, err := ifc.Addrs(); err == nil && len(as) > 0 {
+			addrs = make([]string, 0, len(as))
 			for _, a := range as {
 				addrs = append(addrs, a.String())
 			}
 		}
-		info := InterfaceInfo{
+		flags := ifc.Flags.String()
+		if flags == "" { // 厂商无标志时输出 "0"
+			flags = "0"
+		}
+		out = append(out, InterfaceInfo{
+			Index:     ifc.Index,
 			Name:      ifc.Name,
 			Mac:       ifc.HardwareAddr.String(),
-			Flags:     ifc.Flags.String(),
+			Flags:     flags,
 			Addresses: addrs,
-		}
-		out = append(out, info)
+		})
 	}
 	return out, nil
 }
@@ -211,14 +220,8 @@ func (d *daemon) routes() *http.ServeMux {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
-	// 厂商 /api/config/sync、/api/configmap 属 HA 集群内部同步，单节点不需要；
-	// 给个明确的 501，避免调用方拿到 404 后误判"服务没起来"。
-	mux.HandleFunc("/api/config/sync", func(w http.ResponseWriter, r *http.Request) {
-		d.notSupported(w, "config sync")
-	})
-	mux.HandleFunc("/api/configmap", func(w http.ResponseWriter, r *http.Request) {
-		d.notSupported(w, "configmap sync")
-	})
+	// 实测厂商对 /api/config/sync、/api/configmap 均返回 404，
+	// 说明这两个路径只是 strings 里的残留、并未注册路由；我们也不提供，保持同样的 404。
 	return mux
 }
 

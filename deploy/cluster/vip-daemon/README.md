@@ -101,3 +101,70 @@ curl -s -H "Cookie: gateway-token=$TOKEN" \
   `ip addr add/del` + 主备选举（对应厂商的 `isHigherNode`/`candidateNodeNames`/`detectCurEtcd`）。
 - **无 HA 能力**：不监听 5555 peer 口、不做 etcd 角色提升、不做 MySQL 备份 cron。
 - 集群重建后镜像会丢（`vip-daemon:arm64-local` 未进任何 registry），需重新走上面的导入流程。
+
+## 怎么保证与厂商一致：拿厂商二进制做参照物
+
+这个组件与其它模块最大的不同是——**厂商的实现可以跑起来**。虽然只有 amd64，但 Docker Desktop
+的 amd64 模拟足够跑它，于是"一致"不靠猜，靠**同一请求对拉响应**。
+
+```bash
+# 1) 把厂商二进制 + 配置打成 amd64 镜像（tar 必须保留 755，否则 exec: permission denied）
+cp /Users/csm/Desktop/PaaS/msop/amd64/vip/vip-daemon /tmp/vipsrc/ && chmod 755 /tmp/vipsrc/vip-daemon
+cd /tmp/vipsrc && tar -cf /tmp/vipsrc.tar vip-daemon config.json
+docker import --platform linux/amd64 -c 'ENTRYPOINT ["/vip-daemon"]' \
+  -c 'CMD ["-config","/etc/vip/config.json"]' /tmp/vipsrc.tar vip-daemon-vendor:amd64
+
+# 2) 起一个，便于随时对照
+docker run -d --name vipd-vendor --platform linux/amd64 -p 15557:5556 \
+  -v /tmp/vipsrc:/etc/vip vip-daemon-vendor:amd64
+
+# 3) 对拉（curl 到 15557 就是厂商行为，到 5556 是我们的）
+curl -s localhost:15557/api/vips; curl -s localhost:5556/api/vips
+```
+
+### 第一次对拉就发现 5 处不一致（已全部修正）
+
+厂商 `vip-daemon v1.0.9-20260731-link-health` 的实测行为 vs 我们的初版：
+
+| 项 | 厂商【实】 | 我们初版 | 处置 |
+|---|---|---|---|
+| `InterfaceInfo.index` | **输出** `{"index":1,...}` | 省略（误信 Java 的 `@JsonIgnore`） | 补上；`@JsonIgnore` 只影响 gaop-be→前端，不影响 daemon→gaop-be |
+| 网卡过滤 | **不过滤**，`lo`/`cali*` 原样返回 | 按前缀过滤 | 去掉过滤；过滤在 `PubVipController.interfaces()`（用 `vip.ignore-prefix-list`） |
+| `addresses` 为空 | **`null`** | `[]` | 用 nil 切片 |
+| `flags` 无标志 | **`"0"`** | `""` | 映射为 `"0"` |
+| `/api/config/sync`、`/api/configmap` | **404**（strings 里的残留，未注册路由） | 我们实现了 501 | 删除路由，保持同样 404 |
+
+### 有意保留的偏离（B 类，必须在 deviations 台账里）
+
+| 项 | 厂商【实】 | 我们 | 理由 |
+|---|---|---|---|
+| `POST /api/vips/add|delete` | **200 + 纯文本 `OK`**，先写内存并回写 `config.json`，再异步 `ip addr`/`nmcli` 绑定，失败也返回 200 | 501 + 原因 | 单节点无漂移对端，真改网络风险大于收益；不做"假成功" |
+| `GET /health` | **404** | 200 | kubelet 探针需要；对上游无影响 |
+
+厂商实现还依赖 `ip`、`nmcli`、`kubectl` 三个外部命令（容器里没有就直接失败），
+并且 **`vips` 状态持久化在 `config.json` 文件里**（重启后恢复）——这是它"配置文件既是输入也是输出"的设计。
+我们不实现写，因此也不做回写。
+
+### 一个连带发现：网卡过滤的前缀表在 gaop-be，不在 daemon
+
+把 daemon 改成"原样返回"后，`/v1/pub/vip/interfaces` 冒出了 **38 个网卡**（37 个 `cali*` + `tunl0`），
+因为 `application.yml` 的默认前缀表只有 `lo/docker/kube-/flannel/usb/virbr/cni/veth`，**没有 cali/tunl**。
+给后端补环境变量即可（Spring 的 `List` 支持逗号分隔绑定）：
+
+```bash
+kubectl -n gaop-namespace patch deploy gaop-be --type=strategic -p \
+ '{"spec":{"template":{"spec":{"containers":[{"name":"gaop-be","env":[
+   {"name":"VIP_IGNORE_PREFIX_LIST","value":"lo,docker,kube-,flannel,usb,virbr,cni,veth,cali,tunl"}]}]}}}}'
+```
+
+补完只剩下真实业务网卡（本集群 `ens160`）。
+
+### 回归方式
+
+改了 `main.go` 之后，至少跑这三条并对比厂商侧：
+
+```bash
+curl -s localhost:5556/api/vips            # 契约：裸数组，空为 []
+curl -s localhost:5556/api/interfaces      # 契约：元素含 index/name/mac/flags/addresses，空地址为 null
+curl -s -o /dev/null -w '%{http_code}\n' -X POST localhost:5556/api/vips/add   # 行为：501（有意偏离）
+```
