@@ -691,3 +691,142 @@ render: e => <Tooltip title={e}>{e || "--"}</Tooltip>
 > 教训：厂商这批"基础服务"有 `gaop-startup` 兜底创建（日志里能看到 `serviceName: gaop-redis`）。
 > **改这些服务的 image 名会被判定为"服务缺失"而重建一份**，命名必须与厂商保持一致。
 > 想改显示只能改前端，不能改 image。
+
+## 十六、「资源概览」的日志存储两个环永久转圈：Secret `loki/loki` 不存在（2026-11-10 02:10–02:30）
+
+用户报障：`/gaop/ops/status-monitor/resources` 里「日志存储容量」「日志存储时长」两个环一直在转，
+标题还显示「存储时长 : 0 天」。
+
+### 16.1 前端判据：只看一个布尔值
+
+`p__StatusMonitorResources` 里两个卡片是同一套写法（【码】）：
+
+```js
+useState(!1)                                  // 默认不转
+useEffect(() => {
+  !n.lokiPodStatus || n.deleteStatus ? c(!0) : c(!1)   // lokiPodStatus=false 或 deleteStatus 就转
+}, [n])
+render: <Spin spinning={l}>{...ring...}</Spin>
+```
+
+即：**只要 `lokiPodStatus` 为 `false`，就无条件永久转圈**，与数据是否为空、请求是否成功无关。
+所谓「数据没出来所以转」是误判——它是被这个布尔值锁死的。
+
+### 16.2 接口实际返回：`lokiPodStatus: false`
+
+```
+GET /loki/logs/getLogsAssertInfo → 200
+{"totalMemory":0.0277,"logMaxMemory":300.0,
+ "logRetainDay":null,"logRetainMaxDay":null,
+ "logMaxMemoryStatus":"NORMAL","logRetainDayStatus":null,
+ "lokiPodStatus":false}
+```
+
+注意 `totalMemory` 与 `logMaxMemory` **都有值**，说明方法前半段跑通了；`logRetainDay/logRetainMaxDay`
+为 null，说明异常发生在中间。对照 `LokiApiService.getLogsAssertInfo()`（【码】）的赋值顺序：
+
+```java
+setLokiPodStatus(true);                       // 先乐观置 true
+setTotalMemory(getLogTotalMemory());          // ✅ du -sh /data/loki/ 成功
+setLogMaxMemory(getLokiLogMaxMemory());       // ✅ 300（来自 g_setting）
+... status = NORMAL
+int retainMaxDay = getLokiLogRetainMaxDay();  // ❌ 抛异常
+...
+catch (Exception e) { log.error("pod:loki-0运行异常或者正在重启中:", e);
+                      setLokiPodStatus(false); }   // ← 这里被改回 false
+```
+
+**catch 是兜底全量异常**，所以任何一步失败都会让整个面板转圈，而错误信息只留在日志里。
+
+### 16.3 根因：后端从 Secret 读配置，我们的清单只有 ConfigMap
+
+后端日志给出确切异常【实】：
+
+```
+SystemException: k8s.call.api.failed
+  at LokiApiService.getLokiYamlFromSecret(LokiApiService.java:398)
+  at LokiApiService.getLokiLogRetainMaxDay(LokiApiService.java:234)
+  at LokiApiService.getLogsAssertInfo(LokiApiService.java:108)
+```
+
+`getLokiYamlFromSecret("loki", "loki")` 的实现（【码】）：
+
+```java
+V1Secret secret = coreV1Api.readNamespacedSecret("loki", "loki", null);  // 命名空间 loki、名字 loki
+Map<String,byte[]> data = secret.getData();
+if (data == null || !data.containsKey("loki.yaml"))
+    throw new SystemException("Secret does not contain loki.yaml");
+```
+
+也就是硬性要求 **Secret `loki/loki` 且键名必须是 `loki.yaml`**（内容为完整 Loki YAML，
+且含 `limits_config.retention_period`，后端据此算保留天数：`168h → 168/24 = 7 天`）。
+
+而集群实际情况【实】：
+
+```
+kubectl get secret -n loki          → No resources found
+kubectl get sts loki -n loki        → volumes: configMap loki-config（键 config.yml）
+```
+
+**没有 Secret，键名也不对** ⇒ `readNamespacedSecret` 404 ⇒ `k8s.call.api.failed` ⇒ 转圈。
+这与第十一/十二节同源：厂商假设对象由平台创建（含 Secret），我们手工 apply 的清单少了这层隐性契约。
+
+### 16.4 修复：把配置源改成这个 Secret（而不是造一个假 Secret）
+
+只建 Secret 不改挂载，能让接口返回 200、环不转，但**设置面板会变成假入口**——后端改的是
+Secret，Loki 读的仍是 ConfigMap，改了保留天数并不生效。所以按"单一配置源"处理：
+
+1. 用现有 ConfigMap 内容创建 Secret（键 `loki.yaml`）
+2. 把 StatefulSet 的 `config` 卷从 ConfigMap 切到该 Secret，
+   并用 `items` 保持容器内文件名仍为 `config.yml`（**不动 `-config.file` 启动参数**）
+
+```
+kubectl create secret generic loki -n loki --from-file=loki.yaml=/tmp/loki.yaml
+kubectl patch sts loki -n loki --type=strategic -p '{"spec":{"template":{"spec":{"volumes":[
+  {"name":"config","configMap":null,"secret":{"secretName":"loki","items":[
+    {"key":"loki.yaml","path":"config.yml"}]}}]}}}}'
+```
+
+结果【实】：
+
+| 项 | 修复前 | 修复后 |
+|---|---|---|
+| `lokiPodStatus` | `false` | **`true`** |
+| `logRetainMaxDay` | `null` | **`7`** |
+| `logRetainDay` / 状态 | `null` | `0` / `NORMAL` |
+| 接口耗时 | — | 1.4s |
+| 页面转圈块数（`.ant-spin-spinning`） | 2 | **0** |
+| 卡片标题 | 「存储时长 : 0 天」 | **「存储时长 : 7 天」** |
+| 失败请求 / pageerror | — | **0 / 0** |
+
+> `totalMemory` 从 0.0277 降到 0.0016 是 Loki 重建后 `emptyDir` 被清空所致（**数据不持久**，
+> 这是清单用 emptyDir 的既有问题，与本次修复无关，见 16.6）。
+
+### 16.5 写路径现在是真生效（但仍有一处风险）
+
+`PUT /loki/logs/setLokiLogRetainMaxDay?val=N` 的实现是：读 Secret 里的 YAML →
+用 SnakeYAML 改 `limits_config.retention_period` → `replaceNamespacedSecret` → **删除 loki-0 触发重启**。
+配置源统一后这条链路是真生效的，不再是假入口。
+
+但**SnakeYAML 是整棵树 load→dump**，回写后 YAML 会被重排/改风格（注释、缩进、
+`from: 2020-10-24` 这类日期标量的序列化形态都可能改变）。所以第一次用该面板改保留天数之前，
+建议先备份：`kubectl get secret loki -n loki -o yaml > /tmp/loki-secret-backup.yaml`。
+本条**未做实机写入验证**（会重启 Loki 且可能改写配置），只做了只读验证。
+
+### 16.6 顺带记录两个未处理的既有问题
+
+- Loki 的 `/data` 是 **emptyDir(5Gi)**：Pod 重建即丢日志，且「日志存储容量」永远接近 0。
+  要长期可用需换 PVC。本次未动（属容量规划，不在报障范围内）。
+- 老的 ConfigMap `loki-config` 从此**不再是生效配置**，改它不会有效果。
+  保留它只作备份；更稳妥的做法是删掉或加注释说明，避免后来人改错对象。
+
+### 16.7 固化
+
+运行时改动在集群重建后会丢，已提供幂等脚本：
+
+```
+tools/align-loki-config-source.sh [--dry-run] [命名空间]
+```
+
+脚本会检查 Secret 是否存在、StatefulSet 是否已指向它，已就绪则全部 SKIP；
+若 ConfigMap 里没有 `limits_config` 会直接中止（否则后端解析保留天数仍会失败）。
