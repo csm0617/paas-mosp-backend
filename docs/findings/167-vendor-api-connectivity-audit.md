@@ -446,3 +446,82 @@ kubectl -n gaop-namespace patch deploy <name> --type=merge -p \
 
 > 给重写版的提醒：`paas-core` 实现服务详情时**不要**依赖 `system/svcName` 标签
 > （那是厂商的历史约定），直接用 Deployment 名查即可；若为兼容老数据需要回退，也应先按名查、标签仅作兜底。
+
+## 十三、点「配置」整页白屏：env 里的 `secretKeyRef` 打崩前端表单（2026-11-09 23:30–00:00）
+
+用户报障：基础服务列表点操作列「配置」，整页变白。
+
+### 13.1 复现与定位（浏览器实测，不是猜）
+
+用 playwright 登录厂商前端 → `/gaop/software/application/base-service` → 点第一行「配置」，
+抓到【实】：
+
+```
+[pageerror] TypeError: Cannot read properties of null (reading 'fieldPath')
+    at /gaop/5328.f3271109.async.js:1:83149
+    at Array.map (<anonymous>)
+```
+
+**同时 4xx/5xx 请求为 0** —— 所以不是接口问题，是纯前端渲染崩溃（React 树被错误边界清空 ⇒ 白屏）。
+
+在该 chunk 的 83149 处是 `ServiceConfig` 的 env 归一化函数：
+
+```js
+A = function (e) {
+  var t = e.map(function (e) {
+    return { ...e,
+      value: e.value ? e.value
+           : (e.valueFrom ? re[e.valueFrom.fieldRef.fieldPath] : e.value),
+      type: e.value ? "text" : "podType", isOldEnv: !0 };
+  });
+```
+
+它的隐含假设是 **env 只有两种形态**：`value`（普通值）或 `valueFrom.fieldRef`（引用 Pod 字段）。
+一旦 `valueFrom` 是 `secretKeyRef`，`fieldRef` 就是 undefined ⇒ 取 `.fieldPath` 直接抛。
+
+### 13.2 为什么我们会踩到：6 个服务、14 个 env 用了 `secretKeyRef`
+
+```
+gaop-auth / gaop-be / gaop-fdfs / gaop-diagnostic / gaop-gateway-auth / gaop-image-uploader
+  GAOP_MYSQL_USERNAME  <- secretKeyRef gaop-app/username
+  GAOP_MYSQL_PASSWORD  <- secretKeyRef gaop-app/password
+  （gaop-fdfs 另有两个 <- gaop-minio/rootUser、rootPassword）
+```
+
+厂商平台自己创建服务时只写 `value` 或 `fieldRef`，所以这个前端分支在他们自己的环境里从没被触发过；
+我们的清单为了"密码不进 spec"用了 `secretKeyRef`，正好撞上。
+
+### 13.3 修复：换成字面 `value`
+
+把这 14 项替换为 `{name, value}`（值取自对应 Secret），用 json patch 整体替换 env 数组，逐个滚动：
+
+```
+kubectl -n gaop-namespace patch deploy <name> --type=json \
+  -p '[{"op":"replace","path":"/spec/template/spec/containers/0/env","value":[...]}]'
+```
+
+结果【实】：点「配置」不再白屏，抽屉正常打开
+（标题「服务配置：gaop-auth」，左侧锚点 基本信息/环境变量/资源配置/…，
+环境变量表把 6 个变量全部识别为「普通变量」，`GAOP_MYSQL_USERNAME=gaop`、`GAOP_MYSQL_PASSWORD=gaop123456` 正确）。
+
+**代价**：密码明文进了 Deployment spec（有 `get deploy` 权限即可读）。
+这是**厂商前端能力缺陷**逼出来的取舍，仅适用于测试环境。
+生产要么修前端（支持 secretKeyRef 回显），要么改用厂商的配置项机制（`g_setting`），不要把明文留在 spec。
+
+### 13.4 检测工具
+
+```
+tools/check-vendor-env-shape.sh [namespace]     # 只读，发现即退出码 1
+```
+
+接进巡检即可避免"改完清单又白屏"。
+
+### 13.5 顺带发现（未处理）
+
+同一次复现里还有个 `WebSocket connection to 'ws://localhost:9999/' failed` ——
+前端某处把终端/日志的 WS 地址写死成了 `localhost:9999`（应走当前 origin），
+连不上不影响页面渲染，属另一处待修项。
+
+> 给重写版的提醒：`paas-web` 的服务配置页必须同时兼容
+> `value` / `fieldRef` / `secretKeyRef` / `configMapKeyRef` / `resourceFieldRef` 五种形态，
+> 不能像厂商那样只认前两种；render 前对 `valueFrom` 做完整判空。
