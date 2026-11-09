@@ -229,3 +229,25 @@ env GOMEMLIMIT=850MiB                           # Go 堆软上限，逼 GC 提�
 
 给 10 个 Deployment 补 `limits.cpu` 会让 cockpit 恢复，但这要**全部滚动重启**厂商控制台，
 影响面比 Prometheus 大得多，本轮未动。若要做，建议在维护窗口执行，且 cpu limit 设为节点核数（2）避免误杀。
+
+### 9.5 最终配额（第三刀：只给上限，不动堆软限）
+
+压到 862Mi 后仍只离 1Gi 差 160Mi，且 RSS 还在缓慢上爬，于是补最后一刀：
+
+```
+limits:  memory 1Gi → 1536Mi,  cpu 1      # 节点 8GB、当时已用 6.0GB，加 500Mi 后约 80%
+env:     GOMEMLIMIT=850MiB                # 堆仍有软上限，不会真涨到 limit
+```
+
+复核【实】：Pod 2m51s / **0 重启**，RSS **861Mi**（占新 limit 的 56%），6/6 target up，
+关键接口响应从"2~6 秒或超时"降到 **0.09~0.13 秒**：
+
+| 接口 | 状态 | 耗时 |
+|---|---|---|
+| `GET /v1/pub/nodeUsage` | 200 OK | 0.10s |
+| `GET /v1/pub/nodeMonitor?name=k8s-master` | 200 OK | 0.09s |
+| `GET /api/v2/dashboards/etcd` | 200 OK | 0.13s |
+| `GET /cloud/summary` | 200 | 0.09s |
+
+> 三层防护的分工要分清：**探针 timeout 管"别误杀"**、**GOMEMLIMIT 管"别涨"**、
+> **limits.memory 管"涨了也不死"**。只做其中一层都会复发。
