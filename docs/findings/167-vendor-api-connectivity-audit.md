@@ -830,3 +830,110 @@ tools/align-loki-config-source.sh [--dry-run] [命名空间]
 
 脚本会检查 Secret 是否存在、StatefulSet 是否已指向它，已就绪则全部 SKIP；
 若 ConfigMap 里没有 `limits_config` 会直接中止（否则后端解析保留天数仍会失败）。
+
+## 十七、镜像上传不通：上传服务指向厂商旧仓库 + docker 不信任本集群 registry（2026-11-10 02:24–02:40）
+
+用户报障：`/api/gaop/v1/image/repositories?storage=gaop&page=1&size=10&keyword=` 相关页面
+「镜像上传接口没通」。
+
+### 17.1 先纠正两个容易跑偏的观察
+
+1. **`/v1/image/repositories` 并没有报错**：实测 200 `{"list":[],"total":0}`。
+   空的含义是 registry 的 catalog 里还没有 `gaop/` 前缀的仓库（`getImageListByProject` 是
+   `GET /v2/_catalog` + 按 `project + "/"` 过滤）。**没上传过 = 空列表**，不是接口坏。
+2. **`/v1/image/upload` 不在 gaop-be 里**。直连 gaop-be 打这个路径得到的是 Spring 的
+   `404 {"status":404,"path":"/v1/image/upload"}` —— 我第一轮就被这个 404 误导过。
+   它实际由 **`gaop-image-uploader`** 提供（该类类级 `@RequestMapping("/v1/image")` + 方法 `/upload`），
+   网关里有专门的 ingress 把它分流过去：
+
+   ```
+   gaop-api-image-upload   /api/gaop/v1/image/upload  → gaop-image-uploader:18080  (rewrite → /v1/image/upload)
+   gaop-api-image-download /api/gaop/v1/image/download→ gaop-image-uploader:18080
+   gaop-api-be             /api/gaop(/|$)(.*)         → gaop-be:8080
+   ```
+
+   > 教训：**先走真实入口（网关 172.16.209.170）再判断，直连后端会得到误导性的 404**。
+
+### 17.2 上传是异步的，200 不代表成功
+
+`POST /v1/image/upload?storage=gaop&username=admin&type=1`（multipart，字段名 `file`）
+入队即返回 `{"code":0,"data":true}`，真正的工作在后台：`docker load` → 读 ImageMeta →
+`docker tag` → `docker push`。结果只能从 **`GET /v1/image/imageLog`** 的 `status`/`log` 看。
+
+用一个真实镜像（`docker save` 出来的 5.3MB tar）实测，暴露两级真实故障：
+
+### 17.3 故障一：上传服务把镜像 push 到厂商旧环境
+
+```
+The push refers to repository [192.168.1.171:80/gaop/vip-daemon]
+Get "https://192.168.1.171:80/v2/": context deadline exceeded
+```
+
+`gaop-image-uploader` 的 `application.yml`【码】：
+
+```yaml
+server:
+  host:
+    harbor: http://${HARBOR_HOST:192.168.1.171:1080}
+docker:
+  registry-host: ${server.host.harbor}
+```
+
+而 Deployment 里**只注入了 `HARBOR_USERNAME` / `HARBOR_PASSWORD`，没有 `HARBOR_HOST`**
+⇒ 走镜像默认值 `192.168.1.171:1080`（拼 tag 时端口被丢掉，于是变成 `:80`）⇒ 15 秒连接超时。
+
+处置：给 uploader 补 `HARBOR_HOST=172.16.209.25:30180`（与 gaop-be 已用的一致）。
+
+### 17.4 故障二：docker 用 HTTPS 访问纯 HTTP 的 registry
+
+改完地址后 push 目标正确了，但立刻换成另一个错：
+
+```
+The push refers to repository [172.16.209.25:30180/gaop/vip-daemon]
+Get "https://172.16.209.25:30180/v2/": http: server gave HTTP response to HTTPS client
+```
+
+本集群的 registry 是 sealos 起的 `docker-registry`（NodePort 30180 → 5000），**纯 HTTP**；
+docker daemon 默认对未信任的 registry 走 HTTPS。
+节点 `/etc/docker/daemon.json` 原来只有 `"insecure-registries": ["sealos.hub:5000"]`。
+
+处置（与厂商 `roles/docker/templates/daemon.json.j2` 的做法一致）：
+
+1. 备份 `/etc/docker/daemon.json`
+2. 在 `insecure-registries` 里追加 `172.16.209.25:30180`
+3. **给 dockerd 发 SIGHUP 重载**——`insecure-registries` 属于可热重载项，
+   **不能 restart docker**（默认 `live-restore=false`，重启会停掉节点上所有容器）
+
+> 落地方式：起一个临时特权 Pod（`hostPID: true` + hostPath `/etc/docker` + `/run/docker.sock`），
+> 改文件后 `kill -HUP <dockerd pid>`，验证完即删。改配置前先用本地 python 校验 JSON 合法性，
+> 写坏 daemon.json 会导致下次 docker 重启时直接起不来。
+
+### 17.5 结果【实】
+
+| 阶段 | 上传前 | 现在 |
+|---|---|---|
+| push 目标 | `192.168.1.171:80`（旧环境） | **`172.16.209.25:30180`** |
+| 协议 | HTTPS → HTTP 被拒 | 走 insecure 通道，正常 |
+| `imageLog` 尾部 | `context deadline exceeded` / `server gave HTTP response to HTTPS client` | `AuxDetail(digest=sha256:1c0ab5…)+ 上传镜像成功` |
+| `repositories?storage=gaop` | `total=0` | **`total=1`（`gaop/vip-daemon`）** |
+| 删除（`DELETE /v1/image?name=gaop/vip-daemon&tag=arm64-local`） | — | 200，列表回到 0（测试镜像已清理） |
+
+### 17.6 厂商缺陷（A 类，不复制）
+
+02:31 那次 push **明确失败**（`errorDetail: Get "https://…/v2/": server gave HTTP response to HTTPS client`），
+但 imageLog 里 `status` 仍是 `1`（成功），末尾还打印「上传镜像成功」。
+即 **`DockerService.uploadImage` 没有检查 `ResponseItem.errorDetail`**，UI 会误报成功。
+我们的重写版必须逐帧检查 push 事件流里的 `errorDetail`，不能沿用这个判断。
+
+### 17.7 固化
+
+```
+tools/align-image-registry.sh [--dry-run] [registry地址]
+```
+
+做两件事：上传服务 `HARBOR_HOST` 归位；节点 `daemon.json` 的 `insecure-registries` 补齐并
+SIGHUP 重载（带备份、幂等、临时 Pod 用完即删）。
+
+> 仍未处理：`g_setting.system.url.harbor` 为 NULL、`system.url.container_log = 128.0.42.3`（旧地址），
+> 以及 `projectList` 返回的 `creation_time` 是 `+58827-06-02` 这类离谱值（厂商时间解析 bug）。
+> 都不影响上传主链路，先记录。
