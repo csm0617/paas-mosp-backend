@@ -1,0 +1,206 @@
+openapi: 3.0.3
+info:
+  title: vip-daemon API（厂商 MSOP HA VIP 守护进程的 arm64 等价实现）
+  version: 1.0.0
+  description: |
+    本服务与厂商 `msop/amd64/vip/vip-daemon` **同接口**，供 `gaop-be` 的
+    `VipDaemonApi`（Feign）调用，用于查询/管理节点上的虚拟 IP。
+
+    ## 与厂商的差异（务必先读）
+
+    1. **只实现 HTTP 5556**。厂商还会监听 `5555/tcp` 做 HA 节点间通信（私有二进制协议），
+       本实现不提供——单节点部署没有漂移对端。
+    2. **写操作返回 501**。厂商的 `POST /api/vips/add|delete` 是「乐观成功」：
+       先写内存并回写 `config.json`，再异步执行 `ip addr` / `nmcli` 绑定，**绑定失败也返回 200**。
+       本实现不修改宿主网络，直接 501 并说明原因。
+    3. **`GET /health` 是本实现新增**（厂商侧为 404），仅供 kubelet 探针使用。
+    4. 单节点无 HA 时 `GET /api/vips` 返回 `[]` —— 这与厂商 `config.json.j2` 的
+       `node_list|length == 1` 分支一致，是真实状态。
+
+    ## 上游过滤（不在本服务）
+
+    `GET /api/interfaces` **原样返回全部网卡**（含 `lo`、`cali*`）。前缀过滤发生在
+    `gaop-be` 的 `PubVipController.interfaces()`，配置项 `vip.ignore-prefix-list`。
+  license:
+    name: 内部组件
+servers:
+  - url: http://vip-daemon.gaop-namespace.svc:5556
+    description: 集群内（Service）
+  - url: http://172.16.209.25:5556
+    description: 节点直连（DaemonSet hostNetwork）
+
+paths:
+  /api/vips:
+    get:
+      summary: 查询 VIP 列表
+      description: |
+        返回本服务管理的 VIP。单节点部署无 HA，正常情况为 `[]`。
+        响应体是**裸 JSON 数组**（Java 侧是 `List<VipItem>`，不是包装对象）。
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/VipItem'
+              example: []
+    post:
+      summary: 整体替换 VIP 列表（不支持）
+      description: 厂商支持整体设置；本实现返回 501。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/VipItem'
+      responses:
+        '501':
+          $ref: '#/components/responses/NotSupported'
+
+  /api/vips/add:
+    post:
+      summary: 新增 VIP（不支持）
+      description: |
+        厂商行为：200 + 纯文本 `OK`，写内存并回写 `config.json`，异步绑定网卡，失败也 200。
+        本实现返回 501，不修改宿主网络。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VipItem'
+      responses:
+        '501':
+          $ref: '#/components/responses/NotSupported'
+
+  /api/vips/delete:
+    post:
+      summary: 删除 VIP（不支持）
+      description: 同 `/api/vips/add`，本实现返回 501。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VipItem'
+      responses:
+        '501':
+          $ref: '#/components/responses/NotSupported'
+
+  /api/interfaces:
+    get:
+      summary: 查询节点网卡
+      description: |
+        返回**宿主机**全部网卡（不做过前缀滤）。需要 `hostNetwork: true` 才能看到宿主网卡，
+        否则只能看到容器自己的 eth0 + lo。
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InterfaceInfo'
+              example:
+                - index: 1
+                  name: lo
+                  mac: ''
+                  flags: up|loopback|running
+                  addresses: ['127.0.0.1/8', '::1/128']
+                - index: 2
+                  name: ens160
+                  mac: '00:0c:29:00:ff:2e'
+                  flags: up|broadcast|multicast|running
+                  addresses: ['172.16.209.25/24']
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /health:
+    get:
+      summary: 健康检查（本实现新增）
+      description: 厂商无此端点（返回 404）。仅用于 kubelet 的 liveness/readiness 探针。
+      responses:
+        '200':
+          description: 正常
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: ok
+
+components:
+  schemas:
+    VipItem:
+      type: object
+      description: 与厂商 VipItem.java 一致
+      required: [interface, vip]
+      properties:
+        interface:
+          type: string
+          description: 绑定网卡名
+          example: ens160
+        vip:
+          type: string
+          description: 带掩码的 IP，通常是 /32
+          example: 172.16.209.100/32
+
+    InterfaceInfo:
+      type: object
+      description: |
+        与厂商 InterfaceInfo.java 一致。
+        注意 `index` 在 Java 侧标了 `@JsonIgnore`，但那只影响 gaop-be→前端 的序列化，
+        不影响 daemon→gaop-be 的反序列化，因此**必须输出**（实测厂商也输出）。
+      required: [index, name, mac, flags, addresses]
+      properties:
+        index:
+          type: integer
+          format: int32
+          description: 网卡序号（net.Interface.Index）
+          example: 2
+        name:
+          type: string
+          example: ens160
+        mac:
+          type: string
+          description: 无 MAC 时为空字符串
+          example: '00:0c:29:00:ff:2e'
+        flags:
+          type: string
+          description: '管道分隔的标志位；无标志时为字面量 "0"（与厂商一致）'
+          example: up|broadcast|multicast|running
+        addresses:
+          type: array
+          nullable: true
+          description: 网卡地址（CIDR）；无地址时为 **null**，不是空数组
+          items:
+            type: string
+          example: ['172.16.209.25/24', 'fe80::20c:29ff:fe00:ff2e/64']
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: 'add vip is not supported: single-node deployment, no HA VIP to manage'
+
+  responses:
+    NotSupported:
+      description: |
+        本实现有意不支持该操作。厂商对同一请求返回 `200` + 纯文本 `OK`（并异步尝试绑定网卡，
+        失败也不报错），因此这是一处**已知偏离**，不是缺陷。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    InternalError:
+      description: 读取网卡失败
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

@@ -168,3 +168,48 @@ curl -s localhost:5556/api/vips            # 契约：裸数组，空为 []
 curl -s localhost:5556/api/interfaces      # 契约：元素含 index/name/mac/flags/addresses，空地址为 null
 curl -s -o /dev/null -w '%{http_code}\n' -X POST localhost:5556/api/vips/add   # 行为：501（有意偏离）
 ```
+
+## 接口文档
+
+本服务是 **HTTP + JSON**，监听 `5556`。完整规范见 [`openapi.yaml`](./openapi.yaml)（OpenAPI 3.0.3），
+可直接导入 Postman / Insomnia / Apifox，或用离线工具（Redocly CLI、swagger-cli）校验与渲染。
+
+> 厂商那份**没有任何文档**（只有二进制），这份规范是从 `VipDaemonApi.java` + 实测对拉反推出来的，
+> 差异都标在 `info.description` 和 `501` 响应里。
+
+### 端点一览
+
+| 方法 | 路径 | 状态 | 说明 |
+|---|---|---|---|
+| GET | `/api/vips` | ✅ | 裸 JSON 数组，单节点为 `[]` |
+| GET | `/api/interfaces` | ✅ | 全部网卡（含 `lo`/`cali*`），空地址为 `null` |
+| POST | `/api/vips` | 501 | 整体替换（不支持） |
+| POST | `/api/vips/add` | 501 | 新增（不支持） |
+| POST | `/api/vips/delete` | 501 | 删除（不支持） |
+| GET | `/health` | ✅ | 本实现新增，厂商为 404，仅探针用 |
+
+**没有** `/api/config/sync`、`/api/configmap` —— 实测厂商对这两个路径也是 404（strings 里的残留）。
+
+### 端口
+
+| 端口 | 协议 | 用途 | 本实现 |
+|---|---|---|---|
+| 5556 | HTTP/JSON | 对外 API（gaop-be 调用） | ✅ |
+| 5555 | TCP 私有协议 | HA 节点间心跳/选举 | ❌ 不实现（单节点无对端） |
+
+### 调用示例
+
+```bash
+# 查 VIP（单节点返回 []）
+curl -s http://172.16.209.25:5556/api/vips
+
+# 查网卡（宿主机真实网卡；过滤在 gaop-be 侧做）
+curl -s http://172.16.209.25:5556/api/interfaces | jq '.[] | {index, name, flags}'
+
+# 写操作：明确 501，不是静默失败
+curl -s -i -X POST -H 'Content-Type: application/json' \
+  -d '{"interface":"ens160","vip":"172.16.209.100/32"}' \
+  http://172.16.209.25:5556/api/vips/add
+# HTTP/1.1 501 Not Implemented
+# {"error":"add vip is not supported: single-node deployment, no HA VIP to manage"}
+```
