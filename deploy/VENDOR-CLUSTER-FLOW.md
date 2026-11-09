@@ -1,156 +1,173 @@
-# 厂商集群部署流程：还原与缺口
+# 厂商安装流程（完整安装器）与 arm64 缺口
 
-对象：`msop-v1.3.4-20260416.tar.gz`（2.8G，解压 3.1G / 514 个文件，纯 amd64）。
+本文基于 **`msop.tar.gz`（4.3G，`VERSION=20260811` = v1.3.5-20260811）**。
+它与之前那个 `msop-v1.3.4-20260416.tar.gz`（2.8G）不是同一个东西：
 
-**结论先说**：这个包里**没有**「从 0 装一套集群」的可执行流程。它是**节点侧介质包 +
-「加节点」入口**：素材大约有三分之一（镜像、二进制、systemd unit、Helm chart），
-流程是 0（主 playbook 不在包内）。
-
-本文把包里**每一个**脚本类文件都列出来并给判断，再用 `include` 列表把完整流水线还原成
-21 步，逐步标注素材是否在包内——这样「缺什么」是清单，不是印象。
-
-## 1. 包里全部脚本类文件（27 个，已逐个读完）
-
-| 文件 | 行数/大小 | 作用 | 属于哪一步 |
+| 包 | 大小 | 定位 | 有主流程吗 |
 | --- | --- | --- | --- |
-| `!安装和使用注意事项.txt` | 4 行 | 关 swap、配网关/DNS、设 root 密码、单默认网关 | 前置要求 |
-| `add-node-prepare.yml` | 8 行 | 步骤 1/4 入口 | 环境准备 |
-| `add-node-docker.yml` | 11 行 | 步骤 2/4 入口 | 运行时 |
-| `add-node-kubernetes.yml` | 96 行 | 步骤 3/4 入口 | K8s 主体 |
-| `add-node-minio-replicate.yml` | 55 行 | 步骤 4/4 入口 | 对象存储 |
-| `amd64/config/docker.service` | 33 行 | dockerd，`--containerd=/run/containerd/containerd.sock` | 运行时 |
-| `amd64/config/docker.socket` | 11 行 | `/var/run/docker.sock` | 运行时 |
-| `amd64/config/containerd.service` | 39 行 | containerd，`modprobe overlay` 前置 | 运行时 |
-| `amd64/config/cri-docker.service` | 44 行 | cri-dockerd，`--pod-infra-container-image=pause:3.9` | 运行时 |
-| `amd64/config/cri-docker.socket` | 11 行 | `cri-dockerd.sock` | 运行时 |
-| `amd64/config/kubelet.service` | 17 行 | kubelet（`ExecStart=/usr/bin/kubelet`） | K8s 节点 |
-| `amd64/config/kubelet.service.d/10-kubeadm.conf` | 12 行 | kubeadm 的 kubelet drop-in（bootstrap-kubeconfig + config.yaml） | K8s 节点 |
-| `amd64/executable/etcd/etcd.service` | 10 行 | 外部 etcd，`EnvironmentFile=/etc/etcd/etcd.conf` | 控制面存储 |
-| `amd64/executable/etcd/node-recovery.sh` | 38 行 | 宕机节点恢复后，把 apiserver 的 `--etcd-servers` 改回指定 etcd 并重启 kubelet | 故障恢复 |
-| `amd64/executable/minio/minio.service` | 12 行 | MinIO 单机服务 | 对象存储 |
-| `amd64/diagnostic/clearPod.sh` | 1 行 | `kubectl delete po --field-selector=status.phase=Failed --all-namespace` | 运维 |
-| `amd64/diagnostic/templates/gaop-diagnostic.service.j2` | 19 行 | 诊断服务 systemd（`-Dserver.port=55555`） | 运维 |
-| `amd64/diagnostic/templates/gaop-diagnostic.j2` | 8 行 | logrotate 配置 | 运维 |
-| `amd64/diagnostic/templates/application.yml.j2` | 41 行 | 诊断服务配置（SQLite、hosts、harbor ip） | 运维 |
-| `amd64/diagnostic/templates/agent_daemonset.yml.j2` | 81 行 | debug-agent DaemonSet（`extensions/v1beta1`，**已废弃 API**） | 运维 |
-| `amd64/diagnostic/templates/agent_daemonset_high.yml.j2` | 81 行 | 同上，`apps/v1` + control-plane 容忍 | 运维 |
-| `.gitattributes` / `.gitignore` | — | LFS 与忽略规则（暴露了被排除的目录） | 元数据 |
-| `amd64/ansible-env/*`（3 个） | 167MB | ansible + podman + skopeo + crun 的运行环境（OCI 镜像） | 执行器 |
+| `msop-v1.3.4-20260416.tar.gz` | 2.8G | 节点侧介质 + 加节点入口（`add-node-*.yml`） | ❌ 21 个 include 全缺 |
+| **`msop.tar.gz`** | **4.3G** | **完整安装器**（`install-all.sh` + `install-k8s-all.yml` + 37 个 role + `k8s-yaml/` + `host/`） | ✅ 33 个 include 全在 |
 
-两个 `.sh` 的完整逻辑已经读完：`clearPod.sh` 只有一行 kubectl 删失败 Pod；
-`node-recovery.sh` 是 etcd 切换 + 重启 kubelet，属于事后修复，不是安装。
+> 上一版本文的结论（「没有从 0 流程」）只对**第一个包**成立。
+> 拿到完整包后已更正。
 
-`ansible-env` 我也解到 layer 层验证过：里面只有 `usr/local/bin/ansible-playbook` 与
-ansible 本体，**没有任何业务 playbook**。
+## 1. 入口：两条命令
 
-## 2. 四个 playbook 的真实身份
-
-它们不是「第 1/4 步安装、第 2/4 步安装」这种从零流程，而是**往已有集群加节点的
-四个阶段**（文件头注释就写了「添加节点执行的脚本，基于 `install-k8s-all.yml` 修改」）。
-
-`add-node-kubernetes.yml` 的实际动作顺序（去掉注释后）：
-
-```
-stop vip（worker）→ include install-paas-kubernetes.yml（kubeadm join）
-→ 删 control-plane 污点 → start vip → flannel → etcd 备份 → minio
-→ install-other → cron 清 Pod → diagnostic → gpu → k9s
+```bash
+# 在 /data/msop 下，以 root 执行
+./install-all.sh
 ```
 
-也就是说：**它的前提是集群已经存在**（有 vip、有 master、有 etcd 集群），
-新节点只做 join 与外挂组件。
+`install-all.sh` 全文 13 行，实质是：
 
-## 3. 被 include 但不在包内的文件：21 个
+```bash
+source prepare-ansible.sh              # 装执行器
+ansible-playbook install-k8s-all.yml   # 跑主流程
+if [ $? -ne 0 ]; then echo "安装失败，中断脚本"; exit 1; fi
+```
 
-我把 4 个 playbook 的 `include` 全部解析并逐个查了文件是否存在：
+`install-all-arm-and-amd.sh` 与它**逐字相同**——没有额外的架构分支，架构判断在
+`prepare-ansible.sh` 里做。
 
-| playbook | 引用但缺失 |
+## 2. 执行器：`prepare-ansible.sh`（222 行）
+
+这是整套流程能在裸机上跑起来的关键：**目标机不需要预装 ansible**。
+
+1. 检测架构：`x86_64` → `amd64`，`aarch64` → `arm64`；
+2. 装 podman + crun：读 `${arch}/ansible-env/podman-linux-${arch}.tar.gz`，把 `usr/` `etc/`
+   rsync 到根，`crun` 放到 `/usr/local/bin/crun`（并删掉 `/usr/local/bin/runc`）；
+3. 隔离 Podman 的 CNI 配置（`/etc/cni/net.d/87-podman-bridge.conflist` 移到
+   `podman-cni-disabled/`）——否则 cri-dockerd 可能误用它；
+4. `podman load` 导入 `ansible-env:${version}` 与 skopeo 镜像；
+5. 起 `podman system service --time=0 unix:///tmp/podman.sock`；
+6. 用 shell 函数覆盖 `ansible-playbook`：`podman run --rm -it --network host`，把当前目录、
+   `/data/paas`、`/tmp`、`~/.ssh` 挂进去，在容器里执行真正的 ansible。
+
+> 这一步决定了「离线可装」：ansible 本体、podman、skopeo 全部来自包内
+> `${arch}/ansible-env/`，只有 podman 的二进制要落到宿主机。
+
+## 3. 主流程：`install-k8s-all.yml`（33 个 include）
+
+按文件里的顺序，阶段与职责如下（括号内是实际动作，读自对应剧本/role）：
+
+| # | 步骤 | 干什么 |
+| --- | --- | --- |
+| 1 | `precheck-system.yml` | 系统预检 |
+| 2 | `ssh.yml` | root 免密（`all:vars` 里有 `ansible_password`） |
+| 3 | `install-paas-prepare.yml` | 主机名、工作目录、**按架构分发二进制**、systemd unit |
+| 4 | `site-ntp.yml` | chrony/NTP 授时 |
+| 5 | `install-paas-cni.yml` | cni-plugins（`cni-plugins-linux-*-v1.3.0.tgz`） |
+| 6 | `install-paas-docker.yml` | docker 24.02（`docker_v24.02.tar.gz`） |
+| 7 | `install-paas-cri-docker.yml` | cri-dockerd 0.3.4 |
+| 8 | `install-paas-crictl.yml` | crictl v1.27.3 |
+| 9 | `install-mydumper.yaml` | MySQL 逻辑备份工具 |
+| 10 | `install-paas-etcd.yml` | **外部 etcd** + TLS（`/etc/etcd/pki/etcd_client.{crt,key}`） |
+| 11 | `install-vip-daemon.yml` | keepalived VIP（多 master 时） |
+| 12 | `install-paas-kubernetes.yml` | 装 K8s 二进制 → 禁 swap → 主机名 → 系统参数 → `kubeadm init`（配置文件）→ 生成 static token → worker `kubeadm join` → 放开 NodePort 80-65535 → 设 `--node-ip` → 打 role 标签 |
+| 13 | `install-paas-networks-flannel.yml` | flannel CNI（`kube-flannel.yml`） |
+| 14 | `site-etcd-backup.yml` | etcd 定时备份（`roles/cron-etcd-bakdata`） |
+| 15 | `install-paas-helm.yml` | helm 3 |
+| 16 | `install-minio.yml` | MinIO（`roles/minio`） |
+| 17 | `install-registry.yml` | 私有镜像仓库（`roles/registry`） |
+| 18 | `install-paas-openebs.yml` | OpenEBS（`openebs-3.7.0.tgz`） |
+| 19 | `install-paas-prometheus.yml` | Prometheus + node-exporter + cadvisor |
+| 20 | `install-paas-loki.yml` | Loki + Promtail |
+| 21 | `create-nodes-labels.yml` | 节点标签 |
+| 22 | `install-paas-basic-server.yml` | 推业务镜像 → `static-token` role（master+worker）→ 给 apiserver 加 `--token-auth-file` → 迁移业务 MySQL 数据目录 → `roles/gaop` 部署业务 |
+| 23 | `install-paas-init-sql.yml` | 灌业务库（**87 个迁移 + 初始化数据的来源**） |
+| 24 | （内联） | `kubectl rollout restart deployment gaop-be -n gaop-namespace` |
+| 25 | `install-paas-ingress-nginx.yml` | ingress-nginx（`4.8.3`）+ 业务 ingress |
+| 26 | `install-other.yml` | 其它组件 |
+| 27 | `install-machine-code.yml` | 机器码（授权） |
+| 28 | `cron-del-completed-pod.yaml` | 定时清 Completed Pod |
+| 29 | `install-diagnostic.yaml` | 诊断服务 + debug-agent DaemonSet |
+| 30 | `install-gpu.yml` | GPU 插件（`label_nvidia=true` 时） |
+| 31 | `install-kafka-ui.yml` | Kafka UI |
+| 32 | `install-k9s.yaml` | k9s |
+| 33 | `update-mysql-tls-cert.yml` | 更新 MySQL TLS 证书 |
+
+**校验结果**：这 33 个 include 对应的文件 **33/33 全部存在**（第一个包里是 21/21 缺失）。
+
+## 4. 关键参数（`k8s-yaml/kubeadm_init.yaml`）
+
+| 项 | 值 |
 | --- | --- |
-| `add-node-prepare.yml` | `precheck-system.yml`、`ssh.yml`、`install-paas-prepare.yml`、`site-ntp.yml` |
-| `add-node-docker.yml` | `install-paas-cni.yml`、`install-paas-docker.yml`、`install-paas-cri-docker.yml`、`install-paas-crictl.yml`、`install-mydumper.yaml` |
-| `add-node-kubernetes.yml` | `install-paas-etcd.yml`、`install-vip-daemon.yml`、`install-paas-kubernetes.yml`、`install-paas-networks-flannel.yml`、`site-etcd-backup.yml`、`install-minio.yml`、`install-other.yml`、`install-machine-code.yml`、`cron-del-completed-pod.yaml`、`install-diagnostic.yaml`、`install-gpu.yml`、`install-k9s.yaml` |
-| `add-node-minio-replicate.yml` | 无（全内联） |
+| Kubernetes 版本 | **1.27.3** |
+| 容器运行时 | cri-dockerd：`unix:///var/run/cri-dockerd.sock` |
+| 控制面 | 单 master（`192.168.0.101:6443`），VIP 用 keepalived |
+| **etcd** | **外部**：`https://192.168.0.101:2379`，证书 `/etc/etcd/pki/etcd_client.*` |
+| 认证 | `--token-auth-file=/etc/kubernetes/pki/static-token.csv`（静态 token，非 SA token） |
+| 网络 | podSubnet `10.244.0.0/16`、serviceSubnet `10.96.0.0/12` |
+| kube-proxy | **ipvs** |
+| kubelet | `cgroupDriver: systemd`、`maxPods: 1000` |
+| 镜像回收 | `imageGCHighThresholdPercent: 100` / `Low: 99`（**尽可能不删镜像**，与「离线 + IfNotPresent」策略一致） |
+| 驱逐 | `memory.available: 100Mi`、`imagefs.available: 0%` |
 
-**21 个全部缺失**。同时包里也没有 `roles/`、`group_vars/`、`host_vars/`、`inventory`、
-`ansible.cfg`——整个 Ansible 工程只剩 4 个入口文件。
+inventory（`host/hosts`）：
 
-`.gitignore` 的注释还留了两条线索：
-`00-prepare.sh`（含 `prepare_download_gpu()`）与 `00-prepare-offline.sh`——真正的安装
-入口应该叫这两个名字，它们也不在包里。
+```ini
+[k8s-master]
+192.168.0.101 hostname=kylin-master label_nvidia=false
+[k8s-worker]
+#192.168.0.102 hostname=kylin-worker01 label_nvidia=false
+[gaop-vip-addresses]
+#192.168.0.100 interface=bond6
+[all:vars]
+ansible_password="glch.722"
+default_interface=bond6
+```
 
-## 4. 还原出的完整流水线（21 步）与素材对照
+## 5. arm64：**脚本已支持，介质缺失**
 
-`include` 的命名把厂商的完整流水线暴露得很清楚。下面按依赖顺序排，并标注**每一步的
-素材是否在这个 tar 内**：
+这是本轮最重要的发现。`install-paas-prepare.yml` 里有**完整的 ARM 分支**
+（`when: host_architecture == "arm"`），逐项列出需要从 `./arm64/` 取的文件。
+但 `msop.tar.gz` 里**只有 `amd64/`**（`grep -c '^msop/arm64/'` = 0）。
 
-| # | 步骤（由 include 名还原） | 干什么 | 素材在包内？ |
-| --- | --- | --- | --- |
-| 1 | `precheck-system.yml` | 系统检查（swap/内核/端口/时间） | ❌ |
-| 2 | `ssh.yml` | root 免密 | ❌ |
-| 3 | `install-paas-prepare.yml` | 建目录、下发参数 | ❌ |
-| 4 | `site-ntp.yml` | 内网授时 | ❌ |
-| 5 | `install-paas-cni.yml` | CNI 前置（内核模块/网桥） | ❌（flannel 镜像 ✅） |
-| 6 | `install-paas-docker.yml` | 装 docker | systemd ✅ / 二进制 ❌ |
-| 7 | `install-paas-cri-docker.yml` | 装 cri-dockerd | systemd ✅ / 二进制 ❌ |
-| 8 | `install-paas-crictl.yml` | 装 crictl | ❌ |
-| 9 | `install-mydumper.yaml` | MySQL 逻辑备份工具 | ❌ |
-| 10 | `install-paas-etcd.yml` | 外部 etcd 集群 | 二进制 ✅ + unit ✅ / playbook ❌ |
-| 11 | `install-vip-daemon.yml` | keepalived VIP（多 master） | ❌ |
-| 12 | `install-paas-kubernetes.yml` | kubeadm init / join | kubelet unit ✅ + 控制面镜像 ✅ / **kubeadm 二进制 ❌** |
-| 13 | `install-paas-networks-flannel.yml` | 部署 flannel | 镜像 ✅ / playbook ❌ |
-| 14 | `site-etcd-backup.yml` | etcd 定时备份 | ❌ |
-| 15 | `install-minio.yml` | MinIO | 二进制 ✅ + unit ✅ |
-| 16 | `install-other.yml` | 其它（registry、kafka-ui 等镜像） | 镜像 ✅ / playbook ❌ |
-| 17 | `install-machine-code.yml` | 机器码（授权） | ❌ |
-| 18 | `cron-del-completed-pod.yaml` | 清 Completed Pod 的 cron | ❌ |
-| 19 | `install-diagnostic.yaml` | 诊断组件（jar + j2 模板） | jar ✅ + 模板 ✅ / playbook ❌ |
-| 20 | `install-gpu.yml` | GPU 插件（按 label） | ❌（`.gitignore` 注明走 `00-prepare.sh` 下载） |
-| 21 | `install-k9s.yaml` | k9s 运维终端 | 二进制 ✅ / playbook ❌ |
+也就是说：**不需要自己写 arm64 流程**，把 ARM 分支引用的文件补齐即可：
 
-**素材覆盖约 1/3，流程覆盖 0**。缺的三类：
+| 类别 | 需要的文件 |
+| --- | --- |
+| CNI 插件 | `arm64/cni-plugins-linux-arm-v1.3.0.tgz` |
+| CRI | `arm64/crictl`、`arm64/cri-dockerd/cri-dockerd` |
+| Docker | `arm64/docker/{docker,dockerd,docker-init,docker-proxy,containerd,containerd-shim-runc-v2,ctr,runc}` |
+| Helm | `arm64/helm/helm` |
+| Kubernetes | `arm64/kubernetes/server/bin/{kubeadm,kubelet,kubectl,kube-proxy,kube-apiserver,kube-controller-manager,kube-scheduler,kube-aggregator,apiextensions-apiserver,kube-log-runner,kubectl-convert,mounter}` |
+| systemd | `arm64/config/*`（与 `amd64/config/*` 内容相同，可直接复制） |
 
-1. **编排层**：21 个 playbook + 2 个 `00-prepare*.sh` 入口 + inventory；
-2. **二进制层**：`kubeadm`、`kubelet`、`kubectl`、`kube-proxy`、`crictl`、`cri-dockerd`、
-   `dockerd`、`containerd`、`runc`（systemd unit 里引用的 `/usr/bin/*` 一个都不在包里）；
-3. **业务层**：`k8s-yaml/`（被 `.gitignore` 排除）、`deploy-fdfs/`（注明需单独下载）。
+`prepare-ansible.sh` 另有两处也需要 arm64 版本才能跑通：
 
-## 5. 那这个包到底能干什么
+- `arm64/ansible-env/podman-linux-arm64.tar.gz`
+- `arm64/ansible-env/ansible-env-20250924-arm64.tar.gz`（+ `skopeo--v1.21.tar.gz`）
 
-| 场景 | 能做吗 | 依据 |
+注意目录形状不要照抄 amd64：amd64 分支用的是 `amd64/tools/v1.27.3.tar.gz`（压缩包），
+ARM 分支用的是**解开的** `arm64/kubernetes/server/bin/*`（单文件），两者布局不同。
+
+> 结论：厂商有 arm64 版安装介质，只是这个 tar 没带。要 arm64 安装包，最快的路不是
+> 重写流程，而是**向厂商索取 `arm64/` 目录**（或从他们的 arm64 安装包里取），
+> 然后按上表与 amd64 逐项对齐。
+
+## 6. 这套流程里值得注意的几处（不是 bug，但会咬人）
+
+| 项 | 位置 | 说明 |
 | --- | --- | --- |
-| 往已有同名集群加一个 worker | ⚠️ 只到「入口能跑」为止 | 4 个 playbook 在，但 include 的 21 个不在，实际执行会 `Unable to retrieve file contents` |
-| 导入镜像（业务 + 中间件 + K8s 组件） | ✅ | `basic_images/`、`kubernetes_images.tar`、`openebs.tar`、`flannel`、`ingress-nginx` |
-| 复用节点 systemd 配置 | ✅ | `amd64/config/*.service` 与架构无关，可直接改用 |
-| 复用 etcd/minio 二进制与 unit | ⚠️ 需换 arm64 | 现为 x86-64 |
-| 复用 Helm chart（ingress-nginx/prometheus/loki） | ✅ | `amd64/helm/` |
-| 从零装一套集群 | ❌ | 缺编排层与二进制层 |
-
-## 6. 要拿到「从 0」的流程，只有两条路
-
-**路 A：向厂商要主安装包**。这个 tar 里的 `.gitattributes` 用了 Git LFS
-（`amd64/** filter=lfs`），说明它本来是一个 Git 仓库的检出。4 个 `add-node-*.yml`
-注释里提到的 `install-k8s-all.yml`、`.gitignore` 注释里的 `00-prepare.sh`
-都是同一仓库的文件——**主安装包是另一个 tar**，不在这次给的这个里。
-
-**路 B：自建 arm64 流程，不依赖缺失的 playbook**。最小依赖集：
-
-| 组件 | 来源 | 备注 |
-| --- | --- | --- |
-| `kubeadm`/`kubelet`/`kubectl` | `dl.k8s.io/release/v1.31.9/bin/linux/arm64/` | 静态二进制，可直接进包 |
-| 控制面镜像（7 个） | `registry.k8s.io` 的 v1.31.x 多架构 | 包内现有的是 v1.27.3 amd64，只能作参照 |
-| `containerd` + `runc` | 发行版包或官方 tar（arm64） | 若沿用厂商的 docker + cri-dockerd，也要换 arm64 |
-| systemd unit | 直接复用 `amd64/config/*.service` | 与架构无关 |
-| CNI | flannel 的 arm64 镜像 | 清单自己写 |
-| `kubeadm-config.yaml` | 自己写 | 外部 etcd / VIP 是厂商拓扑，单节点可省 |
-
-这条路的工作量集中在「镜像 arm64 化 + kubeadm 配置」；**不必**去还原那 21 个 playbook
-——它们做的事（装 docker、装 kubelet、join、装 flannel、装 minio）用 kubeadm 官方流程
-可以更短地做到。
+| inventory 明文口令 | `host/hosts` 的 `ansible_password="glch.722"` | 分发前必须改；也是「拿到包就能登所有节点」的风险点 |
+| kubeadm 引导 token 硬编码 | `kubeadm_init.yaml` 的 `token: abcdef.0123456789abcdef`、`ttl: 24h` | 与 static-token 是两回事：前者用于 join，后者用于 apiserver 鉴权 |
+| `--ignore-preflight-errors=all` | `roles/kubeadm/tasks/main.yaml` | 预检失败也继续，swap/端口冲突不会拦住安装 |
+| K8s 1.27.3 | `kubeadm_init.yaml` | 已于 2024 年停止维护；自研栈是 1.31，混用需对齐版本 |
+| 静态 token 认证 | `install-paas-basic-server.yml` | 直接 `lineinfile` 改 `/etc/kubernetes/manifests/kube-apiserver.yaml`，属于「改静态 Pod 清单」，升级后要复查 |
+| 单 master | `host/hosts` | worker 与 VIP 都是注释状态；多 master 需放开并配 keepalived |
+| `PODMAN_ARGS='--runtime crun'` | `prepare-ansible.sh` | 依赖包内 crun；若宿主机已有 runc 会被删掉（`rm -f /usr/local/bin/runc`） |
 
 ## 7. 与自研部署包的关系
 
-`paas-deploy` 只装应用层，**不接管集群**。这份文档的作用是：
+| | 厂商 `msop.tar.gz` | 我们的 `paas-deploy` |
+| --- | --- | --- |
+| 范围 | 裸机 → K8s 集群 → 中间件 → 业务全栈 | 只替换应用层（`paas-core` + `paas-web`） |
+| 前提 | 裸机 + root + 网络 | 已有集群 + MySQL/Redis |
+| 装机方式 | Ansible（podman 容器内跑） | bash 脚本 + kubectl |
+| 版本 | K8s 1.27.3 / gaop v1.3.5 | K8s 1.31.9 目标集群 / 自研应用 |
+| arm64 | 脚本支持、介质缺失 | 镜像全 arm64、自带 kubectl |
 
-- 现场若说「集群我们自己装」，可以直接把本文 §4 的 21 步当验收清单的对照；
-- 现场若问「你们能不能把集群也装了」，答案是「能，但不是从这个包改，而是走 kubeadm
-  官方离线流程」——因为厂商包里缺的正是那套编排；
-- 不要再花时间在 `msop-v1.3.4` 里找主 playbook：`include` 已解析完，21/21 缺失。
+两者**不是替代关系**：厂商包负责「把机器变成一套能跑 MSOP 的 K8s」，我们负责
+「在这套 K8s 上把 gaop-be / gaop-web 换成自研实现」。若客户要一份「arm64 全栈交付」，
+= 厂商 `arm64/` 介质补齐 + 我们的 `paas-deploy`；前者我们目前不提供。

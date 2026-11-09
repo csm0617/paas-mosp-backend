@@ -71,9 +71,23 @@ spec:
                 echo "== 未提供 root 口令，假定库与账号已存在 =="
               fi
 
-              echo "== 灌入迁移（$(ls /sql/*.sql | wc -l | tr -d ' ') 个）=="
-              # 必须 sort -V：V0.8.10 要排在 V0.8.9 之后，字典序会颠倒
-              for f in $(ls /sql/*.sql | sort -V); do
+              echo "== 灌入迁移 =="
+              # 顺序以 order.txt 为准（取自厂商 install-paas-init-sql.yml 的 sql_items）。
+              # 不能用 sort -V：V0.8.3 的两个文件厂商顺序是
+              #   V0.8.3__alter-language-table-character-set.sql → V0.8.3_update_setting_table.sql
+              # 而 sort -V 会反过来。ordered 缺失时才退回 sort -V。
+              if [ -f /sql/order.txt ]; then
+                ORDER="$(grep -v '^#' /sql/order.txt | grep '\.sql$')"
+                echo "   按 order.txt（$(printf '%s\n' "$ORDER" | wc -l | tr -d ' ') 项）"
+              else
+                ORDER="$(ls /sql/*.sql | sort -V)"
+                echo "   未找到 order.txt，退回 sort -V（$(printf '%s\n' "$ORDER" | wc -l | tr -d ' ') 个）"
+              fi
+              for name in $ORDER; do
+                case "$name" in
+                  /*) f="$name" ;;
+                  *)  f="/sql/$name" ;;
+                esac
                 if mysql -h "$MYSQL_HOST" -P "$MYSQL_PORT" -u"$APP_USER" -p"$APP_PASSWORD" "$DB_NAME" < "$f" 2>/tmp/err; then
                   ok=$((ok+1))
                 else
