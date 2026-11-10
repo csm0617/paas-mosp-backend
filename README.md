@@ -10,6 +10,7 @@
   - **禁止 `persistent/` 包。**
 - **第一条纵切的门槛**：厂商前端（`/Users/csm/Desktop/Project/msop/recovered-web/`）一行不改即可跑通 + 契约比对全绿 + e2e 实测。见 `docs/adr/0001-compat-first-rewrite.md`。
 - **决策与工单**：`.scratch/backend-rewrite/`（地图 `map.md`，工单 `issues/NN-*.md`）。
+- **需求基线**：[`docs/requirements/rewrite-requirements.md`](docs/requirements/rewrite-requirements.md)（目标/范围/角色/流程/FR/NFR/用户故事/待确认问题/风险，覆盖前后端两仓）。
 
 ## 构建
 
