@@ -61,43 +61,74 @@
 
 ### 0.5 完整性核对：与**当前部署的 V1.3.5** 对账（2026-11-10）
 
-**方法**（可复现，脚本口径见附录 C）：抓 `http://172.16.209.170/gaop/` 首页 + `asset-manifest.json`，
-下载 **308 个资产 / 196 个 JS chunk（11 MB）**，从产物里正则抽取路由字面量与接口字面量，
-再与「本仓路由表」「本仓契约层」「后端 257 条映射」做集合比对。**不依赖 SRS，也不依赖口头结论。**
-原始快照（资源清单 / 路由字面量 / 接口字面量）与完整清单：`docs/requirements/evidence/v135-reconciliation.md`。
+**两个来源，缺一不可**（脚本口径见附录 C）：
+
+1. **OpenAPI**：`GET /api/gaop/v3/api-docs` → 200 / **800 KB** / 6.2 s。首次探测用 15 s 超时被误判为"不可达"，
+   实为冷启动慢——**这条要记住：别用短超时给"文档不存在"下结论**。
+   V1.3.5 实测：**504 paths / 546 operations / 945 schemas**（v1.3.4 为 500 / 542 / 930）。
+2. **前端产物**：`asset-manifest.json` → **308 个资产 / 196 个 JS chunk（11 MB）**，抽路由与接口字面量。
+   用途是补 OpenAPI 照不到的地方（被 springdoc 排除的控制器、`.concat` 拼出来的路径）。
+
+与「本仓路由表」「前端契约层」「后端 255 条路径 / 283 个操作」做集合比对。**不依赖 SRS，也不依赖口头结论。**
+原始快照与完整清单：`docs/requirements/evidence/v135-reconciliation.md`。
 
 | 维度 | 线上 V1.3.5 | 本仓 | 结论 |
 | --- | --- | --- | --- |
-| 路由节点 | 97（`path:"…"` 去噪后） | 97（86 页面 + 11 菜单组） | ✅ **一条不缺、一条不多**（差集为空） |
-| 路由版本漂移 | v1.3.4 的 `routes.json` 树 **97 个节点**与线上完全一致 | — | ✅ V1.3.4 → V1.3.5 **没有增删页面** |
-| 业务接口字面量 | **214** 条（`/v1` `/auth` `/audit` `/cloud` `/loki` `/register` `/settings`） | 后端映射 **257** 条；契约层 **195** 条 | ⚠️ 后端覆盖 **189/214 = 88%**，缺口 **25 条** |
-| K8s 代理 / 推送 | `/api/v1/*`、`/apis/*`、5 个 topic | 契约用 `/k8s/api/v1/*` 前缀 | ⚠️ 前缀形态不同，**语义等价**，但契约里无字面量（20 条"契约有、线上无"多属此类） |
+| 路由节点 | 97（`path:"…"` 去噪后） | 97（86 页面 + 11 菜单组） | ✅ **差集为空**（双向都空） |
+| 路由版本漂移 | v1.3.4 的 `routes.json` 树也是 **97** | — | ✅ V1.3.4 → V1.3.5 **没有增删页面** |
+| 接口全集 | **504 paths / 546 ops** | 255 路径 / 283 操作；与文档**精确同路径 242 条** | ⚠️ 只做前端调用面（见下），不做全集 |
+| 前端调用面 | 字面量 **214** 条 | 覆盖 **189** 条 = **88%** | ⚠️ 整路径缺 **25 条** |
+| 同路径方法 | — | — | ❌ **4 条路径缺方法**，其中 `POST/DELETE /v1/service` 是主干 |
+| 前端契约层 | — | 195 条 | ⚠️ 缺 10 条；另有 20 条"契约有、线上无字面量"多为 k8s 代理前缀形态 |
+| 版本差异 | v1.3.4 → V1.3.5 **只新增 4 个端点、无删除** | — | 见下表 |
 
-**缺口 25 条（线上有、后端没有；已确认不是换了路径实现）**
+**V1.3.5 新增的 4 个端点（v1.3.4 没有；SRS 也没写）**
+
+| 端点 | 说明 | 本仓 |
+| --- | --- | --- |
+| `GET /v1/prometheus/health` | 监控健康检查 | 未实现；前端无页面引用 → Q-21 |
+| `POST /v1/prometheus/repair` | 监控修复 | 未实现；同上 |
+| `POST /v1/pub/node/terminal` | 节点终端 | 未实现（FR-C4，可 P3） |
+| `POST /v1/software/{id}/restart` | 软件重启 | 未实现；**前端本版未调用**（只在 OpenAPI 里） |
+
+**整路径缺口 25 条（前端在调、后端没有；已用 OpenAPI 交叉确认，也逐条搜过 Java 关键字）**
 
 | 族 | 条数 | 端点 | 影响 |
 | --- | --- | --- | --- |
-| `/cloud/*` | 14 | `nodes`、`nodes/resource-consumption`、`nodes/sorted_pods`、`nodesummary`、`summary`、`volumes`、`services`、`native/Deployment`、`label-summary`、`alert`、`alert/enable`、`alert/exist`、`alert/record`、`alert/rule` | **M03 全局概览 + M10 告警**的数据源；不补则 FR-D1/D2、FR-H6 无法真实渲染 |
+| `/cloud/*` | 14 | `nodes`、`nodes/resource-consumption`、`nodes/sorted_pods`、`nodesummary`、`summary`、`volumes`、`services`、`native/Deployment`、`label-summary`、`alert`、`alert/enable`、`alert/exist`、`alert/record`、`alert/rule` | **M03 全局概览 + M10 告警**的数据源；不补则 FR-D1/D2、FR-H6 无真实数据 |
 | `/loki/logs/*` | 5 | `setLokiLogRetainMaxDay`、`setLogMaxMemory`、`deleteLogs`、`getDeleteStatus`、`getLogsAssertInfo` | **FR-H1 日志治理**整块不可用 |
 | `/audit*` | 2 | `GET /audit`、`GET /audit/dictionaryList` | **FR-A6 行为审计**无数据 |
-| `/v1/prometheus/*` | 2 | `health`、`repair` | 仅主包定义、**无页面 chunk 引用** → 疑似死接口，见 Q-21 |
-| `/register/ip/harbor` | 1 | Harbor 注册地址 | FR-E1 镜像入口的下拉/跳转 |
-| `/v1/pub/node/terminal` | 1 | 节点终端 | FR-C4 终端登录（本就可 P3 降级） |
+| `/v1/prometheus/*` | 2 | `health`、`repair` | 新增端点；无页面引用 → Q-21 |
+| `/register/ip/harbor` | 1 | Harbor 注册地址 | FR-E1 镜像入口 |
+| `/v1/pub/node/terminal` | 1 | 节点终端 | FR-C4（可 P3） |
 
-**契约层缺 10 条（后端有/线上有，但前端契约没写）**：`/v1/lang/import`、`/v1/pub/import`、`/v1/pub/cicd_v2`、
+**方法缺口 4 条（路径有、方法不全）——比整路径缺口更要紧**
+
+| 路径 | 厂商有 | 本仓有 | 业务含义 |
+| --- | --- | --- | --- |
+| `/v1/service` | GET / **POST** / **DELETE** | 仅 GET | **创建服务 / 删除服务未实现**（F2 主干、FR-C1/C3） |
+| `/v1/role/{roleId}/software` | GET / **POST** / **PUT** | 仅 GET | 席位↔软件关联/解除未实现（F5、FR-B2） |
+| `/v1/software/{id}/relate_service` | GET / **POST** / DELETE | 仅 DELETE | 软件↔服务关联未实现（FR-B1） |
+| `/v1/cs_software/upload` | POST / GET | 仅 POST | 影响小（下载侧） |
+
+> **这就是为什么"88%"不能读成"功能完成 88%"**：路径级覆盖只说明"这个 URL 有映射"，
+> 而主干链上缺的恰恰是写方法。按 §1.3 的验收口径，`POST /v1/service` 缺失时，
+> F2「登记 → 编排 → 部署」在重写后端上**根本走不通**，只是 GET 列表能渲染而已。
+
+**契约层缺 10 条**：`/v1/lang/import`、`/v1/pub/import`、`/v1/pub/cicd_v2`、
 `/v1/pub/getNodeAlertSetting`、`/v1/pub/setNodeAlertSetting`、`/v1/pub/node/terminal`、
 `/cloud/services`、`/cloud/native/Deployment`、`/v1/prometheus/health`、`/v1/prometheus/repair`。
-→ 前三条已列入 FR-A7/FR-B1，节点告警两条入 FR-H6，其余随 §5 对应 FR 补齐。
 
-**两条附带发现**
+**三条附带发现**
 
-1. 厂商有一处字面量**缺前导斜杠**（`url:"v1/pub/versionInfo"`），靠 baseURL 拼接才成立；本仓契约补了斜杠，语义等价，不入偏离账。
-2. 线上路由里 `/mirror/group/`（尾斜杠）与 `/mirror/group` 并存，属厂商重复定义；本仓只保留无尾斜杠版本，**不影响可达性**。
+1. **OpenAPI 不是全集**：`/v1/pub/file_project` 线上 **200**（真实可用）却**不在** 504 条里——被 springdoc 排除了。
+   所以只用 OpenAPI 会漏，只用产物字面量会误判，**必须两源合并**。
+2. 厂商有一处字面量缺前导斜杠（`url:"v1/pub/versionInfo"`），靠 baseURL 拼接才成立；本仓契约补了斜杠，语义等价。
+3. 线上路由 `/mirror/group/` 与 `/mirror/group` 并存（重复定义），本仓只保留无尾斜杠版本，不影响可达性。
 
-> **结论（直说）**：这份需求文档的**页面清单是完整的**（与线上逐条对得上），但**接口清单原先不完整**——
-> 25 条线上端点没有任何 FR 明确要求实现，其中 22 条（`/cloud` 14 + `/loki` 5 + `/audit` 2 + `/register` 1）落在
-> 已经有页面的模块上。这不是文档措辞问题，是**验收会漏**的问题，已按下面三处修正：
-> §1.4 现状数字、§5 对应 FR 的接口清单、§8 的 Q-20/Q-21。
+> **结论（直说）**：**页面清单完整，接口清单不完整，而且缺的是写路径。**
+> 25 条整路径缺口里 22 条落在已上线模块（M03/M09/M10）；另有 4 条"路径在、方法缺"，
+> 其中 `POST/DELETE /v1/service` 直接卡住主干流程。已同步修正 §1.4 现状、§5 对应 FR、§8 的 Q-20/Q-21、§9 的 R-13。
 
 ---
 
@@ -141,7 +172,7 @@
 | 维度 | 现状（2026-11-10，对 V1.3.5 实测） | 目标 |
 | --- | --- | --- |
 | 路由可达 | 本仓 97 条 = 线上 97 条，**差集为空** | 97/97 逐页对等（结构/表头/工具栏三段） |
-| 端点映射 | 28 个控制器 / **257** 条映射；覆盖线上 **189/214（88%）** | 214 条全覆盖（按 259 函数口径复核后 ≥ 该数） |
+| 端点映射 | 28 个控制器 / **255** 路径 / **283** 操作；覆盖前端调用面 **189/214（88%）**；与 OpenAPI 精确同路径 242 条、**缺 4 条方法** | 214 条全覆盖（按 259 函数口径复核后 ≥ 该数）+ 方法级零缺口 |
 | 前端契约 | **195** 条；缺 10 条、多 20 条（多为 k8s 代理前缀形态） | 与线上 214 条对齐，差异逐条注明 |
 | 契约比对 | 已记录读路径全绿（含 L3 入账） | 全端点 L1+L2 = 0 失败 |
 | 偏差台账 | A1–A14 / B1–B33 / C1–C13 | 新增偏离必须带 front-end 可见性举证 |
@@ -428,6 +459,10 @@ flowchart LR
 | **FR-B4** | 软件详情与列表视图：软件编码、版本、服务数、运行状态；作为"服务编排"的入口 | P2 | ① 20 列表头与厂商逐列一致；② 0 服务时显示空态不报错 | FR-B1 | 表头 key 易混（`MIRROR_TEXT` vs `MIRROR_NAME`） |
 
 ### 5.3 FR-C 服务与端口（主干）
+
+> **现状警示（2026-11-10 对账）**：本仓 `/v1/service` **只有 GET**，厂商有 **POST（创建服务）/ DELETE（删除服务）**；
+> 即 FR-C1「编排并跑起」与 FR-C3「删除服务」**当前不可能通过验收**。这是 §0.5 方法级缺口里唯一卡主干的一条，
+> 优先级高于本篇其余 P1。
 
 | ID | 需求 | P | 验收标准 | 依赖 | 风险 |
 | --- | --- | --- | --- | --- | --- |
@@ -958,7 +993,7 @@ flowchart LR
 | **Q-18** | 部署下限：单节点 4 GB 还是 8 GB？双后端并存期怎么限堆？ | 4.9 GB 跑 8 JVM 已 OOM 过一次 | 给出两套规格：单后端 4 GB / 并存 8 GB | 运维 | NFR-4、R-04 |
 | **Q-19** | 三语维护责任与流程：谁翻译、谁校验、缺 key 怎么拦？ | 缺 key 会直接显示字面量（厂商已有一例） | 加 key 完整性单测，缺 key 阻断合并 | 前端 | FR-A7 |
 | **Q-20** | §0.5 的 **25 条接口缺口**怎么处置：补实现、降级还是不做？ | 其中 21 条落在**已有页面**的模块上（M03/M10/M09），不补就是"页面在、数据没有" | 分三档：`/cloud`+`/loki`+`/audit`+`/register` 共 22 条**必须补**；`/v1/pub/node/terminal` 可 P3 降级；`prometheus/*` 先判死代码 | 项目负责人 | FR-A6、FR-D1/D2、FR-E1、FR-H1/H6 |
-| **Q-21** | `/v1/prometheus/health`、`/v1/prometheus/repair` 是否死接口？（只出现在主包，无任何页面 chunk 引用） | 决定要不要为两条"可能没人调"的接口花时间 | 先判死代码，再决定不实现 | 后端 | §0.5 |
+| **Q-21** | V1.3.5 新增的 `/v1/prometheus/health`、`/v1/prometheus/repair` 要不要实现？（产物里只出现在主包，无任何页面 chunk 引用） | 决定是否为两条"页面不用"的新接口花时间 | 先判死代码，再决定不实现 | 后端 | §0.5 |
 
 ---
 
@@ -1044,6 +1079,9 @@ flowchart LR
 ## 附录 C §0.5 的核对方法与复现命令
 
 ```bash
+# 0) 先拿 OpenAPI（冷启动约 6 s，超时要给足；用 -m 15 会误判成"没有文档"）
+curl -s -m 90 http://172.16.209.170/api/gaop/v3/api-docs -o /tmp/v135/api-docs.json
+
 # 1) 取线上入口与资源清单（308 个资产 / 196 个 JS）
 mkdir -p /tmp/v135/assets && cd /tmp/v135
 curl -s http://172.16.209.170/gaop/ -o index.html
@@ -1062,14 +1100,17 @@ for f in glob.glob('/tmp/v135/assets/*.js'):
 print(len(routes),len(apis))
 PY
 
-# 3) 抽后端映射（注意本仓控制器用全限定注解名，正则必须允许 `@org.springframework...` 前缀）
-#    见 §0.5 脚本口径：@(?:[\w.]+\.)?(?:Get|Post|Put|Delete|Patch)Mapping，
-#    且方法注解无路径参数时（如裸 @GetMapping）要回填类级 base path。
+# 3) 抽后端映射（三个必须做对的点）
+#    ① 本仓控制器用全限定注解名：@(?:[\w.]+\.)?(?:Get|Post|Put|Delete|Patch)Mapping
+#    ② 裸 @GetMapping（路径在类级）要回填 base
+#    ③ 只认 value=/path= 后面的引号串；否则 @PostMapping(consumes="multipart/form-data")
+#       会把 MIME 当成路径，凭空造出假缺口
 ```
 
-**判定规则**：字面量归一化（去 `{param}`、`:param`、`${}`、尾斜杠）后，
-用"互相为前缀"判命中（厂商用 `.concat` 拼路径，字面量常是半截）；噪声过滤 `^/(etc|gaop|static|assets|usr|vscode)`、
-`socket\.io`、带静态扩展名者。**这套规则会漏"同义不同名"的端点**，所以每条缺口都额外用关键字在 Java 里搜过一遍（§0.5 的"已确认不是换了路径实现"）。
+**判定规则**：路径归一化（`{param}`/`:param` 统一成 `{}`、折叠重复斜杠、去尾斜杠）后，
+**先做精确匹配做方法级比对**，再做"互相为前缀"匹配做路径级覆盖（厂商用 `.concat` 拼路径，字面量常是半截）；
+噪声过滤 `^/(etc|gaop|static|assets|usr|vscode)`、`socket\.io`、带静态扩展名者。
+**两套规则都会漏"同义不同名"**，所以每条缺口都要用 OpenAPI 交叉确认 + Java 关键字复搜（§0.5 已做）。
 
 
 **维护约定**：本文件随切片推进更新，改 FR 优先级或验收标准必须在提交信息里写明"为什么"；

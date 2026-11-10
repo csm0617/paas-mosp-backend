@@ -1,0 +1,1570 @@
+{
+ "info": {
+  "title": "机动微服务运行框架",
+  "description": "机动微服务运行框架",
+  "version": "0.0.3"
+ },
+ "openapi": "3.0.1",
+ "servers": [
+  {
+   "url": "http://172.16.209.170",
+   "description": "Generated server url"
+  }
+ ],
+ "paths": {
+  "/api/v2/dashboards/apiServer": [
+   "GET"
+  ],
+  "/api/v2/dashboards/cockpit": [
+   "GET"
+  ],
+  "/api/v2/dashboards/etcd": [
+   "GET"
+  ],
+  "/api/v2/dashboards/metric/namespaces/services/metrics": [
+   "GET"
+  ],
+  "/api/v2/dashboards/nphealth_rate": [
+   "GET"
+  ],
+  "/api/v2/dashboards/resourceMap": [
+   "GET"
+  ],
+  "/api/v2/dashboards/resourceQuota": [
+   "GET"
+  ],
+  "/api/v2/dashboards/system": [
+   "GET"
+  ],
+  "/audit": [
+   "GET"
+  ],
+  "/audit/dictionaryList": [
+   "GET"
+  ],
+  "/audit/export": [
+   "GET"
+  ],
+  "/auth": [
+   "POST"
+  ],
+  "/auth/admin/auth": [
+   "POST"
+  ],
+  "/auth/authing": [
+   "POST"
+  ],
+  "/auth/cancelAuth": [
+   "POST"
+  ],
+  "/auth/gene_identifier": [
+   "POST"
+  ],
+  "/auth/updateAuth": [
+   "POST"
+  ],
+  "/auth/updateAuthInfo": [
+   "POST"
+  ],
+  "/cloud/alert": [
+   "DELETE",
+   "GET",
+   "POST",
+   "PUT"
+  ],
+  "/cloud/alert/enable": [
+   "PUT"
+  ],
+  "/cloud/alert/exist": [
+   "GET"
+  ],
+  "/cloud/alert/record": [
+   "DELETE",
+   "POST"
+  ],
+  "/cloud/alert/rule/{strategyId}/{page}/{pageSize}": [
+   "GET"
+  ],
+  "/cloud/alert/{interval}": [
+   "POST"
+  ],
+  "/cloud/appService/{serviceName}": [
+   "GET"
+  ],
+  "/cloud/apps": [
+   "GET"
+  ],
+  "/cloud/apps/batch-delete": [
+   "DELETE"
+  ],
+  "/cloud/clusters": [
+   "GET"
+  ],
+  "/cloud/clusters/{clusterId}/apps/{appName}/existence": [
+   "GET"
+  ],
+  "/cloud/clusters/{clusterId}/apps/{svcLabel}/services": [
+   "GET"
+  ],
+  "/cloud/containerSummary": [
+   "GET"
+  ],
+  "/cloud/instances": [
+   "GET"
+  ],
+  "/cloud/label-summary": [
+   "GET"
+  ],
+  "/cloud/loadbalances": [
+   "GET"
+  ],
+  "/cloud/loadbalances/displayname/{displayName}/agentType/{agentType}": [
+   "POST"
+  ],
+  "/cloud/loadbalances/{ingressName}/ingresses": [
+   "GET"
+  ],
+  "/cloud/loadbalances/{ingressName}/stream/protocols/{type}/ports/{port}/displayname/{displayname}/agentType/{agentType}": [
+   "DELETE"
+  ],
+  "/cloud/loadbalances/{ingressName}/stream/type/{type}/displayname/{displayName}/agentType/{agentType}": [
+   "POST"
+  ],
+  "/cloud/loadbalances/{ingressName}/stream/type/{type}/displayname/{displayname}/agentType/{agentType}": [
+   "PUT"
+  ],
+  "/cloud/loadbalances/{loadbalances}/ingress/{ingress}/displayname/{displayname}/agentType/{agentType}": [
+   "PUT"
+  ],
+  "/cloud/loadbalances/{name}/displayname/{displayName}/agentType/{agentType}": [
+   "PUT"
+  ],
+  "/cloud/loadbalances/{name}/displayname/{displayname}": [
+   "GET"
+  ],
+  "/cloud/loadbalances/{name}/ingress/{displayName}/displayname/{parentName}/agentType/{agentType}": [
+   "POST"
+  ],
+  "/cloud/loadbalances/{name}/ingresses/{deleteName}/{ingressName}/displayname/{displayname}/agentType/{agentType}": [
+   "DELETE"
+  ],
+  "/cloud/loadbalances/{name}/stream/protocols/{type}": [
+   "GET"
+  ],
+  "/cloud/logs/services/{appName}/logs": [
+   "POST"
+  ],
+  "/cloud/native/Deployment/{service}/instances": [
+   "GET"
+  ],
+  "/cloud/native/Pod": [
+   "GET"
+  ],
+  "/cloud/native/Service": [
+   "GET"
+  ],
+  "/cloud/native/Service/{serviceName}": [
+   "GET"
+  ],
+  "/cloud/nodes": [
+   "GET"
+  ],
+  "/cloud/nodes/ingresses": [
+   "GET"
+  ],
+  "/cloud/nodes/resource-consumption": [
+   "GET"
+  ],
+  "/cloud/nodes/sorted_pods": [
+   "GET"
+  ],
+  "/cloud/nodesummary": [
+   "GET"
+  ],
+  "/cloud/services/batch-restart": [
+   "PUT"
+  ],
+  "/cloud/services/batch-start": [
+   "PUT"
+  ],
+  "/cloud/services/batch-stop": [
+   "PUT"
+  ],
+  "/cloud/services/{deployName}/env": [
+   "PUT"
+  ],
+  "/cloud/services/{serviceName}/existence": [
+   "GET"
+  ],
+  "/cloud/services/{service}/portinfo": [
+   "PUT"
+  ],
+  "/cloud/services/{svcName}/affinity": [
+   "PATCH"
+  ],
+  "/cloud/summary": [
+   "GET"
+  ],
+  "/cloud/volumes": [
+   "GET"
+  ],
+  "/cloud/{deployName}/addEnvItem/deployment": [
+   "POST"
+  ],
+  "/cloud/{deployName}/getEnv/deployment": [
+   "GET"
+  ],
+  "/cloud/{deployName}/getResourceQuota/deployment": [
+   "GET"
+  ],
+  "/cloud/{deployName}/updateResourceQuota/deployment": [
+   "PUT"
+  ],
+  "/cloud/{deployName}/{name}/deleteEnvItem/deployment": [
+   "DELETE"
+  ],
+  "/exSetting/closeBean": [
+   "GET"
+  ],
+  "/exSetting/closeJar": [
+   "GET"
+  ],
+  "/exSetting/getBeanList": [
+   "GET"
+  ],
+  "/exSetting/getExJarList": [
+   "GET"
+  ],
+  "/loki/logs/deleteLogs": [
+   "DELETE"
+  ],
+  "/loki/logs/getDeleteStatus": [
+   "GET"
+  ],
+  "/loki/logs/getLogsAssertInfo": [
+   "GET"
+  ],
+  "/loki/logs/getLokiPodStatus": [
+   "GET"
+  ],
+  "/loki/logs/setLogMaxMemory": [
+   "PUT"
+  ],
+  "/loki/logs/setLokiLogRetainMaxDay": [
+   "PUT"
+  ],
+  "/register/ip/harbor": [
+   "GET"
+  ],
+  "/settings": [
+   "GET"
+  ],
+  "/settings/execute": [
+   "POST"
+  ],
+  "/settings/reset_setting": [
+   "POST"
+  ],
+  "/settings/setMinSoftware": [
+   "POST"
+  ],
+  "/settings/update/alarm": [
+   "PUT"
+  ],
+  "/settings/{settingKey}": [
+   "PUT"
+  ],
+  "/ui/api/v2/clusters/{clusterId}/services": [
+   "GET"
+  ],
+  "/ui/api/v2/clusters/{clusterId}/services/autoscale": [
+   "GET"
+  ],
+  "/ui/api/v2/clusters/{clusterId}/services/{appName}": [
+   "POST"
+  ],
+  "/ui/api/v2/clusters/{clusterId}/services/{deployName}/autoscale": [
+   "DELETE",
+   "PUT"
+  ],
+  "/ui/pod": [
+   "GET"
+  ],
+  "/v1/CreateK8sServices/check": [
+   "POST"
+  ],
+  "/v1/app": [
+   "GET"
+  ],
+  "/v1/app/{appId}/services/addrs": [
+   "GET"
+  ],
+  "/v1/backup": [
+   "POST"
+  ],
+  "/v1/backup/backFileList": [
+   "GET"
+  ],
+  "/v1/backup/backupLogs": [
+   "GET"
+  ],
+  "/v1/backup/backupSetting": [
+   "GET"
+  ],
+  "/v1/backup/base": [
+   "POST"
+  ],
+  "/v1/backup/baseData": [
+   "GET"
+  ],
+  "/v1/backup/changeSetting": [
+   "POST"
+  ],
+  "/v1/backup/delete": [
+   "POST"
+  ],
+  "/v1/backup/fileInfo": [
+   "GET"
+  ],
+  "/v1/backup/list": [
+   "GET"
+  ],
+  "/v1/backup/recoveryLogs": [
+   "GET"
+  ],
+  "/v1/backup/reset": [
+   "POST"
+  ],
+  "/v1/backup/singleBaseData": [
+   "POST"
+  ],
+  "/v1/backup/singleDownload": [
+   "POST"
+  ],
+  "/v1/backup/singleReset": [
+   "POST"
+  ],
+  "/v1/backup/singleService": [
+   "POST"
+  ],
+  "/v1/component": [
+   "GET"
+  ],
+  "/v1/config_map": [
+   "DELETE",
+   "GET",
+   "POST"
+  ],
+  "/v1/config_map/backup": [
+   "POST"
+  ],
+  "/v1/config_map/import": [
+   "POST"
+  ],
+  "/v1/config_map/importListen": [
+   "POST"
+  ],
+  "/v1/config_map/listenBackup": [
+   "POST"
+  ],
+  "/v1/config_map/relationService": [
+   "GET"
+  ],
+  "/v1/config_map/{name}": [
+   "GET"
+  ],
+  "/v1/config_map/{name}/config": [
+   "POST"
+  ],
+  "/v1/config_map/{name}/config/{configName}": [
+   "DELETE"
+  ],
+  "/v1/config_map/{name}/exist": [
+   "GET"
+  ],
+  "/v1/cs_software": [
+   "DELETE"
+  ],
+  "/v1/cs_software/backUp": [
+   "POST"
+  ],
+  "/v1/cs_software/download": [
+   "GET"
+  ],
+  "/v1/cs_software/import": [
+   "POST"
+  ],
+  "/v1/cs_software/relation": [
+   "POST"
+  ],
+  "/v1/cs_software/upload": [
+   "GET",
+   "POST"
+  ],
+  "/v1/cs_software/{id}/relate": [
+   "POST"
+  ],
+  "/v1/database": [
+   "DELETE",
+   "GET",
+   "POST"
+  ],
+  "/v1/database/access_control": [
+   "POST"
+  ],
+  "/v1/database/allService": [
+   "GET"
+  ],
+  "/v1/database/backUp": [
+   "GET"
+  ],
+  "/v1/database/backup_db_data_sync": [
+   "POST"
+  ],
+  "/v1/database/download": [
+   "GET"
+  ],
+  "/v1/database/export/{databaseName}": [
+   "GET"
+  ],
+  "/v1/database/export_framework": [
+   "GET"
+  ],
+  "/v1/database/import": [
+   "POST"
+  ],
+  "/v1/database/initSql/download": [
+   "GET"
+  ],
+  "/v1/database/mysql_info": [
+   "GET"
+  ],
+  "/v1/database/relationDataBase": [
+   "POST"
+  ],
+  "/v1/database/snapshot": [
+   "POST"
+  ],
+  "/v1/database/snapshotStatus": [
+   "GET"
+  ],
+  "/v1/database/syncStatus": [
+   "GET"
+  ],
+  "/v1/database/table_size": [
+   "GET"
+  ],
+  "/v1/database/update": [
+   "POST"
+  ],
+  "/v1/database/user": [
+   "DELETE",
+   "GET",
+   "POST"
+  ],
+  "/v1/database/user/revoke_authorization": [
+   "PUT"
+  ],
+  "/v1/database/user/{dataBaseUser}": [
+   "PUT"
+  ],
+  "/v1/database/users": [
+   "GET"
+  ],
+  "/v1/database/version": [
+   "GET"
+  ],
+  "/v1/database/{dataBaseName}": [
+   "PUT"
+  ],
+  "/v1/database/{databaseName}/import": [
+   "POST"
+  ],
+  "/v1/database_record": [
+   "GET"
+  ],
+  "/v1/image": [
+   "DELETE",
+   "PUT"
+  ],
+  "/v1/image/all_image": [
+   "DELETE"
+  ],
+  "/v1/image/download": [
+   "GET"
+  ],
+  "/v1/image/exist": [
+   "GET"
+  ],
+  "/v1/image/existTag": [
+   "GET"
+  ],
+  "/v1/image/expose": [
+   "GET"
+  ],
+  "/v1/image/imageList": [
+   "GET"
+  ],
+  "/v1/image/imageLog": [
+   "GET"
+  ],
+  "/v1/image/image_env": [
+   "GET"
+  ],
+  "/v1/image/project": [
+   "DELETE",
+   "POST"
+  ],
+  "/v1/image/projectList": [
+   "GET"
+  ],
+  "/v1/image/repositories": [
+   "GET"
+  ],
+  "/v1/image/serviceRelationImage": [
+   "GET"
+  ],
+  "/v1/image/tagInfo": [
+   "GET"
+  ],
+  "/v1/image/tags": [
+   "GET"
+  ],
+  "/v1/install": [
+   "POST"
+  ],
+  "/v1/install/softwareList": [
+   "GET"
+  ],
+  "/v1/k8s/components": [
+   "GET"
+  ],
+  "/v1/lang/cur": [
+   "GET"
+  ],
+  "/v1/lang/current": [
+   "GET"
+  ],
+  "/v1/lang/detail": [
+   "GET"
+  ],
+  "/v1/lang/import": [
+   "POST"
+  ],
+  "/v1/lang/remove": [
+   "DELETE"
+  ],
+  "/v1/lang/version": [
+   "GET",
+   "POST"
+  ],
+  "/v1/licence": [
+   "DELETE",
+   "GET",
+   "POST"
+  ],
+  "/v1/licence/checkAndActiveGis": [
+   "GET"
+  ],
+  "/v1/licence/gis": [
+   "POST"
+  ],
+  "/v1/licence/gisStatus": [
+   "GET"
+  ],
+  "/v1/licence/info": [
+   "GET"
+  ],
+  "/v1/licence/loginOutAllUser": [
+   "GET"
+  ],
+  "/v1/licence/resetTime": [
+   "GET"
+  ],
+  "/v1/licence/trialPeriod": [
+   "GET"
+  ],
+  "/v1/licence/updateFramework": [
+   "POST"
+  ],
+  "/v1/load/list": [
+   "GET"
+  ],
+  "/v1/load/update": [
+   "POST"
+  ],
+  "/v1/load/upload": [
+   "POST"
+  ],
+  "/v1/mode/current": [
+   "GET"
+  ],
+  "/v1/mode/list": [
+   "GET"
+  ],
+  "/v1/mode/updateModeType": [
+   "POST"
+  ],
+  "/v1/prometheus/health": [
+   "GET"
+  ],
+  "/v1/prometheus/repair": [
+   "POST"
+  ],
+  "/v1/pub/addFdfsByNode": [
+   "POST"
+  ],
+  "/v1/pub/auth": [
+   "POST"
+  ],
+  "/v1/pub/authing": [
+   "POST"
+  ],
+  "/v1/pub/authorizeUser": [
+   "GET"
+  ],
+  "/v1/pub/backUp": [
+   "POST"
+  ],
+  "/v1/pub/check/password": [
+   "POST"
+  ],
+  "/v1/pub/cicd": [
+   "POST"
+  ],
+  "/v1/pub/cicdList": [
+   "POST"
+  ],
+  "/v1/pub/cicd_v2": [
+   "POST"
+  ],
+  "/v1/pub/cicdlog": [
+   "GET"
+  ],
+  "/v1/pub/clear_login_status": [
+   "POST"
+  ],
+  "/v1/pub/client/delete/bath": [
+   "DELETE"
+  ],
+  "/v1/pub/client/download": [
+   "GET"
+  ],
+  "/v1/pub/client/download/single": [
+   "GET"
+  ],
+  "/v1/pub/client/get": [
+   "GET"
+  ],
+  "/v1/pub/client/getList": [
+   "GET"
+  ],
+  "/v1/pub/client/upload": [
+   "POST"
+  ],
+  "/v1/pub/connect": [
+   "POST"
+  ],
+  "/v1/pub/connectedStatus": [
+   "GET"
+  ],
+  "/v1/pub/createListenNodePort": [
+   "POST"
+  ],
+  "/v1/pub/createListenPort": [
+   "POST"
+  ],
+  "/v1/pub/createService": [
+   "POST"
+  ],
+  "/v1/pub/current_software/{softwareId}": [
+   "GET"
+  ],
+  "/v1/pub/delete": [
+   "DELETE"
+  ],
+  "/v1/pub/deleteListenNodePort": [
+   "POST"
+  ],
+  "/v1/pub/deleteService": [
+   "DELETE"
+  ],
+  "/v1/pub/etcd_label/check": [
+   "GET"
+  ],
+  "/v1/pub/existDatabase": [
+   "GET"
+  ],
+  "/v1/pub/existNodeName": [
+   "GET"
+  ],
+  "/v1/pub/fdfs/append_file": [
+   "POST"
+  ],
+  "/v1/pub/fdfs/create_upload": [
+   "POST"
+  ],
+  "/v1/pub/fdfs/download/{fileId}": [
+   "GET"
+  ],
+  "/v1/pub/fdfs/file": [
+   "GET"
+  ],
+  "/v1/pub/fdfs/file/{fileId}": [
+   "GET"
+  ],
+  "/v1/pub/fdfs/fileList": [
+   "DELETE"
+  ],
+  "/v1/pub/fdfs/md5": [
+   "POST"
+  ],
+  "/v1/pub/fdfs/status": [
+   "GET"
+  ],
+  "/v1/pub/fdfs/stop/{fileId}": [
+   "GET"
+  ],
+  "/v1/pub/fdfs/storage": [
+   "GET"
+  ],
+  "/v1/pub/fdfs/upload/part/{projectId}": [
+   "POST"
+  ],
+  "/v1/pub/fdfs/upload/test/{projectId}": [
+   "POST"
+  ],
+  "/v1/pub/fdfs/upload/{projectId}": [
+   "POST"
+  ],
+  "/v1/pub/fdfs/upload_chunk": [
+   "POST"
+  ],
+  "/v1/pub/fdfs/{fileId}": [
+   "DELETE"
+  ],
+  "/v1/pub/file_project": [
+   "GET",
+   "POST"
+  ],
+  "/v1/pub/file_project/{projectId}": [
+   "DELETE",
+   "PUT"
+  ],
+  "/v1/pub/finallyAddNode": [
+   "POST"
+  ],
+  "/v1/pub/find_service_status": [
+   "GET"
+  ],
+  "/v1/pub/getImageName": [
+   "GET"
+  ],
+  "/v1/pub/getNodeAlertSetting": [
+   "GET"
+  ],
+  "/v1/pub/get_all_service_example_number": [
+   "GET"
+  ],
+  "/v1/pub/get_service_detail_info": [
+   "GET"
+  ],
+  "/v1/pub/get_user_status": [
+   "GET"
+  ],
+  "/v1/pub/global_setting_list": [
+   "GET"
+  ],
+  "/v1/pub/harbor": [
+   "GET"
+  ],
+  "/v1/pub/hostGroup": [
+   "GET"
+  ],
+  "/v1/pub/import": [
+   "POST"
+  ],
+  "/v1/pub/ingressNameList": [
+   "GET"
+  ],
+  "/v1/pub/initHost": [
+   "POST"
+  ],
+  "/v1/pub/ip": [
+   "GET"
+  ],
+  "/v1/pub/k8s_more_node": [
+   "GET"
+  ],
+  "/v1/pub/lang/current": [
+   "GET"
+  ],
+  "/v1/pub/lang/version": [
+   "GET"
+  ],
+  "/v1/pub/license/getUid": [
+   "GET"
+  ],
+  "/v1/pub/listenPort": [
+   "DELETE"
+  ],
+  "/v1/pub/login": [
+   "POST"
+  ],
+  "/v1/pub/logout": [
+   "POST"
+  ],
+  "/v1/pub/mappingInfo": [
+   "GET"
+  ],
+  "/v1/pub/mode/current": [
+   "GET"
+  ],
+  "/v1/pub/monitor": [
+   "GET"
+  ],
+  "/v1/pub/netNameList": [
+   "GET"
+  ],
+  "/v1/pub/node/terminal": [
+   "POST"
+  ],
+  "/v1/pub/nodeDisk": [
+   "GET"
+  ],
+  "/v1/pub/nodeMonitor": [
+   "GET"
+  ],
+  "/v1/pub/nodePortUsed": [
+   "GET"
+  ],
+  "/v1/pub/nodeStatus": [
+   "GET"
+  ],
+  "/v1/pub/nodeUsage": [
+   "GET"
+  ],
+  "/v1/pub/nodes": [
+   "GET"
+  ],
+  "/v1/pub/nodes/{name}": [
+   "GET"
+  ],
+  "/v1/pub/patch/vip": [
+   "PUT"
+  ],
+  "/v1/pub/patchResource": [
+   "POST"
+  ],
+  "/v1/pub/ping": [
+   "GET"
+  ],
+  "/v1/pub/pod": [
+   "DELETE"
+  ],
+  "/v1/pub/podInfo": [
+   "GET"
+  ],
+  "/v1/pub/quickStart": [
+   "GET"
+  ],
+  "/v1/pub/restartFdfs": [
+   "POST"
+  ],
+  "/v1/pub/restartServer": [
+   "POST"
+  ],
+  "/v1/pub/restartService": [
+   "PUT"
+  ],
+  "/v1/pub/role/switchRole": [
+   "GET"
+  ],
+  "/v1/pub/service/{name}/node_port": [
+   "GET"
+  ],
+  "/v1/pub/serviceEnv": [
+   "PUT"
+  ],
+  "/v1/pub/serviceKeyList": [
+   "GET"
+  ],
+  "/v1/pub/serviceMonitor": [
+   "GET"
+  ],
+  "/v1/pub/serviceStatus": [
+   "GET"
+  ],
+  "/v1/pub/service_status": [
+   "GET"
+  ],
+  "/v1/pub/setDockerConfig": [
+   "POST"
+  ],
+  "/v1/pub/setNodeAlertSetting": [
+   "POST"
+  ],
+  "/v1/pub/set_current_example_number": [
+   "PUT"
+  ],
+  "/v1/pub/set_pod": [
+   "POST"
+  ],
+  "/v1/pub/shutdownServer": [
+   "POST"
+  ],
+  "/v1/pub/software": [
+   "GET"
+  ],
+  "/v1/pub/software/{softwareKey}": [
+   "GET"
+  ],
+  "/v1/pub/startService": [
+   "PUT"
+  ],
+  "/v1/pub/stopService": [
+   "PUT"
+  ],
+  "/v1/pub/summary": [
+   "GET"
+  ],
+  "/v1/pub/summaryInfo": [
+   "GET"
+  ],
+  "/v1/pub/switch_sub_role": [
+   "GET"
+  ],
+  "/v1/pub/syncClock": [
+   "POST"
+  ],
+  "/v1/pub/task": [
+   "POST"
+  ],
+  "/v1/pub/tenx": [
+   "GET"
+  ],
+  "/v1/pub/testConnect": [
+   "GET"
+  ],
+  "/v1/pub/unify/etcd": [
+   "GET"
+  ],
+  "/v1/pub/uninstallNode": [
+   "POST"
+  ],
+  "/v1/pub/updateQuickStart": [
+   "POST"
+  ],
+  "/v1/pub/updateTask": [
+   "POST"
+  ],
+  "/v1/pub/user": [
+   "GET"
+  ],
+  "/v1/pub/user_data_list": [
+   "GET"
+  ],
+  "/v1/pub/user_info": [
+   "GET"
+  ],
+  "/v1/pub/user_login_status": [
+   "GET"
+  ],
+  "/v1/pub/version": [
+   "GET"
+  ],
+  "/v1/pub/versionInfo": [
+   "GET"
+  ],
+  "/v1/pub/vip": [
+   "DELETE",
+   "GET",
+   "POST"
+  ],
+  "/v1/pub/vip/interfaces": [
+   "GET"
+  ],
+  "/v1/pub/vip/ipByNetName": [
+   "POST"
+  ],
+  "/v1/pub/vip_entry": [
+   "POST"
+  ],
+  "/v1/pub/{id}/restart": [
+   "GET"
+  ],
+  "/v1/pub/{id}/start": [
+   "GET"
+  ],
+  "/v1/pub/{id}/stop": [
+   "GET"
+  ],
+  "/v1/role": [
+   "DELETE",
+   "GET",
+   "POST"
+  ],
+  "/v1/role/backup": [
+   "POST"
+  ],
+  "/v1/role/exist_role_name": [
+   "GET"
+  ],
+  "/v1/role/export": [
+   "POST"
+  ],
+  "/v1/role/import": [
+   "POST"
+  ],
+  "/v1/role/import/template": [
+   "GET"
+  ],
+  "/v1/role/list": [
+   "GET"
+  ],
+  "/v1/role/recovery": [
+   "POST"
+  ],
+  "/v1/role/relate/app": [
+   "POST"
+  ],
+  "/v1/role/reset": [
+   "POST"
+  ],
+  "/v1/role/software": [
+   "GET"
+  ],
+  "/v1/role/switchRole": [
+   "GET"
+  ],
+  "/v1/role/updateSubRoleRole": [
+   "PUT"
+  ],
+  "/v1/role/{id}": [
+   "GET",
+   "PUT"
+  ],
+  "/v1/role/{roleId}/app/{appId}": [
+   "DELETE"
+  ],
+  "/v1/role/{roleId}/person": [
+   "POST"
+  ],
+  "/v1/role/{roleId}/software": [
+   "GET",
+   "POST",
+   "PUT"
+  ],
+  "/v1/role/{roleId}/suRoles": [
+   "POST"
+  ],
+  "/v1/role/{roleId}/subRoles": [
+   "GET"
+  ],
+  "/v1/role/{roleId}/users": [
+   "POST"
+  ],
+  "/v1/role/{roleId}/{subRoleId}/subRole": [
+   "DELETE"
+  ],
+  "/v1/role/{roleId}/{userId}": [
+   "DELETE"
+  ],
+  "/v1/service": [
+   "DELETE",
+   "GET",
+   "POST"
+  ],
+  "/v1/service/addNode": [
+   "GET"
+  ],
+  "/v1/service/baseComponent": [
+   "GET"
+  ],
+  "/v1/service/baseEvent": [
+   "GET"
+  ],
+  "/v1/service/batch-restart": [
+   "PUT"
+  ],
+  "/v1/service/batch-start": [
+   "PUT"
+  ],
+  "/v1/service/batch-stop": [
+   "PUT"
+  ],
+  "/v1/service/cancelStartUp": [
+   "POST"
+  ],
+  "/v1/service/createListen": [
+   "POST"
+  ],
+  "/v1/service/event": [
+   "GET"
+  ],
+  "/v1/service/gaop": [
+   "GET"
+  ],
+  "/v1/service/healthCheck": [
+   "PUT"
+  ],
+  "/v1/service/hostName": [
+   "PUT"
+  ],
+  "/v1/service/httpList": [
+   "GET"
+  ],
+  "/v1/service/imageStorage": [
+   "GET"
+  ],
+  "/v1/service/labels": [
+   "GET"
+  ],
+  "/v1/service/listen": [
+   "DELETE"
+  ],
+  "/v1/service/logs": [
+   "POST"
+  ],
+  "/v1/service/native": [
+   "GET"
+  ],
+  "/v1/service/node": [
+   "DELETE"
+  ],
+  "/v1/service/otherPlugin": [
+   "GET"
+  ],
+  "/v1/service/patch": [
+   "PUT"
+  ],
+  "/v1/service/patchCommand/{serviceName}": [
+   "PUT"
+  ],
+  "/v1/service/patchService": [
+   "PUT"
+  ],
+  "/v1/service/port": [
+   "DELETE"
+  ],
+  "/v1/service/priority": [
+   "POST"
+  ],
+  "/v1/service/reStart": [
+   "PUT"
+  ],
+  "/v1/service/reStartBaseService": [
+   "POST"
+  ],
+  "/v1/service/restartInfo": [
+   "GET"
+  ],
+  "/v1/service/rollingUpdate": [
+   "PUT"
+  ],
+  "/v1/service/scale": [
+   "PUT"
+  ],
+  "/v1/service/schedulingNode": [
+   "PUT"
+  ],
+  "/v1/service/serviceAuth": [
+   "GET"
+  ],
+  "/v1/service/serviceInfoByNode": [
+   "GET"
+  ],
+  "/v1/service/servicePods": [
+   "DELETE"
+  ],
+  "/v1/service/service_pod": [
+   "DELETE",
+   "POST"
+  ],
+  "/v1/service/start": [
+   "PUT"
+  ],
+  "/v1/service/startUp": [
+   "POST"
+  ],
+  "/v1/service/stop": [
+   "PUT"
+  ],
+  "/v1/service/tcpList": [
+   "GET"
+  ],
+  "/v1/service/tolerance": [
+   "POST"
+  ],
+  "/v1/service/updateListen": [
+   "PUT"
+  ],
+  "/v1/service/updateName": [
+   "PUT"
+  ],
+  "/v1/service/updateServiceRole": [
+   "PUT"
+  ],
+  "/v1/service/{serviceName}": [
+   "GET"
+  ],
+  "/v1/service/{serviceName}/nodePort": [
+   "POST"
+  ],
+  "/v1/service/{serviceName}/node_port": [
+   "POST"
+  ],
+  "/v1/service/{service}/updateVolumes": [
+   "POST"
+  ],
+  "/v1/software": [
+   "GET",
+   "POST"
+  ],
+  "/v1/software/auth": [
+   "GET"
+  ],
+  "/v1/software/backup": [
+   "POST"
+  ],
+  "/v1/software/cancelAuth": [
+   "POST"
+  ],
+  "/v1/software/existConfigmap": [
+   "POST"
+  ],
+  "/v1/software/exportConfigmap": [
+   "POST"
+  ],
+  "/v1/software/gateway": [
+   "GET",
+   "PUT"
+  ],
+  "/v1/software/image_base64": [
+   "POST"
+  ],
+  "/v1/software/import": [
+   "POST"
+  ],
+  "/v1/software/import/template": [
+   "GET"
+  ],
+  "/v1/software/order/{orderNum}": [
+   "PUT"
+  ],
+  "/v1/software/overView": [
+   "POST"
+  ],
+  "/v1/software/recovery": [
+   "POST"
+  ],
+  "/v1/software/relationService/{id}": [
+   "GET"
+  ],
+  "/v1/software/release": [
+   "POST"
+  ],
+  "/v1/software/reset_service": [
+   "POST"
+  ],
+  "/v1/software/reset_software": [
+   "POST"
+  ],
+  "/v1/software/servicePort": [
+   "POST"
+  ],
+  "/v1/software/software/active": [
+   "POST"
+  ],
+  "/v1/software/softwareCode": [
+   "POST"
+  ],
+  "/v1/software/softwareRelateRole": [
+   "PUT"
+  ],
+  "/v1/software/top": [
+   "POST"
+  ],
+  "/v1/software/update_icon": [
+   "PUT"
+  ],
+  "/v1/software/update_screenshot": [
+   "PUT"
+  ],
+  "/v1/software/v2/backup": [
+   "POST"
+  ],
+  "/v1/software/{id}": [
+   "DELETE",
+   "GET",
+   "PUT"
+  ],
+  "/v1/software/{id}/licence": [
+   "DELETE",
+   "PUT"
+  ],
+  "/v1/software/{id}/relate_service": [
+   "DELETE",
+   "POST"
+  ],
+  "/v1/software/{id}/restart": [
+   "POST"
+  ],
+  "/v1/software/{id}/roll_back_version": [
+   "POST"
+  ],
+  "/v1/software/{id}/service_entry": [
+   "POST"
+  ],
+  "/v1/software/{id}/start": [
+   "GET"
+  ],
+  "/v1/software/{id}/status": [
+   "GET"
+  ],
+  "/v1/software/{id}/stop": [
+   "GET"
+  ],
+  "/v1/software/{softwareId}/export": [
+   "GET"
+  ],
+  "/v1/software/{softwareId}/service/{serviceName}": [
+   "GET",
+   "PUT"
+  ],
+  "/v1/software/{softwareId}/service/{serviceName}/exist": [
+   "GET"
+  ],
+  "/v1/software/{softwareId}/updateRemoteCs": [
+   "POST"
+  ],
+  "/v1/store_mange": [
+   "DELETE",
+   "GET"
+  ],
+  "/v1/sub_role": [
+   "POST"
+  ],
+  "/v1/sub_role/delete": [
+   "DELETE"
+  ],
+  "/v1/sub_role/export": [
+   "POST"
+  ],
+  "/v1/sub_role/import": [
+   "POST"
+  ],
+  "/v1/sub_role/import/template": [
+   "GET"
+  ],
+  "/v1/sub_role/roleAddUser/{roleId}": [
+   "POST"
+  ],
+  "/v1/sub_role/switchRole": [
+   "GET"
+  ],
+  "/v1/sub_role/update": [
+   "PUT"
+  ],
+  "/v1/sub_role/userAddRole/{userId}": [
+   "POST"
+  ],
+  "/v1/sub_role/{id}": [
+   "GET"
+  ],
+  "/v1/sync": [
+   "POST"
+  ],
+  "/v1/sync/base_url": [
+   "GET",
+   "PUT"
+  ],
+  "/v1/sync/client": [
+   "GET"
+  ],
+  "/v1/sync/configMap": [
+   "GET"
+  ],
+  "/v1/sync/database/backup": [
+   "POST"
+  ],
+  "/v1/sync/database/exist": [
+   "GET"
+  ],
+  "/v1/sync/database/status": [
+   "GET"
+  ],
+  "/v1/sync/databaseUser": [
+   "GET"
+  ],
+  "/v1/sync/download": [
+   "GET"
+  ],
+  "/v1/sync/image_download": [
+   "GET"
+  ],
+  "/v1/sync/nodePortService": [
+   "GET"
+  ],
+  "/v1/sync/relationDataBaseList": [
+   "GET"
+  ],
+  "/v1/sync/relationImage": [
+   "GET"
+  ],
+  "/v1/sync/relationServiceWebEntry": [
+   "GET"
+  ],
+  "/v1/sync/repositories": [
+   "GET"
+  ],
+  "/v1/sync/role": [
+   "GET"
+  ],
+  "/v1/sync/service": [
+   "GET"
+  ],
+  "/v1/sync/software": [
+   "GET"
+  ],
+  "/v1/sync/status": [
+   "GET"
+  ],
+  "/v1/sync/subRole": [
+   "GET"
+  ],
+  "/v1/sync/syncTcpAndUdp": [
+   "GET"
+  ],
+  "/v1/sync/tags": [
+   "GET"
+  ],
+  "/v1/sync/test": [
+   "GET"
+  ],
+  "/v1/sync/user": [
+   "GET"
+  ],
+  "/v1/sync/{id}": [
+   "GET"
+  ],
+  "/v1/sync/{roleId}/software": [
+   "GET"
+  ],
+  "/v1/sync/{roleId}/users": [
+   "GET"
+  ],
+  "/v1/test/images": [
+   "GET"
+  ],
+  "/v1/test/v1/modeTest": [
+   "GET"
+  ],
+  "/v1/test/v1/test": [
+   "GET"
+  ],
+  "/v1/test/websocket/mysql": [
+   "GET"
+  ],
+  "/v1/user": [
+   "GET",
+   "POST"
+  ],
+  "/v1/user/access_permission": [
+   "GET"
+  ],
+  "/v1/user/all_user": [
+   "DELETE"
+  ],
+  "/v1/user/backup": [
+   "POST"
+  ],
+  "/v1/user/detailByUserId": [
+   "GET"
+  ],
+  "/v1/user/export": [
+   "POST"
+  ],
+  "/v1/user/get": [
+   "GET"
+  ],
+  "/v1/user/import": [
+   "POST"
+  ],
+  "/v1/user/import/template": [
+   "GET"
+  ],
+  "/v1/user/info": [
+   "GET"
+  ],
+  "/v1/user/list": [
+   "GET"
+  ],
+  "/v1/user/login": [
+   "POST"
+  ],
+  "/v1/user/logout": [
+   "POST"
+  ],
+  "/v1/user/recovery": [
+   "POST"
+  ],
+  "/v1/user/redirect": [
+   "POST"
+  ],
+  "/v1/user/reset_user": [
+   "POST"
+  ],
+  "/v1/user/tenx_user": [
+   "GET"
+  ],
+  "/v1/user/update_avatar/{userId}": [
+   "POST"
+  ],
+  "/v1/user/userToRole": [
+   "POST"
+  ],
+  "/v1/user/{roleId}/users": [
+   "GET"
+  ],
+  "/v1/user/{userId}": [
+   "DELETE",
+   "GET",
+   "PUT"
+  ],
+  "/v1/user/{userId}/roles": [
+   "POST"
+  ],
+  "/v1/white_list": [
+   "DELETE",
+   "POST"
+  ],
+  "/v1/white_list/list": [
+   "GET"
+  ],
+  "/v3/software/backup": [
+   "POST"
+  ],
+  "/v3/software/backup/download": [
+   "GET"
+  ],
+  "/v3/software/backup/status": [
+   "GET"
+  ],
+  "/v3/software/import": [
+   "POST"
+  ],
+  "/v3/software/import/status": [
+   "GET"
+  ],
+  "/webhook": [
+   "POST"
+  ],
+  "/webhook/image/upload": [
+   "GET"
+  ],
+  "/webhook/registry/event": [
+   "POST"
+  ]
+ }
+}
